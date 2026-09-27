@@ -12,7 +12,7 @@ make install
 ```
 
 会做两件事：
-1. 创建 Python 虚拟环境 `.venv` 并安装后端依赖
+1. `uv sync` 创建 `.venv` 并安装后端依赖（**超快，2 秒搞定**）
 2. `pnpm install` 安装前端依赖
 
 ### 配置环境变量
@@ -34,27 +34,43 @@ make dev
 
 ## 📦 包管理
 
-| 端 | 工具 | 说明 |
-|---|---|---|
-| 后端 | pip + venv | 锁文件：`backend/.venv/`（不提交）|
-| 前端 | **pnpm** | 锁文件：`frontend/pnpm-lock.yaml`（**应该提交**）|
+| 端 | 工具 | 锁文件 | 说明 |
+|---|---|---|---|
+| 后端 | **uv** | `backend/uv.lock`（提交）| 超快 Rust 写的 pip 替代 |
+| 前端 | **pnpm** | `frontend/pnpm-lock.yaml`（提交）| 速度快、磁盘省 |
 
-**为什么用 pnpm？**
-- 🚀 安装速度快 2-3 倍
-- 💾 磁盘占用少（共享 store）
-- 🔒 严格的依赖隔离
-- 📦 默认 workspace 友好
+### 为什么用 uv？
 
-如果之后切换回 npm，需要：
-1. 删除 `frontend/node_modules` 和 `frontend/pnpm-lock.yaml`
-2. `cd frontend && npm install`
-3. 重新提交 `package-lock.json`
+- 🚀 **快 10-100 倍**（Rust 写的，比 pip 快很多）
+- 🔒 **自动管理虚拟环境**（不用手动 `python -m venv`）
+- 📦 **统一锁文件**（uv.lock 跨机器可复现）
+- 🐍 **自动下载 Python 版本**（指定 `.python-version` 即可）
+
+常用 uv 命令：
+
+```bash
+# 安装所有依赖
+uv sync
+
+# 添加新依赖
+uv add fastapi
+
+# 移除依赖
+uv remove fastapi
+
+# 运行命令（自动激活 venv）
+uv run python script.py
+uv run uvicorn app.main:app
+
+# 更新依赖到最新版本
+uv lock --upgrade
+```
 
 ## 📁 项目结构
 
 ```
 stayagent/
-├── backend/          # FastAPI 后端
+├── backend/          # FastAPI 后端（uv）
 ├── frontend/         # React 前端（pnpm）
 ├── docs/             # 立项文档
 └── Makefile          # 一键启动

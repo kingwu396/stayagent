@@ -9,15 +9,15 @@ help:
 	@echo "  make clean    - 清理临时文件"
 
 install:
-	@echo "📦 安装后端依赖（Python venv）..."
-	cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+	@echo "📦 安装后端依赖（uv）..."
+	cd backend && uv sync
 	@echo "📦 安装前端依赖（pnpm）..."
 	cd frontend && pnpm install
 	@echo "✅ 安装完成"
 
 backend:
 	@echo "🚀 启动 FastAPI (http://127.0.0.1:8000)"
-	cd backend && .venv/bin/uvicorn app.main:app --reload --port 8000
+	cd backend && uv run uvicorn app.main:app --reload --port 8000
 
 frontend:
 	@echo "🎨 启动 Vite (http://localhost:5173)"
