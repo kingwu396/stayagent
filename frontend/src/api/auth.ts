@@ -11,6 +11,7 @@ export interface User {
 export interface LoginResponse {
   access_token: string
   token_type: string
+  expires_in: number
   user: User
 }
 
@@ -28,5 +29,9 @@ export const authApi = {
   async me(): Promise<User> {
     const res = await api.get<User>('/auth/me')
     return res.data
+  },
+
+  async logout(): Promise<void> {
+    await api.post('/auth/logout')
   },
 }

@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -5,17 +6,28 @@ from app.api.health import router as health_router
 from app.api.auth import router as auth_router
 from app.db.session import engine
 from app.db.base import Base
+from app.core import redis_client
 
-# 导入所有模型（让 Base.metadata 找到它们）
 import app.models  # noqa: F401
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 启动
+    Base.metadata.create_all(bind=engine)
+    await redis_client.connect()
+    yield
+    # 关闭
+    await redis_client.close()
+
 
 app = FastAPI(
     title="StayAgent API",
-    version="0.2.0",
-    description="AI Travel Agent 后端 API",
+    version="0.3.0",
+    description="AI Travel Agent 后端 API（双 Token + Redis 黑名单）",
+    lifespan=lifespan,
 )
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -27,14 +39,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-@app.on_event("startup")
-def on_startup():
-    """启动时自动创建所有表（开发期用，后续切 Alembic）"""
-    Base.metadata.create_all(bind=engine)
-
-
-# 路由注册
 app.include_router(health_router, prefix="/api", tags=["health"])
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 
@@ -43,6 +47,7 @@ app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 async def root():
     return {
         "message": "StayAgent API",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "docs": "/docs",
+        "auth": "Access Token (header) + Refresh Token (HttpOnly cookie)",
     }

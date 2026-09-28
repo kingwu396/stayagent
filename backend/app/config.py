@@ -13,10 +13,18 @@ class Settings(BaseSettings):
     deepseek_api_key: str = ""
     deepseek_base_url: str = "https://api.deepseek.com"
 
-    # JWT (Block 2 才用)
+    # JWT
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60 * 24 * 7
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 7
+
+    # Redis
+    redis_url: str = "redis://localhost:6379/0"
+
+    # Cookie
+    cookie_secure: bool = False  # 生产环境改 True
+    cookie_samesite: str = "lax"
 
     model_config = SettingsConfigDict(
         env_file=".env",

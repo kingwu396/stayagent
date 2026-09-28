@@ -75,9 +75,9 @@ export function UserMenu() {
             我的行程
           </Link>
           <button
-            onClick={() => {
-              logout()
+            onClick={async () => {
               setOpen(false)
+              await logout()
               navigate('/')
             }}
             className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 border-t border-slate-100"

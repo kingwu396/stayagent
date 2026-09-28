@@ -21,7 +21,6 @@ class RegisterResponse(BaseModel):
 
 # ===== 登录 =====
 class LoginRequest(BaseModel):
-    # 邮箱或用户名都行
     account: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=8, max_length=128)
 
@@ -29,6 +28,7 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    expires_in: int  # access token 剩余秒数
     user: RegisterResponse
 
 
@@ -41,3 +41,8 @@ class CurrentUserResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ===== 登出 =====
+class LogoutResponse(BaseModel):
+    message: str = "已登出"
