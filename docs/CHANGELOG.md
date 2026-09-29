@@ -1,0 +1,160 @@
+# StayAgent 进度日志
+
+> 每个 Block 完成后追加一条记录。
+> 格式：日期 + Block 号 + 标题 + 改了啥 + 验证 + 提交哈希
+
+---
+
+## 📅 2026-09-22 — Block 1：项目骨架 + Hello StayAgent
+
+**目标**：跑通 Vue 3 + FastAPI + MySQL 最小闭环
+
+**新增**：
+- 30 个文件（前后端骨架 + 配置 + 立项文档）
+- Makefile（一键 `make dev`）
+- Git 仓库 + Gitee 远程
+
+**验证**：
+- ✅ FastAPI `/api/health` 返回 `{database: connected}`
+- ✅ 前端 React 看到三个绿勾
+- ✅ 浏览器截图：3 个 ✅ 全亮
+
+**提交**：`a93127f` "Block 1: project skeleton + Hello StayAgent"
+
+---
+
+## 📅 2026-09-22 — 依赖管理：npm → pnpm
+
+**目标**：换前端包管理工具
+
+**变更**：
+- 删除 `frontend/node_modules` + `package-lock.json`
+- 添加 `frontend/pnpm-lock.yaml`（应提交）
+- 新增 `frontend/pnpm-workspace.yaml`（持久化 esbuild postinstall 审批）
+- Makefile: `npm install` → `pnpm install`，`npm run dev` → `pnpm dev`
+
+**验证**：前后端跑通，三个 ✅ 不变
+
+**提交**：`0110764` "Switch frontend package manager from npm to pnpm"
+
+---
+
+## 📅 2026-09-23 — 依赖管理：pip+venv → uv
+
+**目标**：换 Python 包管理工具
+
+**变更**：
+- 删除 `backend/.venv` + `requirements.txt`
+- 添加 `backend/pyproject.toml` + `backend/uv.lock`（提交）+ `.python-version`（3.12）
+- Makefile: 装依赖用 `uv sync`，启动用 `uv run uvicorn`
+
+**提速**：pip 30+ 秒 → uv **2 秒**
+
+**验证**：前后端跑通，三个 ✅ 不变
+
+**提交**：`1ae04ec` "Migrate Python from pip+venv to uv"
+
+---
+
+## 📅 2026-09-23 — Block 2：用户系统（基础版）
+
+**目标**：注册/登录/JWT，前后端打通
+
+**新增**：
+- 后端 9 个文件：`User` 模型 + bcrypt + JWT + 3 个 API
+- 前端 10 个文件：Zustand 状态 + axios 拦截器 + 登录/注册页 + UserMenu + ProtectedRoute + 路由配置
+
+**验证**：
+- ✅ POST /api/auth/register
+- ✅ POST /api/auth/login → 拿 JWT
+- ✅ GET /api/auth/me 带 token 返用户信息
+- ✅ 不带 token → 401
+- ✅ 浏览器注册新用户 → 自动登录 → "欢迎回来 bob"
+
+**提交**：`420e00b` "Block 2: user auth system (register/login/JWT)"
+
+---
+
+## 📅 2026-09-28 — 破坏性升级：双 Token + Redis 黑名单
+
+> 详见 [`changelog-dual-token-redis.md`](./changelog-dual-token-redis.md)
+
+**动机**：
+- Token 7 天不过期 → 泄露无法撤销
+- 无服务端 logout
+- 无 refresh → token 过期必须重登
+
+**变更**：
+- Access Token（15 分钟，Authorization header）+ Refresh Token（7 天，HttpOnly cookie）
+- Redis 存 refresh 白名单 + access 黑名单
+- 前端 401 自动 refresh，用户无感知
+- 真实 logout 服务端生效
+
+**新增依赖**：`redis>=5.0.0`
+
+**新增文件**：
+- `backend/app/core/redis_client.py`
+- `backend/docs/changelog-dual-token-redis.md`
+
+**修改文件**：
+- `core/security.py`：`create_access_token/create_refresh_token/decode_token`
+- `deps.py`：async + 检查 access_blacklist
+- `api/auth.py`：加 /refresh、/logout，LoginResponse 加 expires_in
+- `main.py`：用 lifespan 启动 Redis 连接
+- `config.py`：加 `redis_url`、`access_token_expire_minutes`、`refresh_token_expire_days`、`cookie_*`
+- `.env`：加 `REDIS_URL`、`ACCESS_TOKEN_EXPIRE_MINUTES`、`REFRESH_TOKEN_EXPIRE_DAYS`
+
+**提交**：
+- `206cd73` "Add dual-token (access + refresh) auth with Redis blacklist"
+- `26f998f` "docs: add changelog for dual-token + Redis migration"
+
+---
+
+## 📅 2026-09-29 — Block 3：房源 Listing 模型 + Seed 数据
+
+**目标**：让 UI/API 有真实数据可消费
+
+**新增**：
+- `backend/app/models/listing.py` — 19 字段 ORM（含 JSON amenities/images）
+- `backend/app/schemas/listing.py` — Summary/Response/CityInfo
+- `backend/app/api/listings.py` — 3 个端点
+- `backend/scripts/__init__.py`
+- `backend/scripts/seed_listings.py` — 266 行，10 城市 × 10 条 = 100 条
+
+**修改**：
+- `models/__init__.py`：导出 Listing
+- `main.py`：注册 listings 路由
+- `Makefile`：加 `make seed`
+- `README.md`：加 Seed 章节
+
+**数据特征**：
+- 10 全球城市：Tokyo/Paris/New York/London/Bangkok/Bali/Shanghai/Seoul/Singapore/Rome
+- 5 类型均匀分布：apartment/house/villa/studio/hotel 各 20 条
+- 价格按类型分档（studio $40-120、villa $300-800）
+- 3-5 张 picsum.photos 图片（确定性 seed）
+- 房东名 30 个池随机，描述含城市关键词
+
+**验证**：
+- ✅ Seed 100 条 < 1 秒
+- ✅ 重跑幂等（"⏭ 已存在，跳过"）
+- ✅ 6 个 API 测试全过（list/filter/detail/404/cities）
+- ✅ Swagger UI 显示新端点
+
+**提交**：`5d6b4b4` "Block 3: Listing model + 100 seeded listings"
+
+---
+
+## 📍 进度一览
+
+```
+[✅] Block 1:  项目骨架 + Hello StayAgent
+[✅] Block 2:  用户系统（基础 → 双 Token + Redis）
+[✅] Block 3:  房源 seed 数据（100 条）
+[⬜] Block 4:  首页 + ListingCard + 微交互
+[⬜] Block 5:  搜索 + 列表 + URL 同步
+[⬜] Block 6:  房源详情
+[⬜] Block 7:  心愿单 + Trips
+[⬜] Block 8-14: Agent 全家桶
+```
+
+**当前完成度**：3/14 = **21%**
