@@ -16,6 +16,10 @@ install:
 	cd frontend && pnpm install
 	@echo "✅ 安装完成"
 
+seed:
+	@echo "🌱 填充 100 条房源演示数据..."
+	cd backend && uv run python -m scripts.seed_listings
+
 redis:
 	@echo "🔴 启动 Redis..."
 	@redis-cli ping >/dev/null 2>&1 || redis-server --daemonize yes --port 6379 --dir /tmp

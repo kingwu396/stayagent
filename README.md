@@ -19,6 +19,21 @@ make install
 
 编辑 `backend/.env`，填入你的 MySQL 密码（其他字段已预填）。
 
+### Seed 演示数据（首次）
+
+```bash
+make seed
+```
+
+会生成 100 条全球房源数据（10 个城市 × 10 条），幂等可重跑。
+
+**重置数据**：
+
+```bash
+mysql -u root -p -e "USE stayagent; TRUNCATE TABLE listings;"
+make seed
+```
+
 ### 启动开发环境
 
 ```bash
@@ -79,7 +94,8 @@ stayagent/
 ## 📍 当前进度
 
 - [x] **Block 1**: 项目骨架 + Hello StayAgent ✅
-- [ ] Block 2: 用户系统
+- [x] Block 2: 用户系统 ✅
+- [x] Block 3: 房源 seed 数据 ✅
 - [ ] Block 3-14: 业务 + Agent
 
 立项文档存放在 outputs/（本地参考用，不上传 git）
