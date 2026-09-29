@@ -17,3 +17,6 @@ dist/
 
 # Logs
 *.log
+
+# Local docs (changelogs, charters) - 不上传
+docs/

@@ -1,7 +1,7 @@
 # StayAgent
 
 > Airbnb 风格住宿平台 × AI Travel Agent
-> 立项文档见 [docs/project-charter.md](./docs/project-charter.md)
+> 立项文档见 `outputs/project-charter.md`（本地参考用，不上传）
 
 ## 🚀 快速开始
 
@@ -72,7 +72,7 @@ uv lock --upgrade
 stayagent/
 ├── backend/          # FastAPI 后端（uv）
 ├── frontend/         # React 前端（pnpm）
-├── docs/             # 立项文档
+├── outputs/（本地参考）
 └── Makefile          # 一键启动
 ```
 
@@ -82,4 +82,4 @@ stayagent/
 - [ ] Block 2: 用户系统
 - [ ] Block 3-14: 业务 + Agent
 
-详见 [docs/project-charter.md](./docs/project-charter.md)
+立项文档存放在 outputs/（本地参考用，不上传 git）
