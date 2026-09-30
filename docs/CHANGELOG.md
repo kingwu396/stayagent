@@ -158,3 +158,38 @@
 ```
 
 **当前完成度**：3/14 = **21%**
+
+---
+
+## 📅 2026-09-30 — Block 4：首页 + ListingCard + 微交互
+
+**目标**：把 HomeView 从 Block 2 验收占位页重写为 Airbnb 风格首页
+
+**新增组件（11 个）**：
+- `api/listings.ts` — 调 `/api/listings` API 客户端
+- `types/listing.ts` — TS 类型对齐后端
+- `stores/toast.ts` + `hooks/useToast.ts` + `components/Toast.tsx` — Toast 体系
+- `components/Skeleton.tsx` — 含 shimmer 动画 + ListingCardSkeleton
+- `components/EmptyState.tsx` + `ErrorState.tsx` — 通用空/错状态
+- `components/HeroSearch.tsx` — 大 Hero + 4 段搜索栏（视觉占位）
+- `components/CategoryStrip.tsx` — 5 类型图标条
+- `components/ListingCard.tsx` — Airbnb 风格卡片
+
+**修改文件（4 个）**：
+- `views/HomeView.tsx` — 完全重写：Topbar + Hero + Categories + 网格 + Footer
+- `lib/utils.ts` — 加 `formatPrice` + `formatRating`
+- `index.css` — 加 shimmer + toast 入场动画
+- `main.tsx` — 挂载 ToastContainer
+
+**加分项覆盖**：
+- ✅ F2 高复用组件：Skeleton/EmptyState/ErrorState/Toast
+- ✅ F6 微交互：Loading（Skeleton）/ Empty / Error / Toast 完整
+
+**验证**（4 张截图）：
+- ✅ 首页全貌（20 卡片 4 列网格）
+- ✅ Toast 弹出（点击 ❤️ 按钮）
+- ✅ Skeleton 加载（慢网络）
+- ✅ ErrorState（停 backend）
+
+**提交**：`<待 commit>`
+

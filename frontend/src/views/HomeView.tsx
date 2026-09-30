@@ -1,16 +1,43 @@
+import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Hotel } from 'lucide-react'
 import { UserMenu } from '@/components/UserMenu'
-import { useAuthStore } from '@/stores/auth'
+import { HeroSearch } from '@/components/HeroSearch'
+import { CategoryStrip } from '@/components/CategoryStrip'
+import { ListingCard } from '@/components/ListingCard'
+import { ListingCardSkeleton } from '@/components/Skeleton'
+import { EmptyState } from '@/components/EmptyState'
+import { ErrorState } from '@/components/ErrorState'
+import { listingsApi } from '@/api/listings'
+import type { ListingSummary } from '@/types/listing'
 
 export function HomeView() {
-  const user = useAuthStore((s) => s.user)
+  const [listings, setListings] = useState<ListingSummary[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchListings = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const data = await listingsApi.list({ page: 1, page_size: 20 })
+      setListings(data.items)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || '加载失败')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchListings()
+  }, [fetchListings])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* 顶部导航 */}
-      <header className="border-b border-slate-200 bg-white">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-slate-50">
+      {/* ===== Topbar ===== */}
+      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
               <Hotel className="w-5 h-5 text-white" />
@@ -21,45 +48,113 @@ export function HomeView() {
         </div>
       </header>
 
-      {/* 主内容 */}
-      <main className="max-w-6xl mx-auto px-6 py-12">
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-slate-900 mb-4">
-            {user ? `欢迎回来，${user.username} 👋` : 'StayAgent'}
-          </h1>
-          <p className="text-xl text-slate-600 mb-2">AI Travel Agent · Block 2 烟雾测试</p>
-          <p className="text-sm text-slate-400">
-            {user ? '✅ 你已登录，可以体验后续功能' : '👈 点击右上角登录或注册'}
-          </p>
-        </div>
+      {/* ===== Hero 搜索栏 ===== */}
+      <HeroSearch />
 
-        <div className="bg-white rounded-2xl shadow-xl p-8 space-y-4 max-w-2xl mx-auto">
-          <h2 className="text-lg font-semibold text-slate-900 mb-2">Block 2 验收清单</h2>
+      {/* ===== 分类条 ===== */}
+      <CategoryStrip />
 
-          <CheckItem label="注册新用户" status="ok" />
-          <CheckItem label="JWT 登录获取 token" status="ok" />
-          <CheckItem label="受保护路由 /api/auth/me" status="ok" />
-          <CheckItem label="未登录访问 /me → 401" status="ok" />
-          <CheckItem label="Zustand 状态 + localStorage 持久化" status="ok" />
-          <CheckItem label="登录页 + 注册页 + 受保护路由组件" status="ok" />
-          <CheckItem label="右上角用户菜单（下拉）" status="ok" />
-
-          {!user && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-700 text-sm mt-4">
-              💡 试试注册一个新账号，体验完整流程
-            </div>
+      {/* ===== 推荐房源 ===== */}
+      <main className="max-w-6xl mx-auto px-6 py-10">
+        <h2 className="text-2xl font-bold text-slate-900 mb-6">
+          推荐房源
+          {!isLoading && listings.length > 0 && (
+            <span className="text-sm font-normal text-slate-500 ml-2">
+              {listings.length} 处
+            </span>
           )}
-        </div>
+        </h2>
+
+        {isLoading && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <ListingCardSkeleton key={i} />
+            ))}
+          </div>
+        )}
+
+        {!isLoading && error && (
+          <ErrorState
+            description={error}
+            onRetry={fetchListings}
+          />
+        )}
+
+        {!isLoading && !error && listings.length === 0 && (
+          <EmptyState
+            title="暂无房源"
+            description="演示数据为空，请运行 make seed 填充数据"
+          />
+        )}
+
+        {!isLoading && !error && listings.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {listings.map((l) => (
+              <ListingCard key={l.id} listing={l} />
+            ))}
+          </div>
+        )}
       </main>
+
+      {/* ===== Footer ===== */}
+      <footer className="border-t border-slate-200 bg-white mt-12">
+        <div className="max-w-6xl mx-auto px-6 py-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-6">
+            <FooterColumn
+              title="StayAgent"
+              links={[
+                { label: '关于我们', href: '#' },
+                { label: '招新', href: '#' },
+              ]}
+            />
+            <FooterColumn
+              title="支持"
+              links={[
+                { label: '帮助中心', href: '#' },
+                { label: '联系客服', href: '#' },
+              ]}
+            />
+            <FooterColumn
+              title="开发"
+              links={[
+                { label: 'API 文档', href: 'http://127.0.0.1:8000/docs', external: true },
+                { label: 'GitHub', href: '#' },
+              ]}
+            />
+          </div>
+          <div className="pt-6 border-t border-slate-100 text-center text-sm text-slate-500">
+            © 2026 StayAgent · AI Travel Agent Demo
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
 
-function CheckItem({ label, status }: { label: string; status: 'ok' | 'pending' }) {
+interface FooterLink {
+  label: string
+  href: string
+  external?: boolean
+}
+
+function FooterColumn({ title, links }: { title: string; links: FooterLink[] }) {
   return (
-    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-      <span className="text-slate-700">{label}</span>
-      <span className="text-xl">{status === 'ok' ? '✅' : '⏳'}</span>
+    <div>
+      <h4 className="text-sm font-semibold text-slate-900 mb-3">{title}</h4>
+      <ul className="space-y-2">
+        {links.map((link) => (
+          <li key={link.label}>
+            <a
+              href={link.href}
+              target={link.external ? '_blank' : undefined}
+              rel={link.external ? 'noopener noreferrer' : undefined}
+              className="text-sm text-slate-500 hover:text-slate-900 transition"
+            >
+              {link.label}
+            </a>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
