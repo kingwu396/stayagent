@@ -5,6 +5,7 @@ import { UserMenu } from '@/components/UserMenu'
 import { ImageGallery } from '@/components/ImageGallery'
 import { AmenityList } from '@/components/AmenityList'
 import { BookingWidget } from '@/components/BookingWidget'
+import { ListingMap } from '@/components/ListingMap'
 import { ErrorState } from '@/components/ErrorState'
 import { Skeleton } from '@/components/Skeleton'
 import { listingsApi } from '@/api/listings'
@@ -157,6 +158,20 @@ export function ListingDetailView() {
                     设施与服务
                   </h3>
                   <AmenityList amenities={listing.amenities} />
+                </section>
+
+                {/* 位置 */}
+                <section className="pb-6">
+                  <h3 className="text-lg font-semibold text-slate-900 mb-2">位置</h3>
+                  <p className="text-sm text-slate-600 mb-4">
+                    📍 {listing.city}, {listing.country}
+                  </p>
+                  <ListingMap
+                    latitude={listing.latitude}
+                    longitude={listing.longitude}
+                    city={listing.city}
+                    country={listing.country}
+                  />
                 </section>
 
                 {/* 房型详情 */}

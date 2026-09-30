@@ -270,3 +270,40 @@
 
 **提交**：`<待 commit>`
 
+
+---
+
+## 📅 2026-09-30 — Block 6.5：房源地图定位（AMap）
+
+**目标**：详情页加地图 section，调用高德地图显示房源精确坐标
+
+**新增文件（1 个）**：
+- `frontend/src/components/ListingMap.tsx` — 动态加载 AMap 脚本 + 初始化地图
+
+**修改文件（2 个）**：
+- `frontend/src/views/ListingDetailView.tsx` — 在 AmenityList 后插入"位置"section
+- `frontend/.env.example` — 加 VITE_AMAP_KEY 占位
+
+**技术决策**：
+- ❌ 计划用 `@amap/amapjsapi-loader` npm 包 → 实际包名为 `amap-js` 且依赖装错（用 `@babel/runtime-corejs2` 但代码 require `@babel/runtime/helpers/...`），无法解析
+- ✅ 改用**动态注入 `<script>` 标签** 加载 AMap JS API v2.0（官方推荐方式之一），无 npm 依赖
+- 工具栏插件：`AMap.ToolBar`（缩放）+ `AMap.Scale`（比例尺）
+
+**4 种渲染状态**：
+1. `empty`：无 lat/lng → "暂无位置数据"
+2. `no-key`：env 没配 VITE_AMAP_KEY → 提示去 `.env.local` 配
+3. `loading`：shimmer 骨架屏
+4. `ready`：地图 + 标记 + InfoWindow 弹窗
+5. `error`：友好错误提示
+
+**验证**：
+- ✅ 详情页完整渲染（host/description/amenities/**位置**/room stats）
+- ✅ "位置"section 显示东京坐标 + 友好占位
+- ✅ 控制台无错误
+
+**已知限制**：
+- ❌ 未截图真实地图（用户 key 未填 `.env.local`）
+- 用户把 key 写入 `frontend/.env.local` 重启 dev server 即可激活
+
+**提交**：`<待 commit>`
+
