@@ -10,6 +10,7 @@ interface ListingMapProps {
 }
 
 const AMAP_KEY = import.meta.env.VITE_AMAP_KEY as string | undefined
+const AMAP_SECURITY_CODE = import.meta.env.VITE_AMAP_SECURITY_CODE as string | undefined
 
 function loadAMapScript(key: string): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -19,10 +20,12 @@ function loadAMapScript(key: string): Promise<any> {
     }
 
     const w = window as any
-    w._AMapSecurityConfig = { securityJsCode: '' }
+    if (AMAP_SECURITY_CODE) {
+      w._AMapSecurityConfig = { securityJsCode: AMAP_SECURITY_CODE }
+    }
 
     const script = document.createElement('script')
-    script.src = `https://webapi.amap.com/maps?v=2.0&key=${key}&plugin=AMap.ToolBar,AMap.Scale`
+    script.src = `https://webapi.amap.com/maps?v=2.0&key=${key}&plugin=AMap.HTML5Render,AMap.ToolBar,AMap.Scale`
     script.async = true
     script.onload = () => resolve((window as any).AMap)
     script.onerror = () => reject(new Error('AMap 脚本加载失败'))
@@ -70,12 +73,24 @@ export function ListingMap({ latitude, longitude, city, country }: ListingMapPro
         initTimer = window.setTimeout(() => {
           if (cancelled || !containerRef.current) return
 
+          // 强制设容器 size（AMap 2.0 canvas 经常拿不到正确尺寸）
+          const rect = containerRef.current.getBoundingClientRect()
+          if (rect.width < 100 || rect.height < 100) {
+            console.warn('[ListingMap] container too small, retry...')
+            initTimer = window.setTimeout(arguments.callee, 100)  // 极少见，兜底
+            return
+          }
+          // 给 canvas 显式尺寸（AMap 内部 canvas 用 width/height 属性，不是 CSS）
+          containerRef.current.style.width = rect.width + 'px'
+          containerRef.current.style.height = rect.height + 'px'
+
           let map: any
           try {
             map = new AMap.Map(containerRef.current, {
               center: [lng, lat],
               zoom: 15,
               viewMode: '2D',
+              renderer: 'AMap.HTML5Render',
             })
           } catch (e) {
             setState({ kind: 'error', message: String(e) })

@@ -351,3 +351,25 @@
 - ❌ 不是 WebGL 问题（headless Chrome 有 WebGL）
 - ✅ 是 React useEffect cleanup bug（StrictMode 双调用 + 状态变更触发销毁）
 
+
+---
+
+## 📅 2026-10-01 — Block 6.5 第 3 次修复：securityJsCode + 真浏览器测试
+
+**问题**：用户报告真浏览器里瓦片底图也是灰色。
+
+**新发现**：
+- AMap API `restapi.amap.com/v3/config/key` 接口直接返回了 `sec_code` 字段（你的**安全密钥**）
+- 之前我们传的 `_AMapSecurityConfig.securityJsCode: ''` 是空字符串
+- AMap 2.0 WebGL 渲染器拒绝渲染瓦片（但 marker + UI 仍能显示）
+
+**修复**：
+- 加 `VITE_AMAP_SECURITY_CODE` 环境变量
+- 代码读这个值并设到 `window._AMapSecurityConfig.securityJsCode`
+- 安全密钥从 `.env.local` 读取（gitignored）
+
+**Headless Chrome vs 真浏览器**：
+- ✅ securityJsCode 已接入
+- ⚠️ headless Chrome 截图仍然灰色（这是 headless 限制）
+- 🎯 **请在真浏览器访问 http://localhost:5173/listings/1 看实际效果**
+
