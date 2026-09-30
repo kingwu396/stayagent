@@ -11,18 +11,15 @@ interface ListingMapProps {
 
 const AMAP_KEY = import.meta.env.VITE_AMAP_KEY as string | undefined
 
-// 动态注入 AMap JS API 脚本（避免污染 index.html）
 function loadAMapScript(key: string): Promise<any> {
   return new Promise((resolve, reject) => {
-    // 已加载则直接返回
     if ((window as any).AMap) {
       resolve((window as any).AMap)
       return
     }
 
-    // 设置全局 resolver（AMap loader 约定）
     const w = window as any
-    w._AMapSecurityConfig = { securityJsCode: '' } // 占位，按需配白名单
+    w._AMapSecurityConfig = { securityJsCode: '' }
 
     const script = document.createElement('script')
     script.src = `https://webapi.amap.com/maps?v=2.0&key=${key}&plugin=AMap.ToolBar,AMap.Scale`
@@ -49,11 +46,14 @@ export function ListingMap({ latitude, longitude, city, country }: ListingMapPro
     return { kind: 'loading' }
   })
 
+  // 关键修复：从依赖中移除 state.kind
+  // 这样 setState('ready') 不会触发 cleanup 销毁 map
+  // 只有当 latitude/longitude/key 真正变化时才重建
   useEffect(() => {
-    if (state.kind !== 'loading') return
     if (!latitude || !longitude || !AMAP_KEY || !containerRef.current) return
 
     let cancelled = false
+    let initTimer: number | undefined
 
     loadAMapScript(AMAP_KEY)
       .then((AMap) => {
@@ -66,41 +66,62 @@ export function ListingMap({ latitude, longitude, city, country }: ListingMapPro
           return
         }
 
-        const map = new AMap.Map(containerRef.current, {
-          center: [lng, lat],
-          zoom: 15,
-          viewMode: '2D',
-        })
-        mapInstanceRef.current = map
+        // 延迟一帧再创建 map（让 React 完成渲染 + 容器尺寸稳定）
+        initTimer = window.setTimeout(() => {
+          if (cancelled || !containerRef.current) return
 
-        const marker = new AMap.Marker({
-          position: [lng, lat],
-          title: '房源位置',
-        })
-        map.add(marker)
+          let map: any
+          try {
+            map = new AMap.Map(containerRef.current, {
+              center: [lng, lat],
+              zoom: 15,
+              viewMode: '2D',
+            })
+          } catch (e) {
+            setState({ kind: 'error', message: String(e) })
+            return
+          }
+          mapInstanceRef.current = map
 
-        const infoWindow = new AMap.InfoWindow({
-          content: `<div style="padding:6px 10px;font-size:13px;">📍 房源大致位置<br/><span style="color:#64748b;">${city}, ${country}</span></div>`,
-          offset: new AMap.Pixel(0, -30),
-        })
-        infoWindow.open(map, [lng, lat])
+          map.add(new AMap.Marker({
+            position: [lng, lat],
+            title: '房源位置',
+          }))
 
-        setState({ kind: 'ready' })
+          const infoWindow = new AMap.InfoWindow({
+            content: `<div style="padding:6px 10px;font-size:13px;">📍 房源大致位置<br/><span style="color:#64748b;">${city}, ${country}</span></div>`,
+            offset: new AMap.Pixel(0, -30),
+          })
+          infoWindow.open(map, [lng, lat])
+
+          // 强制重排（处理容器初始 0 尺寸的边缘情况）
+          window.setTimeout(() => {
+            try { map.resize?.() } catch (e) { /* noop */ }
+            window.dispatchEvent(new Event('resize'))
+          }, 200)
+
+          setState({ kind: 'ready' })
+        }, 100)
       })
       .catch((err) => {
         if (cancelled) return
-        console.error('[ListingMap] AMap load failed:', err)
         setState({ kind: 'error', message: err?.message || '地图加载失败' })
       })
 
     return () => {
       cancelled = true
+      if (initTimer) clearTimeout(initTimer)
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.destroy()
+        try { mapInstanceRef.current.destroy() } catch (e) { /* noop */ }
         mapInstanceRef.current = null
       }
     }
-  }, [state.kind, latitude, longitude, city, country])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latitude, longitude, city, country])
+  //         ^ 故意不含 state.kind 和 AMAP_KEY（key 不会变）
+  //         AMAP_KEY 在模块顶层读取，重渲染时不变
+
+  // ===== 占位状态 =====
 
   if (state.kind === 'empty') {
     return (
@@ -119,7 +140,8 @@ export function ListingMap({ latitude, longitude, city, country }: ListingMapPro
           <div>
             <h4 className="font-semibold mb-1">需要配置 AMap API Key</h4>
             <p className="text-sm text-amber-700">
-              在 <code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs">frontend/.env.local</code> 设置 <code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs">VITE_AMAP_KEY=你的key</code> 后重启 dev server。
+              在 <code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs">frontend/.env.local</code> 设置{' '}
+              <code className="px-1.5 py-0.5 bg-amber-100 rounded text-xs">VITE_AMAP_KEY=你的key</code> 后重启 dev server。
             </p>
           </div>
         </div>

@@ -313,3 +313,41 @@
 
 **提交**：`<待 commit>`
 
+
+---
+
+## 📅 2026-10-01 — Block 6.5 修复：AMap 地图渲染 Bug
+
+**问题**：用户配置了 AMap key 后，地图区域仍只显示灰色格（瓦片没渲染）
+
+**根因诊断**（日志+DOM 抓取定位）：
+1. ✅ AMap JS API 加载成功（200 OK，key 有效）
+2. ✅ `window.AMap` 全局可用
+3. ✅ `new AMap.Map(container)` 创建成功（不报错）
+4. ❌ 但 **container 内部 0 个子元素**（canvas/tile 都没创建）
+
+**真正的 Bug**（3 层）：
+- **Layer 1**: `useEffect` 在 React 18 StrictMode 下被调用 2 次
+- **Layer 2**: 第 1 次调用里 `setTimeout(100ms)` 创建了 map → 然后 `setState('ready')` 触发 re-render
+- **Layer 3**: cleanup 函数在每次 useEffect 重跑时执行 `mapInstanceRef.current.destroy()` ← **这里把刚创建的 map 销毁了**
+
+**修复**：
+- 从 useEffect 依赖数组移除 `state.kind`（避免 setState 触发 cleanup）
+- 加 `clearTimeout(initTimer)` 在 cleanup 里（避免 pending timer 创建新 map 后被销毁）
+
+**附加发现**：
+- 之前"成功截图"看到的高德 logo 是 headless Chrome 的 WebGL canvas 显示 WebGL 之后，**React StrictMode 的两次 mount 中第一次 mount 的残留**。第二次 mount 时 cleanup 已经 destroy 了。
+
+**验证**（修复后）：
+- ✅ `childCount: 5`（IFRAME + amap-maps + amap-controls + ...）
+- ✅ `canvasCount: 1`（AMap canvas）
+- ✅ 蓝色标记渲染
+- ✅ InfoWindow 弹窗 "房源大致位置" 显示
+- ✅ 高德版权信息 + GS 备案号显示
+
+**总结**：
+- ❌ 不是没充钱（curl 验后 API 全 200）
+- ❌ 不是 key 错（curl reverse geocode 成功）
+- ❌ 不是 WebGL 问题（headless Chrome 有 WebGL）
+- ✅ 是 React useEffect cleanup bug（StrictMode 双调用 + 状态变更触发销毁）
+
