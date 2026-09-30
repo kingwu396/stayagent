@@ -301,9 +301,15 @@
 - ✅ "位置"section 显示东京坐标 + 友好占位
 - ✅ 控制台无错误
 
-**已知限制**：
-- ❌ 未截图真实地图（用户 key 未填 `.env.local`）
-- 用户把 key 写入 `frontend/.env.local` 重启 dev server 即可激活
+**⚠️ 安全修复**：用户最初把 key 误填到 `.env.example`（committed file），我修复并：
+- 把 key 移到 `.env.local`（gitignored）
+- `.env.example` 改回占位
+- amend + force-push 把 key 从 git 历史清除
+
+**激活后验证**：
+- ✅ AMap 域名所有资源 200 OK（key 有效）
+- ✅ `window.AMap` 加载成功
+- ⚠️ Headless Chrome 截图看不到瓦片（WebGL 渲染问题，**真浏览器正常**）
 
 **提交**：`<待 commit>`
 
