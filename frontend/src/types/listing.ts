@@ -24,3 +24,29 @@ export interface CityInfo {
   country: string
   count: number
 }
+
+/** 详情页用：ListingResponse 全部 22 字段 */
+export interface ListingDetail {
+  id: number
+  title: string
+  description: string | null
+  host_name: string
+  city: string
+  country: string
+  latitude: string | null
+  longitude: string | null
+  property_type: string
+  price_per_night: string
+  cleaning_fee: string
+  service_fee: string
+  max_guests: number
+  bedrooms: number
+  beds: number
+  bathrooms: number
+  rating: string
+  review_count: number
+  amenities: string[]
+  images: string[]
+  primary_image: string | null
+  created_at: string
+}

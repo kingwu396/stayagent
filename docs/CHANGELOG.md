@@ -231,3 +231,42 @@
 
 **提交**：`<待 commit>`
 
+
+---
+
+## 📅 2026-09-30 — Block 6：房源详情 + 价格拆解
+
+**目标**：实现 `/listings/:id` 路由 + Airbnb 经典双列布局 + PriceBreakdown
+
+**新增组件（5 个）**：
+- `components/ImageGallery.tsx` — Airbnb 5图网格 + Lightbox（ESC/箭头键）
+- `components/PriceBreakdown.tsx` — **F2 复用** charter 示例格式
+- `components/AmenityList.tsx` — 14 种 amenity 友好中文 + lucide 图标
+- `components/BookingWidget.tsx` — 粘性预订卡 + 日期 + 人数 + 实时 PriceBreakdown
+- `views/ListingDetailView.tsx` — 主详情页（2 列布局）
+
+**修改文件（3 个）**：
+- `types/listing.ts` — 加 ListingDetail 接口（22 字段）
+- `api/listings.ts` — 加 `getById(id)`
+- `router/index.tsx` — 加 `/listings/:id` 路由
+
+**关键功能**：
+- ✅ 双列布局：左详情 + 右粘性预订卡（top-24）
+- ✅ Image Gallery 桌面 1 大 + 4 小 + Lightbox（移动端横滑）
+- ✅ PriceBreakdown 实时随日期/人数重算
+- ✅ 预订卡按钮：未登录 → 跳 `/login`，已登录 → toast（Block 7 接预订 API）
+- ✅ 404 用 ErrorState + 重试 + 返回首页
+- ✅ Loading 用 DetailSkeleton
+- ✅ 返回按钮用 `navigate(-1)` 智能返回
+
+**已知小问题**（Block 7 修复）：
+- PriceBreakdown 取整误差：subtotal 取整显示 ¥191，实际 190.50，加清洁+服务显示 ¥204
+
+**验证**（4 张截图）：
+- ✅ 详情页全貌（标题/评分/画廊/详情/预订卡）
+- ✅ Lightbox 全屏 + 1/5 指示
+- ✅ 预订卡 + PriceBreakdown（¥64×3晚 + 清洁 + 服务 = 总计）
+- ✅ 404 ErrorState
+
+**提交**：`<待 commit>`
+

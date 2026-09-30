@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { ListingListResponse, CityInfo } from '@/types/listing'
+import type { ListingListResponse, CityInfo, ListingDetail } from '@/types/listing'
 
 export interface ListListingsParams {
   page?: number
@@ -11,6 +11,11 @@ export interface ListListingsParams {
 export const listingsApi = {
   async list(params: ListListingsParams = {}): Promise<ListingListResponse> {
     const res = await api.get<ListingListResponse>('/listings', { params })
+    return res.data
+  },
+
+  async getById(id: number): Promise<ListingDetail> {
+    const res = await api.get<ListingDetail>(`/listings/${id}`)
     return res.data
   },
 
