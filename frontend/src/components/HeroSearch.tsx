@@ -1,8 +1,21 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Search, MapPin, CalendarDays, Users } from 'lucide-react'
-import { useToast } from '@/hooks/useToast'
 
 export function HeroSearch() {
-  const toast = useToast()
+  const navigate = useNavigate()
+  const [city, setCity] = useState('')
+  const [checkIn, setCheckIn] = useState('')
+  const [checkOut, setCheckOut] = useState('')
+  const [guests, setGuests] = useState('')
+
+  function onSearch() {
+    const params = new URLSearchParams()
+    if (city.trim()) params.set('city', city.trim())
+    if (guests) params.set('min_guests', guests)
+    // dates: Block 5 不响应（API 不支持），不传
+    navigate(`/search${params.toString() ? `?${params.toString()}` : ''}`)
+  }
 
   return (
     <section className="relative bg-gradient-to-br from-rose-50 via-white to-slate-50 border-b border-slate-200">
@@ -14,18 +27,44 @@ export function HeroSearch() {
           告诉 AI Agent 你想去哪儿，剩下的它来搞定
         </p>
 
-        {/* 搜索栏（视觉占位 + 点击触发 toast） */}
         <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-xl border border-slate-200 p-2 md:p-3 flex flex-col md:flex-row items-stretch md:items-center gap-2">
-          <SearchItem icon={<MapPin className="w-5 h-5" />} label="想去哪？" placeholder="搜索目的地" />
+          <SearchItem
+            icon={<MapPin className="w-5 h-5" />}
+            label="想去哪？"
+            placeholder="搜索目的地"
+            value={city}
+            onChange={setCity}
+          />
           <Divider />
-          <SearchItem icon={<CalendarDays className="w-5 h-5" />} label="入住" placeholder="任何日期" />
+          <SearchItem
+            icon={<CalendarDays className="w-5 h-5" />}
+            label="入住"
+            placeholder="任何日期"
+            value={checkIn}
+            onChange={setCheckIn}
+            type="date"
+          />
           <Divider />
-          <SearchItem icon={<CalendarDays className="w-5 h-5" />} label="退房" placeholder="任何日期" />
+          <SearchItem
+            icon={<CalendarDays className="w-5 h-5" />}
+            label="退房"
+            placeholder="任何日期"
+            value={checkOut}
+            onChange={setCheckOut}
+            type="date"
+          />
           <Divider />
-          <SearchItem icon={<Users className="w-5 h-5" />} label="人数" placeholder="添加" />
+          <SearchItem
+            icon={<Users className="w-5 h-5" />}
+            label="人数"
+            placeholder="添加"
+            value={guests}
+            onChange={setGuests}
+            type="number"
+          />
 
           <button
-            onClick={() => toast.info('搜索功能将在 Block 5 上线 🚀')}
+            onClick={onSearch}
             className="flex-shrink-0 flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 text-white font-medium px-6 py-3 rounded-xl transition md:ml-2"
           >
             <Search className="w-4 h-4" />
@@ -41,10 +80,16 @@ function SearchItem({
   icon,
   label,
   placeholder,
+  value,
+  onChange,
+  type = 'text',
 }: {
   icon: React.ReactNode
   label: string
   placeholder: string
+  value: string
+  onChange: (v: string) => void
+  type?: string
 }) {
   return (
     <div className="flex-1 px-3 py-2 md:py-1 hover:bg-slate-50 rounded-lg cursor-pointer transition min-w-0">
@@ -53,8 +98,11 @@ function SearchItem({
         <div className="flex-1 min-w-0">
           <div className="text-xs font-semibold text-slate-900">{label}</div>
           <input
-            type="text"
+            type={type}
             placeholder={placeholder}
+            value={value}
+            min={type === 'number' ? 1 : undefined}
+            onChange={(e) => onChange(e.target.value)}
             className="w-full text-sm text-slate-500 placeholder:text-slate-400 outline-none bg-transparent"
           />
         </div>

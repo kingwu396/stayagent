@@ -1,8 +1,8 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Heart, Star } from 'lucide-react'
 import type { ListingSummary } from '@/types/listing'
 import { formatPrice, formatRating } from '@/lib/utils'
+import { useWishlistStore } from '@/stores/wishlist'
 import { useToast } from '@/hooks/useToast'
 
 const FALLBACK_IMAGE = 'https://picsum.photos/seed/placeholder/400/300'
@@ -12,21 +12,17 @@ interface ListingCardProps {
 }
 
 export function ListingCard({ listing }: ListingCardProps) {
+  const liked = useWishlistStore((s) => s.ids.includes(listing.id))
+  const toggle = useWishlistStore((s) => s.toggle)
   const toast = useToast()
-  const [liked, setLiked] = useState(false)
-  const [imgError, setImgError] = useState(false)
-
-  const imageSrc = imgError || !listing.primary_image
-    ? FALLBACK_IMAGE
-    : listing.primary_image
 
   function toggleLike(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
-    setLiked((v) => !v)
-    toast.info(
-      liked ? '收藏功能将在 Block 7 上线 ❤️' : '收藏功能将在 Block 7 上线 🚀'
-    )
+    const wasLiked = liked
+    toggle(listing.id)
+    // 真 Optimistic Update：UI 已经立刻变了，toast 给反馈
+    toast.success(wasLiked ? '已取消收藏' : '已添加到心愿单 ❤️')
   }
 
   return (
@@ -34,17 +30,17 @@ export function ListingCard({ listing }: ListingCardProps) {
       to={`/listings/${listing.id}`}
       className="group block rounded-xl overflow-hidden"
     >
-      {/* 图片容器 */}
       <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-100">
         <img
-          src={imageSrc}
+          src={listing.primary_image || FALLBACK_IMAGE}
           alt={listing.title}
           loading="lazy"
-          onError={() => setImgError(true)}
+          onError={(e) => {
+            ;(e.target as HTMLImageElement).src = FALLBACK_IMAGE
+          }}
           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
 
-        {/* 右上角心形按钮 */}
         <button
           onClick={toggleLike}
           className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-md hover:scale-110 transition"
@@ -57,13 +53,13 @@ export function ListingCard({ listing }: ListingCardProps) {
           />
         </button>
 
-        {/* 类型徽章 */}
-        <div className="absolute bottom-3 left-3 px-2.5 py-1 bg-white/90 backdrop-blur-sm rounded-md text-xs font-medium text-slate-700 capitalize">
-          {listing.property_type}
-        </div>
+        {listing.property_type && (
+          <div className="absolute bottom-3 left-3 px-2.5 py-1 bg-white/90 backdrop-blur-sm rounded-md text-xs font-medium text-slate-700 capitalize">
+            {listing.property_type}
+          </div>
+        )}
       </div>
 
-      {/* 信息 */}
       <div className="pt-3 px-2">
         <div className="flex items-start justify-between gap-2 mb-1">
           <h3 className="text-sm text-slate-900 font-semibold truncate flex-1">

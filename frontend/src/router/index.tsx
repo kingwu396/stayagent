@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { HomeView } from '@/views/HomeView'
+import { SearchView } from '@/views/SearchView'
 import { LoginView } from '@/views/LoginView'
 import { RegisterView } from '@/views/RegisterView'
 import { PlaceholderView } from '@/views/PlaceholderView'
@@ -9,6 +10,10 @@ export const router = createBrowserRouter([
   {
     path: '/',
     element: <HomeView />,
+  },
+  {
+    path: '/search',
+    element: <SearchView />,
   },
   {
     path: '/login',

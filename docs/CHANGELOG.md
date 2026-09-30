@@ -193,3 +193,41 @@
 
 **提交**：`<待 commit>`
 
+
+---
+
+## 📅 2026-09-30 — Block 5：搜索 + 列表 + URL 同步 + Optimistic Update
+
+**目标**：实现 `/search` 路由 + Airbnb 风筛选 + 全部状态进 URL + 真 Optimistic 心愿单
+
+**新增文件（5 个）**：
+- `stores/wishlist.ts` — Zustand + persist（localStorage），真正的 Optimistic Update
+- `views/SearchView.tsx` — 主搜索结果页
+- `components/FilterBar.tsx` — 顶部筛选条 + chip 行
+- `components/FilterModal.tsx` — 筛选 modal（价格/城市/类型/人数/日期）
+- `components/FilterChip.tsx` — 单个 active filter chip
+
+**修改文件（3 个）**：
+- `router/index.tsx` — 加 `/search` 路由
+- `components/HeroSearch.tsx` — 改为导航到 `/search`（去掉 toast）
+- `components/ListingCard.tsx` — 心形改读 wishlist store（真 Optimistic）
+
+**加分项覆盖**：
+- ✅ F2 复用：FilterChip / FilterModal 复用 modal pattern
+- ✅ F4 Optimistic Update：心形立即响应，无网络等待
+- ✅ F6 微交互：Loading（卡片淡入）/ Error / Empty 全覆盖
+
+**URL 参数同步**：
+- `city`、`property_type`、`min_price`、`max_price`、`min_guests`、`q`、`page`
+- 改 filter 自动 reset page，Load More 累加 page
+- 刷新/分享 URL 保留全部筛选状态
+
+**验证**（5 张截图）：
+- ✅ `/search` 默认显示 100 条（首页 20 张卡）
+- ✅ `?city=Tokyo&property_type=apartment` 过滤后剩 2 条，chip 显示
+- ✅ Modal 完整表单（5 个 section + 类型多选）
+- ✅ Load More：20→40，显示「已显示 40 / 100」
+- ✅ Optimistic 心愿单：点击立刻变红 + toast「已添加到心愿单 ❤️」
+
+**提交**：`<待 commit>`
+
