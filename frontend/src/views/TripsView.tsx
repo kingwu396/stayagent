@@ -85,10 +85,10 @@ export function TripsView() {
       <main className="max-w-5xl mx-auto px-6 py-12 md:py-16">
         {/* Title */}
         <header className="mb-12">
-          <h1 className="font-display text-4xl md:text-5xl font-bold text-ink mb-2 tracking-tight">
+          <h1 className="text-4xl md:text-5xl font-bold text-ink mb-2 tracking-tight">
             Your itinerary
           </h1>
-          <p className="font-mono text-sm text-stone-500">
+          <p className="text-sm text-stone-500">
             {!isLoading && total > 0
               ? `${total} ${total === 1 ? 'trip' : 'trips'} · ${totalNights} ${totalNights === 1 ? 'night' : 'nights'} total`
               : 'Booked journeys and stays'}
@@ -163,23 +163,23 @@ function BookingRow({ booking: b, onCancel, canceling }: BookingRowProps) {
         {/* Date block (主视觉) */}
         <div className="flex md:flex-col items-baseline md:items-start gap-3 md:gap-1 md:min-w-[140px]">
           <div className="flex items-baseline gap-2">
-            <span className="font-display text-3xl font-bold text-ink leading-none">
+            <span className="text-3xl font-bold text-ink leading-none">
               {checkIn.day}
             </span>
-            <span className="font-mono text-xs text-stone-500 uppercase tracking-wider">
+            <span className="text-xs text-stone-500 uppercase tracking-wider">
               {checkIn.month}
             </span>
           </div>
-          <div className="font-mono text-xs text-stone-400">→</div>
+          <div className="text-xs text-stone-400">→</div>
           <div className="flex items-baseline gap-2">
-            <span className="font-display text-3xl font-bold text-ink leading-none">
+            <span className="text-3xl font-bold text-ink leading-none">
               {checkOut.day}
             </span>
-            <span className="font-mono text-xs text-stone-500 uppercase tracking-wider">
+            <span className="text-xs text-stone-500 uppercase tracking-wider">
               {checkOut.month}
             </span>
           </div>
-          <span className="font-mono text-xs text-stone-500 mt-1">{checkIn.year}</span>
+          <span className="text-xs text-stone-500 mt-1">{checkIn.year}</span>
         </div>
 
         {/* 分隔线 */}
@@ -187,7 +187,7 @@ function BookingRow({ booking: b, onCancel, canceling }: BookingRowProps) {
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <h3 className={`font-display text-xl font-bold text-ink mb-1 ${isCancelled ? 'line-through' : ''}`}>
+          <h3 className={`text-xl font-bold text-ink mb-1 ${isCancelled ? 'line-through' : ''}`}>
             {b.listing.title}
           </h3>
           <p className="text-sm text-stone-500 mb-3">
@@ -195,7 +195,7 @@ function BookingRow({ booking: b, onCancel, canceling }: BookingRowProps) {
           </p>
 
           {/* Meta line */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-stone-600 font-mono mb-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-stone-600 mb-3">
             <span className="flex items-center gap-1">
               <Calendar className="w-3 h-3" />
               {b.nights} {b.nights === 1 ? 'night' : 'nights'}
@@ -208,10 +208,10 @@ function BookingRow({ booking: b, onCancel, canceling }: BookingRowProps) {
 
           {/* Price + status */}
           <div className="flex items-baseline justify-between border-t border-slate-100 pt-3">
-            <span className="font-mono text-sm text-stone-600">
+            <span className="text-sm text-stone-600">
               {formatMoney(b.total)} <span className="text-xs text-stone-400">total</span>
             </span>
-            <span className="font-mono text-xs text-stone-500">
+            <span className="text-xs text-stone-500">
               {statusText(b)}
             </span>
           </div>
@@ -221,14 +221,14 @@ function BookingRow({ booking: b, onCancel, canceling }: BookingRowProps) {
             <div className="flex items-center justify-end gap-2 mt-3">
               <Link
                 to={`/listings/${b.listing_id}`}
-                className="text-xs font-mono text-stone-500 hover:text-ink underline-offset-4 hover:underline"
+                className="text-xs text-stone-500 hover:text-ink underline-offset-4 hover:underline"
               >
                 View listing
               </Link>
               <button
                 onClick={onCancel}
                 disabled={canceling}
-                className="px-3 py-1.5 text-xs font-mono text-stone-600 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded transition disabled:opacity-50"
+                className="px-3 py-1.5 text-xs text-stone-600 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded transition disabled:opacity-50"
               >
                 {canceling ? '取消中…' : 'Cancel'}
               </button>

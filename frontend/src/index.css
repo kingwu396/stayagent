@@ -3,10 +3,6 @@
 @tailwind utilities;
 
 :root {
-  --font-display: 'Newsreader', Georgia, serif;
-  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
-  --font-mono: 'IBM Plex Mono', SF Mono, monospace;
-
   --paper: #FAF6EC;
   --paper-dim: #EDE5D2;
   --moss: #3D5A40;
@@ -15,14 +11,10 @@
 }
 
 body {
-  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: var(--ink);
 }
-
-.font-display { font-family: var(--font-display); }
-.font-mono    { font-family: var(--font-mono); }
 
 /* ============ 自定义动画（Block 4） ============ */
 @keyframes shimmer {

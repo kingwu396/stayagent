@@ -23,9 +23,7 @@ export default {
         ink: '#1B1B1B',
       },
       fontFamily: {
-        sans: ['var(--font-sans)', '-apple-system', 'sans-serif'],
-        serif: ['var(--font-display)', 'Georgia', 'serif'],
-        mono: ['var(--font-mono)', 'monospace'],
+        sans: ['-apple-system', 'BlinkMacSystemFont', 'PingFang SC', 'Helvetica Neue', 'sans-serif'],
       },
     },
   },

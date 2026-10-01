@@ -45,7 +45,7 @@ export function ListingLocationCard({ latitude, longitude, city, country }: List
           </div>
 
           {hasCoords && (
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-full font-mono text-xs text-slate-500">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-full text-xs text-slate-500">
               <Compass className="w-3 h-3" />
               <span>{lat!.toFixed(2)}°N · {lng!.toFixed(2)}°E</span>
             </div>
@@ -65,11 +65,11 @@ export function ListingLocationCard({ latitude, longitude, city, country }: List
           <div className="grid grid-cols-2 gap-3 mb-6">
             <div className="bg-white border border-slate-200 rounded-xl px-4 py-3">
               <div className="text-[10px] font-semibold text-slate-400 tracking-widest uppercase mb-1">纬度 / Lat</div>
-              <div className="font-mono text-slate-900 font-semibold tracking-tight">{lat!.toFixed(6)}°</div>
+              <div className="text-slate-900 font-semibold tracking-tight">{lat!.toFixed(6)}°</div>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl px-4 py-3">
               <div className="text-[10px] font-semibold text-slate-400 tracking-widest uppercase mb-1">经度 / Lng</div>
-              <div className="font-mono text-slate-900 font-semibold tracking-tight">{lng!.toFixed(6)}°</div>
+              <div className="text-slate-900 font-semibold tracking-tight">{lng!.toFixed(6)}°</div>
             </div>
           </div>
         )}

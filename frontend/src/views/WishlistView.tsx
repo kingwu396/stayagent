@@ -85,10 +85,10 @@ export function WishlistView() {
       <main className="max-w-5xl mx-auto px-6 py-12 md:py-16">
         {/* Title */}
         <header className="mb-12">
-          <h1 className="font-display text-4xl md:text-5xl font-bold text-ink mb-2 tracking-tight">
+          <h1 className="text-4xl md:text-5xl font-bold text-ink mb-2 tracking-tight">
             Saved places
           </h1>
-          <p className="font-mono text-sm text-stone-500">
+          <p className="text-sm text-stone-500">
             {totalListings > 0
               ? `${totalListings} ${totalListings === 1 ? 'place' : 'places'} across ${lists.length} ${lists.length === 1 ? 'collection' : 'collections'}`
               : 'Your personal collections'}
@@ -133,10 +133,10 @@ export function WishlistView() {
         {/* Empty */}
         {!isLoading && !error && lists.length === 0 && (
           <div className="text-center py-20 border-t border-b border-slate-200">
-            <p className="font-mono text-xs uppercase tracking-wider text-stone-400 mb-3">
+            <p className="text-xs uppercase tracking-wider text-stone-400 mb-3">
               — empty —
             </p>
-            <h2 className="font-display text-2xl text-ink mb-2">No saved places yet</h2>
+            <h2 className="text-2xl text-ink mb-2">No saved places yet</h2>
             <p className="text-stone-500 mb-6">
               Browse listings and tap the heart to save them here.
             </p>
@@ -156,14 +156,14 @@ export function WishlistView() {
             <div className="px-6 py-5 border-b border-slate-200 flex items-start justify-between">
               <div>
                 <div className="flex items-baseline gap-3 mb-1">
-                  <span className="font-mono text-xs text-stone-400">
+                  <span className="text-xs text-stone-400">
                     [{String(i + 1).padStart(2, '0')}]
                   </span>
-                  <h2 className="font-display text-2xl font-bold text-ink tracking-tight">
+                  <h2 className="text-2xl font-bold text-ink tracking-tight">
                     {wl.name}
                   </h2>
                 </div>
-                <p className="font-mono text-xs text-stone-500 ml-9">
+                <p className="text-xs text-stone-500 ml-9">
                   {wl.items.length} {wl.items.length === 1 ? 'place' : 'places'} · created{' '}
                   {new Date(wl.created_at).toLocaleDateString('en-CA')}
                 </p>
@@ -179,7 +179,7 @@ export function WishlistView() {
 
             {/* Items */}
             {wl.items.length === 0 ? (
-              <div className="px-6 py-10 text-center text-stone-400 text-sm font-mono">
+              <div className="px-6 py-10 text-center text-stone-400 text-sm">
                 这条清单还是空的。
               </div>
             ) : (
@@ -218,7 +218,7 @@ export function WishlistView() {
                     if (e.key === 'Enter') onCreate()
                     if (e.key === 'Escape') setShowNewCollection(false)
                   }}
-                  className="flex-1 px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-ink focus:border-transparent outline-none text-sm font-display"
+                  className="flex-1 px-3 py-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-ink focus:border-transparent outline-none text-sm"
                 />
                 <button
                   onClick={onCreate}
@@ -252,7 +252,7 @@ export function WishlistView() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmDelete(null)} />
           <div className="relative bg-white rounded-md shadow-2xl max-w-md w-full p-6">
-            <h3 className="font-display text-xl font-bold text-ink mb-2">删除清单？</h3>
+            <h3 className="text-xl font-bold text-ink mb-2">删除清单？</h3>
             <p className="text-sm text-stone-600 mb-6">
               「<span className="font-medium">{confirmDelete.name}</span>」及其中的 {confirmDelete.items.length} 个房源将被永久删除。
             </p>

@@ -31,7 +31,7 @@ export function PriceBreakdown({
   }
 
   return (
-    <div className="space-y-2.5 text-sm font-mono">
+    <div className="space-y-2.5 text-sm">
       <Row
         label={`${fmt(pricePerNight)} x ${safeNights}晚`}
         value={fmt(subtotal)}
@@ -47,7 +47,7 @@ export function PriceBreakdown({
 
 function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
-    <div className={`flex items-center justify-between ${bold ? 'font-bold text-base text-ink font-display' : 'text-stone-600'}`}>
+    <div className={`flex items-center justify-between ${bold ? 'font-bold text-base text-ink' : 'text-stone-600'}`}>
       <span>{label}</span>
       <span>{value}</span>
     </div>
