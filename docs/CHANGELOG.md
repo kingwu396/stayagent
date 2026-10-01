@@ -373,3 +373,67 @@
 - ⚠️ headless Chrome 截图仍然灰色（这是 headless 限制）
 - 🎯 **请在真浏览器访问 http://localhost:5173/listings/1 看实际效果**
 
+
+---
+
+## 📅 2026-10-01 — Block 7：心愿单（多清单）+ Trips + PriceBreakdown 取整修复
+
+**设计方向**：Editorial Field Notes（编辑感旅行笔记）
+- Newsreader（衬线，标题）+ IBM Plex Sans（正文）+ IBM Plex Mono（数字/日期）
+- paper #FAF6EC 卡片 / moss #3D5A40 主点缀 / ink #1B1B1B 标题
+- 不用 shadow 用 border、状态用普通文字不彩色徽章、不加 → 箭头
+
+**后端新增（5 文件）**：
+- `models/wishlist.py` — Wishlist + WishlistItem（charter 多对多）
+- `models/booking.py` — Booking（含 status enum + 完整价格字段）
+- `schemas/wishlist.py` — 5 个 schemas（含 MigrateRequest/Response）
+- `schemas/booking.py` — BookingCreate / BookingResponse / BookingListResponse
+- `api/wishlists.py` — 7 个端点（CRUD + items + migrate）
+- `api/bookings.py` — 4 个端点（list/create/get/cancel）
+
+**端点（11 个）**：
+```
+GET    /api/wishlists
+POST   /api/wishlists
+GET    /api/wishlists/{id}
+DELETE /api/wishlists/{id}
+POST   /api/wishlists/{id}/items
+DELETE /api/wishlists/{id}/items/{listing_id}
+POST   /api/wishlists/migrate          ← 匿名收藏 → 默认清单
+GET    /api/bookings
+POST   /api/bookings
+GET    /api/bookings/{id}
+POST   /api/bookings/{id}/cancel
+```
+
+**前端新增/重构（10 文件）**：
+- `index.html` — 加 Google Fonts CDN（Newsreader + Plex Sans/Mono）
+- `tailwind.config.js` — paper / moss / ink 颜色 + 字体扩展
+- `index.css` — CSS 变量 + 全局字体
+- `types/wishlist.ts` + `types/booking.ts` — TS 类型
+- `api/wishlists.ts` + `api/bookings.ts` — 客户端
+- `stores/wishlist.ts` — **重写**：从 `ids[]` → `lists[]`，支持服务端多清单 + 匿名 fallback + Optimistic Update + 匿名迁移
+- `views/WishlistView.tsx` — 编辑感列表（编号 [01] + serif 标题 + paper 卡片 + + New collection 内联）
+- `views/TripsView.tsx` — 票券卡片（日期大字 Newsreader + 状态普通文字 + Plex Mono）
+- 改 `BookingWidget.tsx` — 接 booking API（isSubmitting + 跳 /trips）
+- 改 `ListingCard.tsx` — 用 `s.has(id)` 替代 `s.ids.includes`
+- 改 `PriceBreakdown.tsx` — **修取整 bug**：`Math.round` → `toFixed(2)`，数学正确
+- 改 `router/index.tsx` — 用 WishlistView/TripsView 替 PlaceholderView
+- 删除 `PlaceholderView.tsx`
+
+**PriceBreakdown 验证**：
+- 旧：`¥64 × 3 = ¥191`（取整误差，与 ¥204.64 不一致）
+- 新：`¥63.50 × 3 = ¥190.50` + `¥7.75` + `¥5.79` = **`¥204.04`** ✅
+
+**验证**（3 张）：
+- ✅ /wishlist 空状态："Saved places" Newsreader + "— EMPTY —" Plex Mono + Browse listings 黑按钮
+- ✅ /trips 空状态："Your itinerary" + "Booked journeys and stays"
+- ✅ 详情页 PriceBreakdown 2 位小数，AMap 实跑地图
+
+**已知改进点**（不阻塞）：
+- 用户名显示太长未截断（UserMenu Block 5 已有的样式问题）
+- 主页 ListingCard 心形点击 → 走 store.toggle() → 登录态调后端，匿名态写 localStorage
+- BookingWidget 取消按钮 confirm() 用浏览器原生弹窗（Block 14 可换 toast）
+
+**提交**：`<待 commit>`
+

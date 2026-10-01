@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.health import router as health_router
 from app.api.auth import router as auth_router
 from app.api.listings import router as listings_router
+from app.api.wishlists import router as wishlists_router
+from app.api.bookings import router as bookings_router
 from app.db.session import engine
 from app.db.base import Base
 from app.core import redis_client
@@ -43,6 +45,8 @@ app.add_middleware(
 app.include_router(health_router, prefix="/api", tags=["health"])
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(listings_router, prefix="/api/listings", tags=["listings"])
+app.include_router(wishlists_router, prefix="/api/wishlists", tags=["wishlists"])
+app.include_router(bookings_router, prefix="/api/bookings", tags=["bookings"])
 
 
 @app.get("/")

@@ -12,7 +12,7 @@ interface ListingCardProps {
 }
 
 export function ListingCard({ listing }: ListingCardProps) {
-  const liked = useWishlistStore((s) => s.ids.includes(listing.id))
+  const liked = useWishlistStore((s) => s.has(listing.id))
   const toggle = useWishlistStore((s) => s.toggle)
   const toast = useToast()
 

@@ -1,10 +1,11 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { HomeView } from '@/views/HomeView'
 import { ListingDetailView } from '@/views/ListingDetailView'
+import { WishlistView } from '@/views/WishlistView'
+import { TripsView } from '@/views/TripsView'
 import { SearchView } from '@/views/SearchView'
 import { LoginView } from '@/views/LoginView'
 import { RegisterView } from '@/views/RegisterView'
-import { PlaceholderView } from '@/views/PlaceholderView'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 
 export const router = createBrowserRouter([
@@ -32,7 +33,7 @@ export const router = createBrowserRouter([
     path: '/wishlist',
     element: (
       <ProtectedRoute>
-        <PlaceholderView title="我的心愿单" emoji="❤️" blockNumber="Block 7" />
+        <WishlistView />
       </ProtectedRoute>
     ),
   },
@@ -40,7 +41,7 @@ export const router = createBrowserRouter([
     path: '/trips',
     element: (
       <ProtectedRoute>
-        <PlaceholderView title="我的行程" emoji="✈️" blockNumber="Block 7" />
+        <TripsView />
       </ProtectedRoute>
     ),
   },

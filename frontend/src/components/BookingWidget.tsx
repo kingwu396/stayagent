@@ -4,6 +4,7 @@ import { Minus, Plus } from 'lucide-react'
 import type { ListingDetail } from '@/types/listing'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/hooks/useToast'
+import { bookingsApi } from '@/api/bookings'
 import { PriceBreakdown } from './PriceBreakdown'
 
 interface BookingWidgetProps {
@@ -61,12 +62,33 @@ export function BookingWidget({ listing }: BookingWidgetProps) {
     setGuests((g) => Math.max(1, Math.min(listing.max_guests, g + delta)))
   }
 
-  function onBook() {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  async function onBook() {
     if (!user) {
       navigate('/login')
       return
     }
-    toast.info('预订功能将在 Block 7 上线 🚀')
+    if (nights < 1) {
+      toast.warning('请选择有效的入住 / 退房日期')
+      return
+    }
+    setIsSubmitting(true)
+    try {
+      await bookingsApi.create({
+        listing_id: listing.id,
+        check_in,
+        check_out,
+        guests,
+      })
+      toast.success('预订成功 ✈️')
+      navigate('/trips')
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message || '预订失败'
+      toast.error(msg)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const buttonText = user ? '立即预订' : '登录后预订'
@@ -143,9 +165,10 @@ export function BookingWidget({ listing }: BookingWidgetProps) {
       {/* 预订按钮 */}
       <button
         onClick={onBook}
-        className="w-full mt-6 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white font-semibold py-3.5 rounded-xl transition shadow-md"
+        disabled={isSubmitting}
+        className="w-full mt-6 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 disabled:from-stone-300 disabled:to-stone-300 text-white font-semibold py-3.5 rounded-xl transition shadow-md disabled:cursor-not-allowed"
       >
-        {buttonText}
+        {isSubmitting ? '预订中…' : buttonText}
       </button>
 
       {nights < 1 && (
