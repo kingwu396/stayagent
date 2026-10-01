@@ -10,13 +10,14 @@ import { ListingCardSkeleton } from '@/components/Skeleton'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
 import { listingsApi } from '@/api/listings'
-import type { ListingSummary } from '@/types/listing'
+import type { ListingSummary, CityInfo } from '@/types/listing'
 
 export function HomeView() {
   const [listings, setListings] = useState<ListingSummary[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showCompact, setShowCompact] = useState(false)
+  const [cities, setCities] = useState<CityInfo[]>([])
   const heroRef = useRef<HTMLDivElement>(null)
 
   // 滚过 hero 80% 后显示紧凑搜索条
@@ -49,6 +50,11 @@ export function HomeView() {
     fetchListings()
   }, [fetchListings])
 
+  // 拉城市列表（HeroSearch 推荐目的地用）
+  useEffect(() => {
+    listingsApi.cities().then(setCities).catch(() => setCities([]))
+  }, [])
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ===== 紧凑条（滚过 hero 后出现） ===== */}
@@ -72,7 +78,7 @@ export function HomeView() {
       </header>
 
       {/* ===== Hero 搜索栏 ===== */}
-      <HeroSearch ref={heroRef} />
+      <HeroSearch ref={heroRef} recommended={cities} />
 
       {/* ===== 分类条 ===== */}
       <CategoryStrip />

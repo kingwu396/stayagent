@@ -5,6 +5,8 @@ interface DatePickerPanelProps {
   checkIn: string // YYYY-MM-DD
   checkOut: string
   onChange: (inDate: string, outDate: string) => void
+  /** 单月（HeroSearch 用）/ 双月（CompactTopbar 用） */
+  variant?: 'single' | 'double'
 }
 
 type Mode = 'specific' | 'flexible'
@@ -37,7 +39,7 @@ const MONTH_NAMES_ZH = [
 ]
 const WEEKDAY_NAMES_ZH = ['日', '一', '二', '三', '四', '五', '六']
 
-export function DatePickerPanel({ checkIn, checkOut, onChange }: DatePickerPanelProps) {
+export function DatePickerPanel({ checkIn, checkOut, onChange, variant = 'double' }: DatePickerPanelProps) {
   const today = useMemo(() => {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
@@ -136,8 +138,8 @@ export function DatePickerPanel({ checkIn, checkOut, onChange }: DatePickerPanel
 
       {mode === 'specific' ? (
         <>
-          {/* 双月日历 */}
-          <div className="flex gap-6">
+          {/* 日历：单月或双月 */}
+          <div className={variant === 'double' ? 'flex gap-6' : 'flex justify-center'}>
             <MonthGrid
               year={viewYear}
               month={viewMonth}
@@ -146,19 +148,21 @@ export function DatePickerPanel({ checkIn, checkOut, onChange }: DatePickerPanel
               isEnd={isEnd}
               isPast={isPast}
               onPick={onPick}
-              onPrev={() => shift(-1)}
+              onPrev={variant === 'double' ? () => shift(-1) : undefined}
             />
-            <MonthGrid
-              year={viewYear}
-              month={viewMonth + 1 > 11 ? 0 : viewMonth + 1}
-              viewYear={viewYear + (viewMonth + 1 > 11 ? 1 : 0)}
-              inRange={inRange}
-              isStart={isStart}
-              isEnd={isEnd}
-              isPast={isPast}
-              onPick={onPick}
-              onNext={() => shift(1)}
-            />
+            {variant === 'double' && (
+              <MonthGrid
+                year={viewYear}
+                month={viewMonth + 1 > 11 ? 0 : viewMonth + 1}
+                viewYear={viewYear + (viewMonth + 1 > 11 ? 1 : 0)}
+                inRange={inRange}
+                isStart={isStart}
+                isEnd={isEnd}
+                isPast={isPast}
+                onPick={onPick}
+                onNext={() => shift(1)}
+              />
+            )}
           </div>
         </>
       ) : (

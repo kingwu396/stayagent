@@ -606,3 +606,75 @@ POST   /api/bookings/{id}/cancel
 - 多类型 property_type / 价格 min-max 没在紧凑条暴露（compact 不适合密集表单，留给 FilterModal 或后续"更多筛选"）
 
 **提交**：`<待 commit>`
+
+
+---
+
+## 📅 2026-10-01 — CompactTopbar v3：独立 segment 点击 + 紧凑面板 + HeroSearch 同步
+
+**修复 3 个用户反馈**：
+
+### 1. HeroSearch 与其他搜索栏一致
+- 主页 HeroSearch 重写为支持 inline expand
+- 4 段字段（想去哪 / 入住 / 退房 / 人数）现在都是独立 button
+- 点击任一段 → 显示对应 dropdown（**不再跳到 location**）
+- 展开态用 `variant="single"` 单月日历（主页更紧凑）
+- LocationSuggestions 单月日期面板宽度更小（约 600px）
+
+### 2. 独立 segment 点击
+- 旧：`CompactTopbar` 的 pill 是单个 `div role="button"`，任何位置点击都跳到 location
+- 新：每个 segment 是独立 `<button>`，点击 → toggle 对应 panel
+- 移动端：用 tab 切换（保持响应式）
+
+### 3. 面板更小
+- 桌面端：展开面板容器宽度 `max-w-3xl` (768px)，居中
+- HeroSearch 展开面板：单月日历（hero 上下文更紧凑）
+- CompactTopbar 展开面板：双月日历（search 上下文更宽）
+- `DatePickerPanel` 加 `variant='single' | 'double'` prop
+
+### 新增组件
+
+- **`hooks/useCompactSearch.ts`** — 共享搜索状态 hook
+  - state (city, checkIn, checkOut, guests) + expanded + activePanel
+  - toggle / open / close / setState API
+  - ESC / 点击外部自动关闭
+  - URL → state 同步（syncFromInitial）
+- **`components/SearchPanel.tsx`** — 三个 panel 的统一容器
+  - 接 `active` prop 自动渲染对应子组件
+  - 接 `variant` prop 决定日期面板单/双月
+  - 复用 LocationSuggestions / DatePickerPanel / GuestsPanel
+
+### 重构
+
+- `CompactTopbar.tsx` — 用 useCompactSearch hook，pill 段独立 button，max-w-3xl 面板
+- `HeroSearch.tsx` — 全部重写，支持 inline expand + 单月日历 + 4 段独立点击
+- `views/SearchView.tsx` — import 路径调整（用 `useCompactSearch` 的 type）
+- `views/HomeView.tsx` — 给 HeroSearch 传 `recommended={cities}`（fetch cities on mount）
+
+### 验证（8 张截图 + 端到端流程）
+
+```
+HOME 页面：
+✅ 点击想去哪 → LocationSuggestions 面板
+✅ 点击入住   → 单月日历面板
+✅ 点击退房   → 单月日历面板
+✅ 点击人数   → GuestsPanel 面板
+✅ 点击外部关闭
+
+COMPACT（滚过 hero）：
+✅ 点击想去哪 → LocationSuggestions（双列推荐）
+✅ 点击任何日期 → 双月日历
+✅ 点击添加人数 → GuestsPanel
+✅ Panel 宽度：768px (max-w-3xl)
+
+SEARCH 页面：
+✅ CompactTopbar 预填 URL 值（Bangkok | 10月8日-10月12日 | 1位客人）
+
+端到端流程：
+Home → 点想去哪 → 选 Bangkok → 点入住 → 选 10/8 → 选 10/12
+     → 点人数 → +1 成人 → 点搜索
+URL: /search?city=Bangkok&check_in=2026-10-08&check_out=2026-10-12&min_guests=1
+结果：10 处住宿（全部 Bangkok listings）
+```
+
+**提交**：`<待 commit>`
