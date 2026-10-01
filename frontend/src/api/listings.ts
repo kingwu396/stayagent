@@ -6,6 +6,10 @@ export interface ListListingsParams {
   page_size?: number
   city?: string
   property_type?: string
+  min_price?: number
+  max_price?: number
+  min_guests?: number
+  q?: string
 }
 
 export const listingsApi = {

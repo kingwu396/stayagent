@@ -503,3 +503,106 @@ POST   /api/bookings/{id}/cancel
 
 **提交**：`<待 commit>`
 
+
+
+---
+
+## 📅 2026-10-01 — 紧凑搜索条增强：可展开 + 全功能面板
+
+**目标**：复刻 Airbnb 风格的"点击展开"搜索体验。紧凑条点击后展开成完整搜索表单（地点/日期/人员），每个 section 有自己的 dropdown；SearchView 用紧凑条替 FilterBar，显示当前已选值。
+
+**新建文件（3 个）**：
+- `frontend/src/components/LocationSuggestions.tsx`
+  - 最近搜索 + 推荐目的地列表
+  - 输入框（自动 focus）
+  - 没有匹配时显示"使用 'xxx' 搜索"快捷项
+- `frontend/src/components/DatePickerPanel.tsx`
+  - 双月日历（指定日期模式）+ 灵活日期模式（±1/2/3/7/14 天）
+  - 区间选择（点起始日→点结束日）
+  - 今天高亮（rose ring），过去日期灰显
+- `frontend/src/components/GuestsPanel.tsx`
+  - 4 行：成人/儿童/婴儿/宠物（+ / - 计数器）
+  - 最小/最大限制 + 禁用按钮反馈
+
+**重构 `CompactTopbar.tsx`**：
+- 新增两态：`collapsed`（pill 显示已选值/占位）+ `expanded`（完整表单 + dropdown 面板）
+- 展开态：左侧 pill 段（地点/日期/人员）+ 右侧 [🔍 搜索] 按钮
+- 下方面板：根据 activePanel 渲染 LocationSuggestions / DatePickerPanel / GuestsPanel
+- ESC / 点击外部 → 关闭
+- 点击搜索 → navigate('/search?q=...') 或调 onSearch 回调
+- prop `initial?: CompactSearchState` 让 SearchView 传入 URL 解析值
+- prop `recommended?: CityInfo[]` 让 LocationSuggestions 显示真实城市
+- prop `onSearch?: (s) => void` 让 SearchView 自定义（更新 URL 而不是 navigate）
+
+**重构 `SearchView.tsx`**：
+- 删掉 `FilterBar + FilterModal + FilterChip` 整个过滤条
+- 用 `<CompactTopbar visible={true} initial={search} recommended={cities} onSearch={handleSearch} />` 替代
+- URL → CompactSearchState 解析（`parseSearchFromURL`）
+- CompactSearchState → URL 写回（`applyToURL`）
+- filter 变化 → 重置 page + 重 fetch
+
+**CSS 新增（`index.css`）**：
+```css
+@keyframes expand-down {
+  from { opacity: 0; transform: translateY(-8px); max-height: 0; }
+  to   { opacity: 1; transform: translateY(0); max-height: 600px; }
+}
+.animate-expand-down { animation: expand-down 0.25s ease-out; overflow: hidden; }
+```
+
+**数据流**：
+```
+[HomeView]
+  scroll past hero → showCompact=true
+  click pill → expand (activePanel='location')
+  click dates segment → switch to 'dates'
+  pick dates → setState
+  click guests → switch to 'guests'
+  click + on adults → setState
+  click search → navigate('/search?city=...&check_in=...&min_guests=...')
+
+[SearchView]
+  URL → parseSearchFromURL → initial state
+  click pill (with current values) → expand
+  edit city/dates/guests → setState
+  click search → setSearchParams(applyToURL) (no navigate, just URL update)
+  URL change → re-fetch listings
+```
+
+**Toggle 行为修复**：
+- 旧：点击同一 segment 关闭 expand（容易误触）
+- 新：点击同一 segment 不响应，关闭只能通过 ESC / 点击外部 / 搜索按钮
+
+**API 类型补全（`api/listings.ts`）**：
+- `ListListingsParams` 加 `min_price / max_price / min_guests / q`
+
+**FilterValues 兼容（`FilterModal.tsx`）**：
+- 加可选 `q?: string`（虽然 FilterBar 已废，但保留类型兼容性）
+
+**验证（7 张截图）**：
+- ✅ `compact-v2-home-scrolled.png` — 滚过 hero 后紧凑条出现
+- ✅ `compact-v2-home-expanded.png` — 点击紧凑条展开，location panel 显示最近/推荐
+- ✅ `compact-v2-home-typed.png` — 输入 "Bangkok" 后的过滤态
+- ✅ `compact-v2-home-dates.png` — 日期面板：5/15 起点 + 5/18 终点，高亮区间
+- ✅ `compact-v2-home-guests.png` — 人员面板：成人 +2 后显示"2"
+- ✅ `compact-v2-search-results.png` — 搜索结果页，pill 显示 "Bangkok | 10月15日-10月18日 | 2位客人"
+- ✅ `compact-v2-search-expanded.png` — 搜索页点击紧凑条展开，pill 预填，"搜索结果"显示 Bangkok
+
+**端到端流程验证**（puppeteer 自动化）：
+```
+1. 滚过 hero → 紧凑条 opacity 0→1 ✓
+2. 点击 pill → expand-down 动画 ✓
+3. 输入 Bangkok → LocationSuggestions 过滤 ✓
+4. 选日期 → pill 显示 "10月5日 - 10月8日" ✓
+5. 调人数 → pill 显示 "1位客人"（API 简化为 min_guests）✓
+6. 点击搜索 → navigate to /search?city=Bangkok&check_in=...&check_out=...&min_guests=2 ✓
+7. 在结果页点 pill → 重新展开 ✓
+8. ESC 关闭 → expanded panels count = 0 ✓
+9. 点击外部关闭 → expanded panels count = 0 ✓
+```
+
+**已知 Tradeoff**：
+- API 没有 date / guests 区间过滤，后端只支持 `min_guests`（单人整数）。日期参数 URL 保留但不过滤（Block 7+ 接真实库存系统时启用）
+- 多类型 property_type / 价格 min-max 没在紧凑条暴露（compact 不适合密集表单，留给 FilterModal 或后续"更多筛选"）
+
+**提交**：`<待 commit>`

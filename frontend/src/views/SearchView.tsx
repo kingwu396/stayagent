@@ -1,56 +1,43 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Link } from 'react-router-dom'
-import { Hotel, Loader2 } from 'lucide-react'
-import { UserMenu } from '@/components/UserMenu'
-import { FilterBar } from '@/components/FilterBar'
+import { Loader2 } from 'lucide-react'
+import { CompactTopbar, EMPTY_GUESTS, type CompactSearchState } from '@/components/CompactTopbar'
 import { ListingCard } from '@/components/ListingCard'
 import { ListingCardSkeleton } from '@/components/Skeleton'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
 import { listingsApi } from '@/api/listings'
-import type { ListingSummary } from '@/types/listing'
-import type { CityInfo } from '@/types/listing'
-import type { FilterValues } from '@/components/FilterModal'
+import type { ListingSummary, CityInfo } from '@/types/listing'
 
 const PAGE_SIZE = 20
-const EMPTY_FILTERS: FilterValues = {
-  city: '',
-  property_type: [],
-  min_price: '',
-  max_price: '',
-  min_guests: '',
-  check_in: '',
-  check_out: '',
-}
 
-/** 从 URLSearchParams 解析出 FilterValues */
-function parseFromURL(sp: URLSearchParams): FilterValues {
+/** 从 URL 解析出 CompactSearchState */
+function parseSearchFromURL(sp: URLSearchParams): CompactSearchState {
+  const minGuestsRaw = sp.get('min_guests')
+  const minGuests = minGuestsRaw ? parseInt(minGuestsRaw) : 0
   return {
     city: sp.get('city') || '',
-    property_type: sp.get('property_type')?.split(',').filter(Boolean) || [],
-    min_price: sp.get('min_price') || '',
-    max_price: sp.get('max_price') || '',
-    min_guests: sp.get('min_guests') || '',
-    check_in: sp.get('check_in') || '',
-    check_out: sp.get('check_out') || '',
+    checkIn: sp.get('check_in') || '',
+    checkOut: sp.get('check_out') || '',
+    guests: {
+      ...EMPTY_GUESTS,
+      adults: minGuests > 0 ? minGuests : 0,
+    },
   }
 }
 
-/** 把 FilterValues 写到 URL（保留 page 参数） */
-function applyToURL(current: URLSearchParams, values: FilterValues): URLSearchParams {
+/** 把 CompactSearchState 写到 URL（保留 page） */
+function applyToURL(current: URLSearchParams, s: CompactSearchState): URLSearchParams {
   const next = new URLSearchParams(current)
-  function setOrDel(k: string, v: string | null) {
+  function setOrDel(k: string, v: string) {
     if (v) next.set(k, v)
     else next.delete(k)
   }
-  setOrDel('city', values.city || null)
-  setOrDel('property_type', values.property_type.length ? values.property_type.join(',') : null)
-  setOrDel('min_price', values.min_price || null)
-  setOrDel('max_price', values.max_price || null)
-  setOrDel('min_guests', values.min_guests || null)
-  // 日期 placeholder：不实际传
-  // filter 变更 → 重置 page
+  setOrDel('city', s.city.trim())
+  setOrDel('check_in', s.checkIn)
+  setOrDel('check_out', s.checkOut)
+  const g = s.guests.adults + s.guests.children
+  setOrDel('min_guests', g > 0 ? String(g) : '')
   next.delete('page')
   return next
 }
@@ -58,7 +45,7 @@ function applyToURL(current: URLSearchParams, values: FilterValues): URLSearchPa
 export function SearchView() {
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const filters = useMemo(() => parseFromURL(searchParams), [searchParams])
+  const search = useMemo(() => parseSearchFromURL(searchParams), [searchParams])
   const pageParam = parseInt(searchParams.get('page') || '1')
 
   const [items, setItems] = useState<ListingSummary[]>([])
@@ -68,19 +55,12 @@ export function SearchView() {
   const [error, setError] = useState<string | null>(null)
   const [cities, setCities] = useState<CityInfo[]>([])
 
-  const reqIdRef = useRef(0) // 防止旧请求覆盖新结果
+  const reqIdRef = useRef(0)
 
-  // 拉城市列表（一次性）
+  // 拉城市列表
   useEffect(() => {
     listingsApi.cities().then(setCities).catch(() => setCities([]))
   }, [])
-
-  // filter 变更 → 重置
-  useEffect(() => {
-    setItems([])
-    setLoadedPage(1)
-    setError(null)
-  }, [filters.city, filters.property_type.join(','), filters.min_price, filters.max_price, filters.min_guests, filters.q])
 
   // 拉一页数据
   const fetchPage = useCallback(
@@ -92,18 +72,16 @@ export function SearchView() {
         const data = await listingsApi.list({
           page,
           page_size: PAGE_SIZE,
-          city: filters.city || undefined,
-          property_type: filters.property_type[0], // API 只支持单选，多选时先按第一个查（TODO）
-          min_price: filters.min_price ? Number(filters.min_price) : undefined,
-          max_price: filters.max_price ? Number(filters.max_price) : undefined,
-          min_guests: filters.min_guests ? Number(filters.min_guests) : undefined,
-          q: filters.q || undefined,
+          city: search.city || undefined,
+          min_guests:
+            search.guests.adults + search.guests.children > 0
+              ? search.guests.adults + search.guests.children
+              : undefined,
         })
-        if (myId !== reqIdRef.current) return // 过期请求
+        if (myId !== reqIdRef.current) return
         setTotal(data.total)
         setItems((prev) => {
           if (!append) return data.items
-          // 去重
           const seen = new Set(prev.map((x) => x.id))
           const merged = [...prev]
           for (const item of data.items) if (!seen.has(item.id)) merged.push(item)
@@ -117,26 +95,18 @@ export function SearchView() {
         if (myId === reqIdRef.current) setIsLoading(false)
       }
     },
-    [filters]
+    [search.city, search.guests.adults, search.guests.children]
   )
 
-  // 触发拉数据：filter 变 → page=1 替换；page 变 → 追加
+  // filter 变化 → 重置 + 拉第 1 页
   useEffect(() => {
-    const filterChanged = loadedPage === 0 // initial
-    if (filterChanged) {
-      // skip - handled below
-    }
-  }, [])
-
-  // 首次加载 / filter 变化 → fetch page 1
-  useEffect(() => {
-    // 只在 filter 引发的重置后跑
-    setLoadedPage(0)
+    setItems([])
+    setLoadedPage(1)
     fetchPage(1, false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.city, filters.property_type.join(','), filters.min_price, filters.max_price, filters.min_guests, filters.q])
+  }, [search.city, search.guests.adults, search.guests.children])
 
-  // 用户点 Load More → 拉下一页
+  // 用户点 Load More
   function loadMore() {
     const nextPage = loadedPage + 1
     fetchPage(nextPage, true)
@@ -147,45 +117,29 @@ export function SearchView() {
     })
   }
 
-  function applyFilters(v: FilterValues) {
-    setSearchParams((sp) => applyToURL(sp, v))
-  }
-
-  function clearAll() {
-    setSearchParams(new URLSearchParams())
-  }
+  // CompactTopbar 搜索回调：更新 URL
+  const handleSearch = useCallback(
+    (s: CompactSearchState) => {
+      setSearchParams((sp) => applyToURL(sp, s))
+    },
+    [setSearchParams]
+  )
 
   const hasMore = items.length < total
   const isInitialLoad = isLoading && items.length === 0
-  const activeCount =
-    (filters.city ? 1 : 0) +
-    filters.property_type.length +
-    (filters.min_price || filters.max_price ? 1 : 0) +
-    (filters.min_guests ? 1 : 0)
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Topbar */}
-      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
-              <Hotel className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-lg font-bold text-slate-900">StayAgent</span>
-          </Link>
-          <UserMenu />
-        </div>
-      </header>
-
-      {/* Filter Bar */}
-      <FilterBar
-        values={filters}
-        cities={cities}
-        activeCount={activeCount}
-        onApply={applyFilters}
-        onClear={clearAll}
+      {/* 顶部紧凑搜索条（始终可见） */}
+      <CompactTopbar
+        visible={true}
+        initial={search}
+        recommended={cities}
+        onSearch={handleSearch}
       />
+
+      {/* 占位：让内容从 topbar 下方开始 */}
+      <div className="h-16 md:h-[72px]" />
 
       {/* Results */}
       <main className="max-w-6xl mx-auto px-6 py-6">
@@ -196,9 +150,12 @@ export function SearchView() {
             )}
             {error && '加载失败'}
           </h1>
-          {filters.q && !error && (
+          {search.city && !error && (
             <p className="text-sm text-slate-500">
-              搜索 "<span className="font-medium">{filters.q}</span>"
+              在 <span className="font-medium">{search.city}</span>
+              {search.guests.adults + search.guests.children > 0 &&
+                ` · ${search.guests.adults + search.guests.children} 位客人`}
+              {(search.checkIn || search.checkOut) && ` · ${search.checkIn} → ${search.checkOut}`}
             </p>
           )}
         </div>
@@ -234,7 +191,6 @@ export function SearchView() {
               ))}
             </div>
 
-            {/* Load More */}
             {hasMore && (
               <div className="flex flex-col items-center mt-12 gap-2">
                 <button
