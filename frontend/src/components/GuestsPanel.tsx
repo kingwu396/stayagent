@@ -37,7 +37,7 @@ export function GuestsPanel({ value, onChange }: GuestsPanelProps) {
   const total = value.adults + value.children
 
   return (
-    <div className="p-6 w-full md:w-[420px]">
+    <div className="p-6 w-[400px] max-w-full">
       <div className="divide-y divide-slate-200">
         {ROWS.map((row) => {
           const n = value[row.key]
@@ -85,9 +85,6 @@ export function GuestsPanel({ value, onChange }: GuestsPanelProps) {
           )
         })}
       </div>
-      <p className="text-xs text-slate-500 mt-4 pt-4 border-t border-slate-100">
-        这间住所最多可接待 {total} 位客人（不含婴儿和宠物）
-      </p>
     </div>
   )
 }

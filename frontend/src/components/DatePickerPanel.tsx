@@ -104,7 +104,7 @@ export function DatePickerPanel({ checkIn, checkOut, onChange, variant = 'double
   }
 
   return (
-    <div className="p-6 max-h-[520px] overflow-y-auto">
+    <div className="p-6 w-[700px] max-w-full max-h-[520px] overflow-y-auto">
       {/* 模式切换 */}
       <div className="flex items-center justify-center mb-5">
         <div className="inline-flex bg-slate-100 rounded-full p-1 relative">
@@ -148,7 +148,8 @@ export function DatePickerPanel({ checkIn, checkOut, onChange, variant = 'double
               isEnd={isEnd}
               isPast={isPast}
               onPick={onPick}
-              onPrev={variant === 'double' ? () => shift(-1) : undefined}
+              onPrev={() => shift(-1)}
+              onNext={() => shift(1)}
             />
             {variant === 'double' && (
               <MonthGrid
@@ -170,7 +171,7 @@ export function DatePickerPanel({ checkIn, checkOut, onChange, variant = 'double
           <p className="text-center text-sm text-slate-600">
             选择停留时长
           </p>
-          <div className="flex flex-wrap gap-2 justify-center">
+          <div className="flex flex-wrap gap-3 justify-center">
             {[
               { label: '确切日期', days: 0 },
               { label: '± 1 天', days: 1 },
@@ -183,10 +184,10 @@ export function DatePickerPanel({ checkIn, checkOut, onChange, variant = 'double
                 key={opt.label}
                 type="button"
                 onClick={() => opt.days > 0 && onFlexibleDays(opt.days)}
-                className={`px-4 py-2 border rounded-full text-sm transition ${
+                className={`px-5 py-2.5 border rounded-full text-sm transition ${
                   opt.days === 0
-                    ? 'border-slate-900 text-slate-900 font-semibold'
-                    : 'border-slate-300 text-slate-700 hover:border-slate-900'
+                    ? 'border-slate-900 text-slate-900 font-semibold bg-white'
+                    : 'border-slate-300 text-slate-700 hover:border-slate-900 bg-white'
                 }`}
               >
                 {opt.label}
@@ -199,14 +200,15 @@ export function DatePickerPanel({ checkIn, checkOut, onChange, variant = 'double
         </div>
       )}
 
-      {/* 已选显示 */}
-      {(checkIn || checkOut) && (
+      {/* 已选显示（specific 模式才显示） */}
+      {(checkIn || checkOut) && mode === 'specific' && (
         <div className="mt-5 pt-5 border-t border-slate-200 text-sm text-slate-600 text-center">
           {checkIn && <span>入住: <span className="font-medium text-slate-900">{checkIn}</span></span>}
           {checkIn && checkOut && <span className="mx-2">·</span>}
           {checkOut && <span>退房: <span className="font-medium text-slate-900">{checkOut}</span></span>}
         </div>
       )}
+
     </div>
   )
 }
