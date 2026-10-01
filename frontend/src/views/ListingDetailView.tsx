@@ -5,7 +5,7 @@ import { UserMenu } from '@/components/UserMenu'
 import { ImageGallery } from '@/components/ImageGallery'
 import { AmenityList } from '@/components/AmenityList'
 import { BookingWidget } from '@/components/BookingWidget'
-import { ListingMap } from '@/components/ListingMap'
+import { ListingLocationCard } from '@/components/ListingLocationCard'
 import { ErrorState } from '@/components/ErrorState'
 import { Skeleton } from '@/components/Skeleton'
 import { listingsApi } from '@/api/listings'
@@ -166,7 +166,7 @@ export function ListingDetailView() {
                   <p className="text-sm text-slate-600 mb-4">
                     📍 {listing.city}, {listing.country}
                   </p>
-                  <ListingMap
+                  <ListingLocationCard
                     latitude={listing.latitude}
                     longitude={listing.longitude}
                     city={listing.city}
