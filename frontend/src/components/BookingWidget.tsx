@@ -77,8 +77,8 @@ export function BookingWidget({ listing }: BookingWidgetProps) {
     try {
       await bookingsApi.create({
         listing_id: listing.id,
-        check_in,
-        check_out,
+        check_in: checkIn,
+        check_out: checkOut,
         guests,
       })
       toast.success('预订成功 ✈️')

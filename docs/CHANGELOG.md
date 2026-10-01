@@ -437,3 +437,28 @@ POST   /api/bookings/{id}/cancel
 
 **提交**：`<待 commit>`
 
+
+---
+
+## 📅 2026-10-01 — 🐛 Bug 修复：BookingWidget JS ReferenceError
+
+**Bug**：点击"立即预订"抛 `ReferenceError: check_in is not defined`
+
+**根因**：`BookingWidget.tsx:80` 用了对象简写语法：
+```ts
+{ check_in, check_out, guests }  // 简写要求本地有同名变量
+```
+但本地变量是 camelCase `checkIn` / `checkOut`。JS 引擎找 `check_in` 找不到 → ReferenceError → 被 `catch` 捕获后 toast 显示。
+
+**TypeScript 没抓到**：对象字面量没有显式类型注解 + 简写 → TS 允许（语法合法），运行时才炸。
+
+**修复**：用完整 key-value 写法：
+```ts
+{ check_in: checkIn, check_out: checkOut, guests }
+```
+
+**验证**：
+- ✅ POST /api/bookings 返回 201 Created
+- ✅ 自动 navigate('/trips') 并加载订单列表
+- ✅ 无 console error
+
