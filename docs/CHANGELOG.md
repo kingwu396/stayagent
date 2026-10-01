@@ -678,3 +678,180 @@ URL: /search?city=Bangkok&check_in=2026-10-08&check_out=2026-10-12&min_guests=1
 ```
 
 **提交**：`<待 commit>`
+
+
+---
+
+## 📅 2026-10-01 — CompactTopbar v4：日期面板单月可翻页 + 全平台统一小框
+
+**修复 2 个用户反馈**：
+
+### 1. 首页日期可翻月份
+- 旧：单月模式下右侧 `onNext` 是 `undefined`，不显示"下个月"箭头
+- 新：单月模式下 MonthGrid 同时接 `onPrev` + `onNext`，左右各一个箭头
+- 点击 ◁ 切上个月，▷ 切下个月（保持今天高亮 rose ring，过去日期灰显）
+
+### 2. 非首页选择框统一小框
+- 旧：CompactTopbar 展开面板用 `variant="double"`（双月，~1100px 宽）
+- 新：CompactTopbar 展开面板用 `variant="single"`（单月，max-w-md ≈ 448px）
+- 桌面端容器 `max-w-3xl → max-w-md`，居中
+- 移动端保持单月 tab 切换（不变）
+
+**验证（7 张截图）**：
+
+| 场景 | 期望 | 结果 |
+|---|---|---|
+| 首页点 入住 | 单月 + ◁ ▷ 箭头 | ✅ |
+| 首页点 ▷ | 月份 10月 → 11月 | ✅ |
+| 紧凑条点 任何日期 | 单月 + ◁ ▷ 箭头（与小框一致） | ✅ |
+| 紧凑条点 ▷ | 月份切换 | ✅ |
+| 紧凑条点 想去哪 | 单列（小框） | ✅ |
+| 紧凑条点 添加人数 | 单列 4 行（小框） | ✅ |
+| 搜索页带 filter → 点 任何日期 | 单月 + 预填选区 + ◁ ▷ | ✅ |
+
+**未 commit**（按用户要求："只有我是commit才commit"）
+
+
+---
+
+## 📅 2026-10-01 — CompactTopbar v5：1:1 还原 Airbnb 设计
+
+**目标**：按 Airbnb 截图 1:1 重构 CompactTopbar 的视觉风格
+
+### 关键变化
+
+#### 1. Panel 改为浮动卡片（不再是全宽 bar）
+- 旧：`bg-white border-b shadow-lg` + `max-w-md/max-w-3xl` 内容容器 → 全宽顶栏延续
+- 新：`absolute left-1/2 -translate-x-1/2 top-full mt-2` + `bg-white rounded-2xl shadow-2xl border`
+- 居中、圆角、阴影，跟 Airbnb 一样"漂浮在 pill 下方"
+
+#### 2. Pill 改为浅灰底 + Active 白段
+- 旧：`bg-white` pill 底 + `bg-white shadow-md` active（看不清层次）
+- 新：`bg-slate-50` pill 底（浅灰）+ `bg-white shadow-md` active（白段"凸起"）
+- 视觉效果：active 段像白色药丸嵌在浅灰底中
+
+#### 3. LocationSuggestions 加彩色图标
+- 6 种 tone × 8 种 icon：
+  - `rose` 粉 / `amber` 琥珀 / `emerald` 翠绿 / `sky` 天蓝 / `violet` 紫 / `slate` 灰
+  - 图标：castle (George Town) / temple (Bangkok) / building (KL) / umbrella / mountain / waves / palmtree / generic
+- 自动按 city 名匹配（`toneForCity` / `iconForCity` 函数）
+- 最近搜索改为显示完整日期 + 客人元信息
+
+#### 4. DatePickerPanel 加底部 flex 模式 chips
+- 6 个圆角 chip：确切日期 / ± 1 天 / ± 2 天 / ± 3 天 / ± 7 天 / ± 14 天
+- 居中布局，间距更宽松
+- SearchPanel 中 dates 始终用 `variant="double"`（双月）
+
+#### 5. GuestsPanel 去掉底部提示文本
+- 旧：底部"这间住所最多可接待 N 位客人..."
+- 新：无（跟 Airbnb 截图一致）
+- 宽度 `w-[400px]`（更窄，与 location panel 接近）
+
+#### 6. 每个 panel 自适应宽度
+- Location: `w-[420px]`
+- Dates: `w-[700px]`
+- Guests: `w-[400px]`
+- 移动端：`max-w-full` 自适应
+
+### 验证（puppeteer）
+
+```
+panel center = 720.0
+pill   center = 720.5
+差异 < 1px → 完美居中 ✅
+```
+
+### 截图（6 张）
+- `compact-v5-location.png` — 地点面板（彩色图标）
+- `compact-v5-dates.png` — 日期面板（双月 + 上下月翻页）
+- `compact-v5-dates-flex.png` — 灵活日期模式（±N 天 chips）
+- `compact-v5-guests.png` — 人员面板（4 行计数器）
+- `compact-v5-home-location.png` — 主页地点
+- `compact-v5-home-dates.png` — 主页日期
+
+**未 commit**（按用户要求："只有我是commit才commit"）
+
+
+---
+
+## 📅 2026-10-01 — Block 8：Filter Bar + Filter Modal（Airbnb 1:1 还原 + 真实筛选）
+
+按用户提供的 5 张 Airbnb 截图实现搜索结果页的 FilterBar + FilterModal，含真实后端筛选 + 演示版占位。
+
+### 后端新增（2 文件改动）
+
+####` `backend/app/schemas/listing.py`
+新增 schema：
+- `PriceBucket { min, max, count }`
+- `AmenityCount { name, count }`
+- `PropertyTypeCount { type, count }`
+- `FilterOptions { price_buckets, min_price, max_price, amenities_counts, property_type_counts, bedroom_counts, bathroom_counts }`
+
+####` `backend/app/api/listings.py`
+1. **扩展 `GET /api/listings`** — 新 query 参数：`place_type` (any/room/entire)、`property_types` (逗号分隔多选)、`min_bedrooms/max_bedrooms`、`min_beds/max_beds`、`min_bathrooms/max_bathrooms`、`amenities` (逗号分隔，AND 语义)
+2. **amenities 过滤修复**：之前在分页后才 Python 过滤，导致 items 不全；改为先查所有候选、Python 端 AND 后再分页
+3. **新增 `GET /api/listings/filter-options?city=...`**：
+   - 价格直方图：30 bins，min/max 自动 round 到 50 倍数
+   - amenities_counts：所有 listings 的 amenities 字段频次统计
+   - property_type_counts：类型分布
+   - bedroom_counts / bathroom_counts：可选值列表
+
+### 前端新增（4 个组件 + 3 个文件改动）
+
+#### 新组件
+
+1. **`Histogram.tsx`** — 价格直方图（30 柱，rose-500/rose-200 高亮区间）
+2. **`CounterRow.tsx`** — `- N +` 计数器行（0 = "任意"，min/max 边界 disable）
+3. **`FilterBar.tsx`** — 顶部筛选条：
+   - 左侧 `筛选条件` 按钮（打开 modal）+ `位置区域` dropdown
+   - 右侧 9 个 quick chips（整套房屋/洗衣机/无线网络/可以做饭/空调/游泳池/健身房 + 自助入住/中文房东 后两个为演示版 toast）
+   - pill 形 (`rounded-full`)，active 时 `bg-slate-900 text-white`
+4. **`FilterModal.tsx`** — 完整 modal（截图 2-5 还原）：
+   - 8 个 section：为你推荐 / 房源类型 / 价格范围 / 卧室/床位 / 建筑类型 / 便利设施 / 热门街区（演示版）/ 预订选项（演示版）
+   - 为你推荐：4 个 card（洗衣机/至少2间卧室/厨房/至少2张床）— toggle preset
+   - 房源类型：3 段 segmented control（任何类型/房间/整套房屋）
+   - 价格范围：histogram + 最低/最高 ¥ input
+   - 卧室/床位：3 个 CounterRow（卧室/床位/卫生间，max=10/10/6）
+   - 建筑类型：4 个 icon chip（独栋/半独栋房屋/公寓/客用小屋/酒店）→映射 property_types 多选
+   - 便利设施：6 个 icon chip 优先 + "显示更多 ∨"展开完整 amenities_counts
+   - 热门街区/预订选项：右上角"演示版" badge，点击 toast
+   - ESC 关闭 / 点击 backdrop 关闭
+   - Footer: 清除全部（清空 filter 保留 city） + `显示超过 N 个房源`（debounce 300ms 拉 preview count）
+
+#### 改动文件
+
+1. **`types/listing.ts`** — 加 `FilterOptions` / `PriceBucket` / `AmenityCount` / `PropertyTypeCount` / `FilterState` / `PlaceType` / `EMPTY_FILTER`（导出）
+2. **`api/listings.ts`** — `ListListingsParams` 加新字段 + `filterOptions()` 方法
+3. **`views/SearchView.tsx`** — 集成 FilterBar/FilterModal、URL 双向同步、preview count debounce（300ms）、filterOptions fetch
+
+### URL 参数
+
+新增：
+- `place_type`（room / entire，缺省 any）
+- `property_types`（逗号分隔多选：house/apartment/villa/studio/hotel）
+- `min_price` / `max_price`
+- `min_bedrooms` / `min_beds` / `min_bathrooms`
+- `amenities`（逗号分隔 AND 语义）
+
+### 验证（7 张截图 + 端到端 puppeteer 测试）
+
+| 测试 | 期望 | 结果 |
+|---|---|---|
+| FilterBar 默认显示 | 筛选条件按钮 + 位置区域 + 9 chips | ✅ |
+| 点筛选条件打开 modal | 显示 8 个 section | ✅ |
+| 整套房屋 segmented 切换 | 该段黑底白字 | ✅ |
+| 卧室 +1 | preview count 更新 | ✅ |
+| 无线网络 amenity 多选 | chip 黑底白字 | ✅ |
+| 点击应用 → URL | `place_type=entire&amenities=wifi` | ✅ |
+| 中文房东 → toast | "演示版暂不支持" | ✅ |
+| 位置区域 dropdown | 显示全部城市 + count | ✅ |
+| 选 Tokyo → URL | `?city=Tokyo` | ✅ |
+| 主页 vs 搜索页 FilterBar | 完全一致 | ✅ |
+
+### 已知限制（按设计）
+
+1. **amenities AND 过滤在 Python 端**（100 条数据量 OK），不依赖 DB 方言
+2. **演示版** chip（自助入住/中文房东/允许携带宠物/热门街区/预订选项）只 toast，不真过滤
+3. **建筑类型子分类**：`place_type` 与 `property_types` 同时应用时为 OR（在 SQL `IN (...)`）语义
+
+**未 commit**（按用户要求："只有我是commit才commit"）

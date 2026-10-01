@@ -25,7 +25,7 @@ export interface CityInfo {
   count: number
 }
 
-/** 详情页用：ListingResponse 全部 22 字段 */
+/** 详情页用：ListingResponse 全部 22字段 */
 export interface ListingDetail {
   id: number
   title: string
@@ -49,4 +49,49 @@ export interface ListingDetail {
   images: string[]
   primary_image: string | null
   created_at: string
+}
+
+// ============ 筛选选项（modal 用） ============
+
+export interface PriceBucket {
+  min: string
+  max: string
+  count: number
+}
+
+export interface AmenityCount {
+  name: string
+  count: number
+}
+
+export interface PropertyTypeCount {
+  type: string
+  count: number
+}
+
+export interface FilterOptions {
+  price_buckets: PriceBucket[]
+  min_price: string
+  max_price: string
+  amenities_counts: AmenityCount[]
+  property_type_counts: PropertyTypeCount[]
+  bedroom_counts: number[]
+  bathroom_counts: number[]
+}
+
+// ============ 筛选状态（URL 双向同步） ============
+
+export type PlaceType = 'any' | 'room' | 'entire'
+
+export interface FilterState {
+  city: string                       // 与 search 共享
+  place_type: PlaceType
+  /** 多选房源类型（来自"建筑类型"区）：house / apartment / studio / hotel */
+  property_types: string[]
+  min_price: string
+  max_price: string
+  min_bedrooms: number
+  min_beds: number
+  min_bathrooms: number
+  amenities: string[]
 }

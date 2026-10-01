@@ -68,6 +68,38 @@ class CityInfo(BaseModel):
     count: int
 
 
+# ============ Filter options schemas ============
+
+class PriceBucket(BaseModel):
+    """价格直方图区间"""
+    min: Decimal
+    max: Decimal
+    count: int
+
+
+class AmenityCount(BaseModel):
+    """便利设施出现次数（直方图 + 多选 chip 用）"""
+    name: str
+    count: int
+
+
+class PropertyTypeCount(BaseModel):
+    """房源类型分布"""
+    type: str
+    count: int
+
+
+class FilterOptions(BaseModel):
+    """筛选 modal 的全部可选项 + 直方图"""
+    price_buckets: list[PriceBucket]
+    min_price: Decimal
+    max_price: Decimal
+    amenities_counts: list[AmenityCount]
+    property_type_counts: list[PropertyTypeCount]
+    bedroom_counts: list[int]
+    bathroom_counts: list[int]
+
+
 # ============ Query params ============
 
 class ListingQuery(BaseModel):
