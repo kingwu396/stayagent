@@ -462,3 +462,44 @@ POST   /api/bookings/{id}/cancel
 - ✅ 自动 navigate('/trips') 并加载订单列表
 - ✅ 无 console error
 
+
+---
+
+## 📅 2026-10-01 — Airbnb 风紧凑搜索条
+
+**目标**：滚过 hero 后，原 topbar 隐藏，顶部出现 Logo + 紧凑搜索条 + 用户菜单
+
+**新建文件（1 个）**：
+- `frontend/src/components/CompactTopbar.tsx`
+  - Logo | pill 形紧凑搜索（想去哪/任何日期/添加人数 + 红色搜索按钮）| UserMenu
+  - 移动端简化：单 input "搜索房源"
+  - 入场动画：`opacity-0 -translate-y-full` ↔ `opacity-100 translate-y-0`
+  - 300ms ease-out
+
+**修改文件（3 个）**：
+- `HeroSearch.tsx` — 用 `forwardRef` 转发 ref 给外层 section
+- `HomeView.tsx` — 加 `heroRef` + `showCompact` state + scroll listener
+  - 滚过 hero 80% (`rect.bottom < 80`) → showCompact=true
+  - 原 topbar 加 `transition-all duration-300`，滚过 hero 时 `opacity-0 -translate-y-full`
+- `index.css` — 加 `html { scroll-behavior: smooth; }`
+
+**数据流**：
+```
+用户滚动
+  → window scroll listener (passive)
+  → onScroll 检查 hero.getBoundingClientRect().bottom < 80
+  → setShowCompact
+  → 紧凑条 opacity + translateY 过渡 (300ms)
+  → 原 topbar 同步过渡隐藏
+```
+
+**验证**（3 张截图）：
+- ✅ compact-before.png — 顶部：原 topbar + 大 hero
+- ✅ compact-after.png — 滚后：紧凑条（"想去哪 任何日期 添加人数 🔍"）替代原 topbar
+- ✅ compact-top.png — 滚回顶部：紧凑条消失，原 topbar 恢复
+
+**踩坑修复**：
+- forwardRef 包装时 regex 误改了 SearchItem type 注解中的 `})` → 重写整个文件
+
+**提交**：`<待 commit>`
+

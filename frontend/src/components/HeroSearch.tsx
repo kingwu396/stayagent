@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { forwardRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, MapPin, CalendarDays, Users } from 'lucide-react'
 
-export function HeroSearch() {
+export const HeroSearch = forwardRef<HTMLDivElement>(function HeroSearch(_, ref) {
   const navigate = useNavigate()
   const [city, setCity] = useState('')
   const [checkIn, setCheckIn] = useState('')
@@ -13,12 +13,11 @@ export function HeroSearch() {
     const params = new URLSearchParams()
     if (city.trim()) params.set('city', city.trim())
     if (guests) params.set('min_guests', guests)
-    // dates: Block 5 不响应（API 不支持），不传
     navigate(`/search${params.toString() ? `?${params.toString()}` : ''}`)
   }
 
   return (
-    <section className="relative bg-gradient-to-br from-rose-50 via-white to-slate-50 border-b border-slate-200">
+    <section ref={ref} className="relative bg-gradient-to-br from-rose-50 via-white to-slate-50 border-b border-slate-200">
       <div className="max-w-6xl mx-auto px-6 py-20 md:py-28 text-center">
         <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 mb-4 tracking-tight">
           找到你的<span className="text-brand-500">下一站</span>
@@ -74,7 +73,7 @@ export function HeroSearch() {
       </div>
     </section>
   )
-}
+})
 
 function SearchItem({
   icon,

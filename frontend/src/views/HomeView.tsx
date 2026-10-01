@@ -1,8 +1,9 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Hotel } from 'lucide-react'
 import { UserMenu } from '@/components/UserMenu'
 import { HeroSearch } from '@/components/HeroSearch'
+import { CompactTopbar } from '@/components/CompactTopbar'
 import { CategoryStrip } from '@/components/CategoryStrip'
 import { ListingCard } from '@/components/ListingCard'
 import { ListingCardSkeleton } from '@/components/Skeleton'
@@ -15,6 +16,21 @@ export function HomeView() {
   const [listings, setListings] = useState<ListingSummary[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showCompact, setShowCompact] = useState(false)
+  const heroRef = useRef<HTMLDivElement>(null)
+
+  // 滚过 hero 80% 后显示紧凑搜索条
+  useEffect(() => {
+    function onScroll() {
+      if (!heroRef.current) return
+      const rect = heroRef.current.getBoundingClientRect()
+      // hero 底部到视口顶部距离 < 80px → 显示
+      setShowCompact(rect.bottom < 80)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   const fetchListings = useCallback(async () => {
     setIsLoading(true)
@@ -35,8 +51,15 @@ export function HomeView() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* ===== Topbar ===== */}
-      <header className="sticky top-0 z-40 bg-white border-b border-slate-200 backdrop-blur-sm">
+      {/* ===== 紧凑条（滚过 hero 后出现） ===== */}
+      <CompactTopbar visible={showCompact} />
+
+      {/* ===== Topbar（滚过 hero 后隐藏） ===== */}
+      <header
+        className={`sticky top-0 z-30 bg-white border-b border-slate-200 backdrop-blur-sm transition-all duration-300 ease-out ${
+          showCompact ? 'opacity-0 -translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
+        }`}
+      >
         <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
@@ -49,7 +72,7 @@ export function HomeView() {
       </header>
 
       {/* ===== Hero 搜索栏 ===== */}
-      <HeroSearch />
+      <HeroSearch ref={heroRef} />
 
       {/* ===== 分类条 ===== */}
       <CategoryStrip />
