@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react'
 import { CompactTopbar } from '@/components/CompactTopbar'
 import { EMPTY_GUESTS, type CompactSearchState } from '@/hooks/useCompactSearch'
 import { ListingCard } from '@/components/ListingCard'
+import { SearchMap } from '@/components/SearchMap'
 import { ListingCardSkeleton } from '@/components/Skeleton'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
@@ -122,6 +123,9 @@ export function SearchView() {
 
   const [filterModalOpen, setFilterModalOpen] = useState(false)
   const [previewCount, setPreviewCount] = useState(0)
+  const [highlightedId, setHighlightedId] = useState<number | null>(null)
+  const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map())
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const reqIdRef = useRef(0)
   const previewReqIdRef = useRef(0)
@@ -259,6 +263,17 @@ export function SearchView() {
     }, PREVIEW_DEBOUNCE_MS)
   }
 
+  /** 地图 marker 点击：滚动到对应卡片 + 2s 高亮 */
+  const handleMarkerClick = useCallback((id: number) => {
+    setHighlightedId(id)
+    const el = cardRefs.current.get(id)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
+    highlightTimerRef.current = setTimeout(() => setHighlightedId(null), 2000)
+  }, [])
+
   const hasMore = items.length < total
   const isInitialLoad = isLoading && items.length === 0
 
@@ -295,64 +310,74 @@ export function SearchView() {
         onPreviewChange={handlePreviewChange}
       />
 
-      {/* Results */}
-      <main className="max-w-6xl mx-auto px-6 py-6">
-        <div className="flex items-baseline justify-between mb-6">
-          <h1 className="text-xl font-semibold text-slate-900">
-            {!error && !isInitialLoad && (
-              <>{total > 0 ? `${filter.city ? filter.city + ' 的超过 ' : ''}${total} 个房源` : '暂无住宿'}</>
+      {/* Results: split-pane (list left, map right on md+) */}
+      <main className="md:flex md:items-start">
+        {/* Left: Listings */}
+        <div className="flex-1 min-w-0 px-6 py-6">
+          <div className="flex items-baseline justify-between mb-6">
+            <h1 className="text-xl font-semibold text-slate-900">
+              {!error && !isInitialLoad && (
+                <>{total > 0 ? `${filter.city ? filter.city + ' 的超过 ' : ''}${total} 个房源` : '暂无住宿'}</>
+              )}
+              {error && '加载失败'}
+            </h1>
+            {!isInitialLoad && !error && total > 0 && (
+              <p className="text-sm text-slate-500">
+                {search.guests.adults + search.guests.children > 0 &&
+                  ` · ${search.guests.adults + search.guests.children} 位客人`}
+                {(search.checkIn || search.checkOut) && ` · ${search.checkIn} → ${search.checkOut}`}
+              </p>
             )}
-            {error && '加载失败'}
-          </h1>
-          {!isInitialLoad && !error && total > 0 && (
-            <p className="text-sm text-slate-500">
-              {search.guests.adults + search.guests.children > 0 &&
-                ` · ${search.guests.adults + search.guests.children} 位客人`}
-              {(search.checkIn || search.checkOut) && ` · ${search.checkIn} → ${search.checkOut}`}
-            </p>
-          )}
-        </div>
-
-        {isInitialLoad && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <ListingCardSkeleton key={i} />
-            ))}
           </div>
-        )}
 
-        {!isInitialLoad && error && (
-          <ErrorState description={error} onRetry={() => fetchPage(1, false, filter)} />
-        )}
-
-        {!isInitialLoad && !error && items.length === 0 && (
-          <EmptyState
-            title="暂无住宿"
-            description="试试调整筛选条件，或者换一个城市"
-          />
-        )}
-
-        {!error && items.length > 0 && (
-          <>
+          {isInitialLoad && (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {items.map((l) => (
-                <ListingCard key={l.id} listing={l} />
+              {Array.from({ length: 8 }).map((_, i) => (
+                <ListingCardSkeleton key={i} />
               ))}
             </div>
+          )}
 
-            {hasMore && (
-              <div className="flex flex-col items-center mt-12 gap-2">
-                <button
-                  onClick={loadMore}
-                  disabled={isLoading}
-                  className="px-8 py-3 border-2 border-slate-300 hover:border-brand-500 hover:text-brand-500 disabled:opacity-50 rounded-xl font-medium transition flex items-center gap-2"
-                >
-                  {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {isLoading ? '加载中...' : '加载更多'}
-                </button>
-                <p className="text-sm text-slate-500">
-                  已显示 {items.length} / {total}
-                </p>
+          {!isInitialLoad && error && (
+            <ErrorState description={error} onRetry={() => fetchPage(1, false, filter)} />
+          )}
+
+          {!isInitialLoad && !error && items.length === 0 && (
+            <EmptyState
+              title="暂无住宿"
+              description="试试调整筛选条件，或者换一个城市"
+            />
+          )}
+
+          {!error && items.length > 0 && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {items.map((l) => (
+                  <div
+                    key={l.id}
+                    ref={(el) => {
+                      if (el) cardRefs.current.set(l.id, el)
+                      else cardRefs.current.delete(l.id)
+                    }}
+                  >
+                    <ListingCard listing={l} highlighted={highlightedId === l.id} />
+                  </div>
+                ))}
+              </div>
+
+              {hasMore && (
+                <div className="flex flex-col items-center mt-12 gap-2">
+                  <button
+                    onClick={loadMore}
+                    disabled={isLoading}
+                    className="px-8 py-3 border-2 border-slate-300 hover:border-brand-500 hover:text-brand-500 disabled:opacity-50 rounded-xl font-medium transition flex items-center gap-2"
+                  >
+                    {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {isLoading ? '加载中...' : '加载更多'}
+                  </button>
+                  <p className="text-sm text-slate-500">
+                    已显示 {items.length} / {total}
+                  </p>
               </div>
             )}
 
@@ -363,6 +388,14 @@ export function SearchView() {
             )}
           </>
         )}
+        </div>
+
+        {/* Right: Map (hidden on mobile, sticky on md+) */}
+        <SearchMap
+          listings={items}
+          highlightedId={highlightedId}
+          onMarkerClick={handleMarkerClick}
+        />
       </main>
     </div>
   )

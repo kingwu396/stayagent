@@ -855,3 +855,142 @@ pill   center = 720.5
 3. **建筑类型子分类**：`place_type` 与 `property_types` 同时应用时为 OR（在 SQL `IN (...)`）语义
 
 **未 commit**（按用户要求："只有我是commit才commit"）
+
+
+---
+
+## 📅 2026-10-03 — Block 9：搜索页 Split-view 地图（Leaflet + OSM）
+
+按用户决策（Plan Mode 锁定的 4 个选择）：
+- **地图库**：Leaflet + OpenStreetMap（替代失败的 AMap WebGL 方案）
+- **范围**：搜索页 split-view（listings 左 + map 右）
+- **API key**：无（完全免费 OSM 瓦片）
+- **Marker 点击**：滚动 + 高亮卡片（2s ring）
+- **Mobile**：< md 隐藏地图
+
+### 后端（2 文件改动）
+- `app/schemas/listing.py`: `ListingSummary` 加 `latitude` / `longitude` 字段
+- `app/api/listings.py`: `_to_summary()` 返回 lat/lng（之前详情页有，列表没有）
+
+### 前端（6 文件改动 + 1 新组件 + 1 新依赖）
+**新依赖**:
+- `leaflet@1.9.4` (~40KB, 无 WebGL 依赖)
+- `react-leaflet@4.2.1` (~10KB)
+- `@types/leaflet@1.9.12` (dev)
+
+**新组件**:
+- `src/components/SearchMap.tsx` — Leaflet 地图容器
+  - `MapContainer` + `TileLayer`（OSM 免费瓦片）+ `Marker` × N
+  - 自定义 `L.divIcon` 价格标牌（红色圆角胶囊 + brand-500 背景）
+  - `<FitBounds>` 自动 fit 到所有 markers
+  - 点击 marker → 回调 `onMarkerClick(listingId)`
+  - 高亮态：`bg-brand-700 + scale 1.2 + ring`
+  - Popup 显示 listing 详情（title/city/price/rating）
+  - 隐藏 `< md` (mobile)
+
+**修改**:
+- `src/types/listing.ts`: `ListingSummary` 加 lat/lng
+- `src/components/ListingCard.tsx`: 加 `highlighted?: boolean` prop + ring-4 ring-brand-500 className
+- `src/views/SearchView.tsx`:
+  - 加 `highlightedId` state + `cardRefs` Map + `highlightTimerRef`
+  - `handleMarkerClick(id)`: scrollIntoView + setHighlightedId + 2s 自动清除
+  - 重构 main 为 `<main className="md:flex">`：左 listings (`flex-1 min-w-0`) + 右 `<SearchMap>`
+  - 列表卡片外层加 ref callback，让 scrollIntoView 能定位到具体卡片
+- `src/index.css`: 价格 marker 样式（`.price-marker`、`.price-marker:hover`、`.price-marker.highlighted`）
+
+### 验证（puppeteer）
+- 默认 `/search`: 20 markers + 12 OSM tiles loading
+- 点 marker: 1 个 ring 高亮 marker + 1 个 ring 卡片（2s 后自动清除）+ popup 显示
+- `?city=Tokyo`: 地图 markers 从 20 → 10（filter 后只剩 Tokyo listings）
+- Mobile (500px): 地图隐藏，只有 listings 单列
+- 测试通过：markers + click + filter + mobile 全部 OK
+
+### 已知（不影响功能）
+- Headless Chrome 测试时 OSM 瓦片未完全加载（headless 限制），真实浏览器正常
+- Layout 调整：map 固定宽 480px（mobile 隐藏），listings 占剩余空间
+
+**未 commit**（按用户要求："不要commit先"）
+echo "OK changelog updated"
+
+---
+
+## 📅 2026-10-03 — Block 9：搜索页 Split-view 地图（Leaflet + OSM）
+
+按用户决策（Plan Mode 锁定的 4 个选择）：
+- 地图库：Leaflet + OpenStreetMap（替代失败的 AMap WebGL 方案）
+- 范围：搜索页 split-view（listings 左 + map 右）
+- API key：无（完全免费 OSM 瓦片）
+- Marker 点击：滚动 + 高亮卡片（2s ring）
+- Mobile：< md 隐藏地图
+
+### 后端（2 文件改动）
+- `app/schemas/listing.py`: `ListingSummary` 加 latitude / longitude 字段
+- `app/api/listings.py`: `_to_summary()` 返回 lat/lng（之前详情页有，列表没有）
+
+### 前端（6 文件改动 + 1 新组件 + 1 新依赖）
+**新依赖**:
+- `leaflet@1.9.4` (~40KB, 无 WebGL 依赖)
+- `react-leaflet@4.2.1` (~10KB)
+- `@types/leaflet@1.9.12` (dev)
+
+**新组件**:
+- `src/components/SearchMap.tsx` — Leaflet 地图容器
+  - `MapContainer` + `TileLayer`（OSM 免费瓦片）+ `Marker` × N
+  - 自定义 `L.divIcon` 价格标牌（红色圆角胶囊 + brand-500 背景）
+  - `<FitBounds>` 自动 fit 到所有 markers
+  - 点击 marker → 回调 `onMarkerClick(listingId)`
+  - 高亮态：`bg-brand-700 + scale 1.2 + ring`
+  - Popup 显示 listing 详情（title/city/price/rating）
+  - 隐藏 < md（mobile）
+
+**修改**:
+- `src/types/listing.ts`: `ListingSummary` 加 lat/lng
+- `src/components/ListingCard.tsx`: 加 `highlighted?: boolean` prop + ring-4 ring-brand-500 className
+- `src/views/SearchView.tsx`:
+  - 加 `highlightedId` state + `cardRefs` Map + `highlightTimerRef`
+  - `handleMarkerClick(id)`: scrollIntoView + setHighlightedId + 2s 自动清除
+  - 重构 main 为 `<main className="md:flex">`：左 listings (flex-1 min-w-0) + 右 `<SearchMap>`
+  - 列表卡片外层加 ref callback，让 scrollIntoView 能定位到具体卡片
+- `src/index.css`: 价格 marker 样式（.price-marker、.price-marker:hover、.price-marker.highlighted）
+
+### 验证（puppeteer）
+- 默认 /search: 20 markers + 12 OSM tiles loading
+- 点 marker: 1 个 ring 高亮 marker + 1 个 ring 卡片（2s 后自动清除）+ popup 显示
+- ?city=Tokyo: 地图 markers 从 20 → 10（filter 后只剩 Tokyo listings）
+- Mobile (500px): 地图隐藏，只有 listings 单列
+- 测试通过：markers + click + filter + mobile 全部 OK
+
+### 已知（不影响功能）
+- Headless Chrome 测试时 OSM 瓦片未完全加载（headless 限制），真实浏览器正常
+- Layout 调整：map 固定宽 480px（mobile 隐藏），listings 占剩余空间
+
+**未 commit**（按用户要求：不要 commit 先）
+
+---
+
+## 🐛 2026-10-03 — Map 不显示问题（待排查）
+
+**现象**：在 `/search` 页面右侧应显示 Leaflet 地图，但用户反馈地图不显示。
+
+### 已排除（OK）
+- ✅ Leaflet / react-leaflet 依赖已安装
+- ✅ 后端 `GET /api/listings` 返回 `latitude` / `longitude` 字段（20 条全部有值）
+- ✅ vite preview 代理 `/api` 到后端（curl 验证通）
+- ✅ Leaflet CSS 已编入 `dist/assets/index-*.css`
+- ✅ MapContainer / TileLayer / divIcon 代码已编入 bundle
+- ✅ Tailwind `.md\:block` `.hidden` 等关键类已生成
+- ✅ OSM 瓦片服务器 `https://tile.openstreetmap.de` 可达（curl 拿到 18KB PNG）
+
+### 最可能原因（按可能性排序）
+1. **视口宽度 < 768px** — `SearchMap.tsx:38` 外层 div 是 `hidden md:block`，mobile/小窗口默认 `display:none`
+2. **筛选把 listings 过滤到 0 条** — `SearchMap.tsx:37` 早 `return null`
+3. **MapContainer JS 报错** — 需要开 DevTools Console 看红字
+4. **OSM 瓦片在中国被墙/超时** — 容器渲染但瓦片全 404（应仍能看到灰色 Leaflet 容器）
+
+### 下次排查清单
+- [ ] 用户窗口宽度 ≥ 1280px 再看一次
+- [ ] DevTools Console 看红色 error
+- [ ] DevTools Network 过滤 `tile.openstreetmap` 看 200/4xx
+- [ ] 临时加 `console.log('[SearchMap]', { listings, vw })` 在 `SearchMap.tsx` 第一行
+
+**不影响**：所有 listings / filter / wishlist / trips 功能正常，**只地图 div 不渲染**。

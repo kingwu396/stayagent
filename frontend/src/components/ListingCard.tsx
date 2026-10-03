@@ -9,9 +9,11 @@ const FALLBACK_IMAGE = 'https://picsum.photos/seed/placeholder/400/300'
 
 interface ListingCardProps {
   listing: ListingSummary
+  /** 当从地图 marker 点击时，传 true 让卡片加 ring 高亮 */
+  highlighted?: boolean
 }
 
-export function ListingCard({ listing }: ListingCardProps) {
+export function ListingCard({ listing, highlighted }: ListingCardProps) {
   const liked = useWishlistStore((s) => s.has(listing.id))
   const toggle = useWishlistStore((s) => s.toggle)
   const toast = useToast()
@@ -28,7 +30,7 @@ export function ListingCard({ listing }: ListingCardProps) {
   return (
     <Link
       to={`/listings/${listing.id}`}
-      className="group block rounded-xl overflow-hidden"
+      className={`group block rounded-xl overflow-hidden transition-all duration-300 ${highlighted ? 'ring-4 ring-brand-500 ring-offset-2 rounded-2xl' : ''}`}
     >
       <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-100">
         <img

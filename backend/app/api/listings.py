@@ -44,6 +44,8 @@ def _to_summary(listing: Listing) -> ListingSummary:
         rating=listing.rating,
         review_count=listing.review_count,
         primary_image=(listing.images or [None])[0] if listing.images else None,
+        latitude=listing.latitude,
+        longitude=listing.longitude,
     )
 
 

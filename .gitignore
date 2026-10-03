@@ -18,3 +18,8 @@ dist/
 # Logs
 *.log
 
+
+# TypeScript / Vite 构建产物（不应提交）
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts

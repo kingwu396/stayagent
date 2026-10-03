@@ -21,6 +21,8 @@ class ListingSummary(BaseModel):
     rating: Decimal
     review_count: int
     primary_image: str | None = None
+    latitude: Decimal | None = None
+    longitude: Decimal | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

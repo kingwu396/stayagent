@@ -10,6 +10,8 @@ export interface ListingSummary {
   rating: string
   review_count: number
   primary_image: string | null
+  latitude: string | null
+  longitude: string | null
 }
 
 export interface ListingListResponse {
