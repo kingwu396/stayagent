@@ -92,7 +92,7 @@ export function LocationSuggestions({
     : recommendedList
 
   return (
-    <div className="p-6 w-[420px] max-w-full">
+    <div className="p-5 w-[360px] max-w-full">
       {/* 搜索输入 */}
       <div className="relative mb-5">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -102,7 +102,7 @@ export function LocationSuggestions({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="搜索目的地"
-          className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-full text-base focus:ring-2 focus:ring-brand-500 focus:border-transparent shadow-sm"
+          className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-full text-base focus:border-slate-400 focus:outline-none transition shadow-sm"
         />
       </div>
 

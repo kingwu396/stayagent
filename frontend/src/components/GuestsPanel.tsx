@@ -37,7 +37,7 @@ export function GuestsPanel({ value, onChange }: GuestsPanelProps) {
   const total = value.adults + value.children
 
   return (
-    <div className="p-6 w-[400px] max-w-full">
+    <div className="p-5 w-[340px] max-w-full">
       <div className="divide-y divide-slate-200">
         {ROWS.map((row) => {
           const n = value[row.key]

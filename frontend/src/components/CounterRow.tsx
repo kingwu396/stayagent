@@ -18,7 +18,7 @@ export function CounterRow({ label, value, onChange, min = 0, max = 10 }: Counte
   const atMax = value >= max
   const display = value === 0 ? '任意' : String(value)
   return (
-    <div className="flex items-center justify-between py-4 border-b border-slate-100 last:border-b-0">
+    <div className="flex items-center justify-between py-3 border-b border-slate-100 last:border-b-0">
       <span className="text-base font-medium text-slate-900">{label}</span>
       <div className="flex items-center gap-4">
         <button

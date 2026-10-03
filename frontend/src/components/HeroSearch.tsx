@@ -108,7 +108,7 @@ export const HeroSearch = forwardRef<HTMLDivElement, HeroSearchProps>(function H
 
           {/* 展开态面板：紧凑浮层 */}
           {expanded && (
-            <div className="absolute left-0 right-0 top-full mt-2 z-20 animate-expand-down">
+            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-20 animate-expand-down pointer-events-auto">
               <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[480px] overflow-y-auto">
                 {/* 移动端 tab */}
                 <div className="md:hidden flex border-b border-slate-200">
