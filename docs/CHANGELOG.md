@@ -1134,3 +1134,67 @@ echo "OK changelog updated"
 - [ ] Block 12: PDF 解析 tool
 - [ ] Block 13: 多轮对话 + Memory + RAG
 - [ ] Block 14: UI 打磨 + README + 答辩
+
+## 📅 2026-10-04 — Block 9：Agent Orchestrator + 7 个 Tool 实现 + 持久化
+
+**目标**：让 Agent **真的能干活**：7 个 tool 接真实业务（listing/wishlist CRUD），orchestrator 跑 tool calling 循环，4 张新表落 DB，tenacity 重试。**不做**：SSE 流式 + 前端（留给 Block 10）。
+
+**新增文件**：
+- `backend/app/models/conversation.py` (76 行) — Conversation + Message 模型 (A8 Memory)
+- `backend/app/models/agent.py` (107 行) — AgentRun + AgentStep 模型 (A4/A5 轨迹)
+- `backend/app/schemas/agent.py` (80 行) — Pydantic 请求/响应
+- `backend/app/services/agent/retry.py` (30 行) — tenacity 装饰器封装 (A10)
+- `backend/app/services/agent/tools.py` (308 行) — 7 个 tool 实现 + ToolError + dispatch dict
+- `backend/app/services/agent/orchestrator.py` (262 行) — 手写 tool calling 循环 (max 8 步)
+- `backend/app/api/agent.py` (132 行) — 3 个端点 (chat / conversations / runs)
+- `backend/scripts/test_agent_block9.py` (208 行) — 5 个 E2E 测试
+
+**修改文件**：
+- `backend/app/main.py` — 加 agent_router + 版本号 0.3.0→0.4.0
+- `backend/app/models/__init__.py` — 导出新模型
+- `backend/app/core/llm_client.py` — 加 reset() 函数 + close() 容错 (跨 loop 测试场景)
+- `backend/pyproject.toml` + `uv.lock` — 加 tenacity 9.1.4
+
+**Tool 清单 (7 个核心)**：
+1. search_listings  2. get_listing_detail  3. compare_listings
+4. add_to_wishlist  5. remove_from_wishlist  6. create_wishlist  7. list_wishlists
+
+**Agent API**：
+- `POST /api/agent/chat` — 跑一次 tool calling 循环
+- `GET /api/agent/conversations` — 用户的对话列表 (含 run_count)
+- `GET /api/agent/conversations/{id}/runs` — 某对话的所有 run + steps
+
+**验证**：
+- ✅ `uv run python -m scripts.test_agent_block9` → 5/5 通过
+- ✅ Test E: tenacity 重试 3 次 (mock 网络错)
+- ✅ Test A: basic search → 1 step, search_listings → 2 results
+- ✅ Test B: multi-step → 2 steps, search + compare
+- ✅ Test C: wishlist 操作 → DB 写入正确
+- ✅ Test D: 多轮对话 → 2 runs 复用同 conversation
+- ✅ E2E HTTP: `curl /api/agent/chat` → 200, 461 字推荐含表格
+- ✅ 现有 `/api/health` + `/api/listings` 不受影响
+- ✅ Swagger 含 3 个新 agent 路径
+
+**新增表**：`conversations`, `messages`, `agent_runs`, `agent_steps` (自动 create_all)
+
+**提交**：见 git log 顶部 "Block 9" commit
+
+---
+
+## 📊 进度跟踪
+
+- [x] Block 1: 项目骨架 ✅
+- [x] Block 2: 用户系统 ✅
+- [x] Block 3: 房源 seed ✅
+- [x] Block 4: 首页 + ListingCard ✅
+- [x] Block 5: 搜索 + URL 同步 + 心愿单 ✅
+- [x] Block 6: 房源详情 + PriceBreakdown + 地图 ✅
+- [x] Block 6.5: AMap 位置地图 ✅
+- [x] Block 7: 多清单心愿单 + Trips ✅
+- [x] Block 8: LLM 客户端 + Tool Schema ✅
+- [x] **Block 9: Agent Orchestrator + 7 个 Tool + 持久化** ✅
+- [ ] Block 10: AgentPanel UI + SSE 流式
+- [ ] Block 11: 完善 tool (booking + trips)
+- [ ] Block 12: PDF 解析 tool
+- [ ] Block 13: 多轮对话 + Memory + RAG
+- [ ] Block 14: UI 打磨 + README + 答辩

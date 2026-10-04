@@ -141,8 +141,31 @@ async def connect() -> None:
 
 
 async def close() -> None:
-    """lifespan 关闭时调用"""
+    """
+    lifespan 关闭时调用. 跨 loop 情况 (测试场景) 自动跳过 aclose, 只 reset 单例.
+    """
     global _client
-    if _client is not None:
+    if _client is None:
+        return
+    try:
         await _client.aclose()
+    except RuntimeError as e:
+        if "closed" in str(e).lower():
+            logger.warning("llm_client.close() 跨 loop 调用, 跳过 aclose (reset 单例)")
+        else:
+            raise
+    finally:
         _client = None
+
+
+# ============ 测试辅助 ============
+
+def reset() -> None:
+    """
+    强制清空单例, 下次 get_llm_client() 会创建新 client.
+    主要用于测试场景: 每次 asyncio.run() 切换 event loop 后调用,
+    避免 httpx.AsyncClient 在旧 loop 上崩溃.
+    生产代码不应调用此函数.
+    """
+    global _client
+    _client = None
