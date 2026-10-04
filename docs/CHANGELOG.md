@@ -1082,3 +1082,55 @@ echo "OK changelog updated"
 - 后端（5）：`redis_client.py` / `auth.py` / `deps.py` / `main.py` / `wishlists.py`
 - 前端（6）：`RegisterView.tsx` / `wishlist.ts` / `WishlistView.tsx` / `HomeView.tsx` / `SearchView.tsx` / `ListingDetailView.tsx` / `TripsView.tsx`
 
+
+## 📅 2026-10-04 — Block 8：LLM 客户端 + Tool Schema 定义
+
+**目标**：为 Agent 做底层基建 —— 让后端能调 DeepSeek，且 LLM 知道它有哪些 tool 可用。**不做**：tool实际实现、orchestrator 循环、SSE 流式、AgentPanel UI（这些留给 Block 9-10）。
+
+**新增文件**：
+- `backend/app/core/llm_client.py` (148 行) — DeepSeek HTTP 客户端 (httpx 异步, OpenAI 兼容协议, 单例 + lifespan 管理)
+- `backend/app/services/agent/__init__.py` (空) — Agent namespace 预留
+- `backend/app/services/agent/tool_schemas.py` (323 行) — **12 个 tool** 的 OpenAI Function Calling JSON Schema
+- `backend/app/services/agent/prompts.py` (36 行) — SYSTEM_PROMPT (依据 charter §6.3)
+- `backend/scripts/test_llm_block8.py` (117 行) — 手动验证脚本 (Test A 基础聊天 + Test B tool calling)
+
+**修改文件**：
+- `backend/pyproject.toml` + `uv.lock` — 新增 `httpx>=0.28.0` 依赖
+- `backend/app/main.py` — lifespan 关闭路径加 `await llm_client.close()`
+
+**Tool 清单 (12 个)**：
+1. search_listings  2. get_listing_detail  3. compare_listings
+4. add_to_wishlist  5. remove_from_wishlist  6. list_wishlists  7. create_wishlist
+8. create_booking (Human-in-the-loop)
+9. list_my_trips
+10. parse_travel_plan_pdf  11. recommend_from_plan
+12. search_travel_tips (RAG)
+
+**验证**：
+- ✅ `uv sync` 安装 httpx 成功
+- ✅ `uv run python -c "from app.services.agent.tool_schemas import ALL_TOOL_SCHEMAS; print(len(ALL_TOOL_SCHEMAS))"` → `12`
+- ✅ `uv run python -m scripts.test_llm_block8` Test A → DeepSeek 返回自我介绍
+- ✅ Test B → DeepSeek 返回 `tool_calls=[{name: search_listings, arguments: {city: Tokyo, ...}}]`
+- ✅ 现有 `/api/health` 不受影响
+
+**提交**：见 git log 顶部 "Block 8" commit
+
+---
+
+## 📊 进度跟踪
+
+- [x] Block 1: 项目骨架 ✅
+- [x] Block 2: 用户系统 ✅
+- [x] Block 3: 房源 seed ✅
+- [x] Block 4: 首页 + ListingCard + 微交互 ✅
+- [x] Block 5: 搜索 + URL 同步 + 心愿单 ✅
+- [x] Block 6: 房源详情 + PriceBreakdown + 地图 ✅
+- [x] Block 6.5: AMap 位置地图 ✅
+- [x] Block 7: 多清单心愿单 + Trips ✅
+- [x] **Block 8: LLM 客户端 + Tool Schema** ✅
+- [ ] Block 9: Agent Orchestrator (tool calling 循环)
+- [ ] Block 10: AgentPanel UI + SSE 流式
+- [ ] Block 11: 完善 tool 实现 (对比/移除/预订)
+- [ ] Block 12: PDF 解析 tool
+- [ ] Block 13: 多轮对话 + Memory + RAG
+- [ ] Block 14: UI 打磨 + README + 答辩

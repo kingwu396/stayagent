@@ -9,7 +9,7 @@ from app.api.wishlists import router as wishlists_router
 from app.api.bookings import router as bookings_router
 from app.db.session import engine
 from app.db.base import Base
-from app.core import redis_client
+from app.core import redis_client, llm_client
 
 import app.models  # noqa: F401
 
@@ -21,6 +21,7 @@ async def lifespan(app: FastAPI):
     await redis_client.connect()
     yield
     # 关闭
+    await llm_client.close()
     await redis_client.close()
 
 
