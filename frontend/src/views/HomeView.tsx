@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useWishlistStore } from '@/stores/wishlist'
 import { Link } from 'react-router-dom'
 import { Hotel } from 'lucide-react'
 import { UserMenu } from '@/components/UserMenu'
@@ -49,6 +50,11 @@ export function HomeView() {
   useEffect(() => {
     fetchListings()
   }, [fetchListings])
+
+  // 心愿单状态同步（保证 ListingCard 红心与服务端一致）
+  useEffect(() => {
+    useWishlistStore.getState().fetchAll()
+  }, [])
 
   // 拉城市列表（HeroSearch 推荐目的地用）
   useEffect(() => {

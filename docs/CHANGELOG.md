@@ -1028,3 +1028,57 @@ echo "OK changelog updated"
 
 **用户可选**：要完整功能 → `make redis` 或 `redis-server` 启动 Redis。
 
+
+---
+
+## Bugfix Round（2026-10-04）
+
+上线后用户实际跑出来的若干 bug 集中修复。
+
+### 后端：Redis 健康检测不再锁死
+
+**问题**：`make dev` 起来时 Redis 没启 → `redis_client.is_available()` 在 lifespan 里被锁为 False → 即使 Redis 后来启动，认证 API 仍永远返 503。
+
+**修**：
+- `core/redis_client.py` — `is_available()` 改为 async 函数，每次调用都 5 秒节流地动态 ping；`connect()` 失败时保留 client 对象便于重试；新增 `get_redis()` 也走 lazy 探测。
+- `api/auth.py` — `_require_redis()` 改 async；3 处 `redis = get_redis()` 加 `await`。
+- `deps.py` — 补 `from app.core.redis_client import get_redis, is_available`；`get_current_user` 的 `is_available()` 调用加 `await`。
+
+### 后端：wishlists/bookings 路由 500
+
+**问题**：登录后 `/api/wishlists` 和 `/api/bookings` 返 500（`Internal Server Error`，无 detail）。
+**根因**：`deps.get_current_user` 里 `if is_available():` 我把它改成 `await is_available()` 时漏了 import。
+**修**：补 import（见上）。
+
+### 前端：HTML5 pattern Chrome `/v` flag 报错
+
+**问题**：`pattern="[a-zA-Z0-9_-]+"` 和 `pattern="[-a-zA-Z0-9_]+"` 都被新版 Chrome 的 `/v` regex 模式拒绝（`Invalid character in character class`）。
+**修**：`RegisterView.tsx` 直接移除 `pattern` 属性，完全由后端 Pydantic schema `pattern=r"^[a-zA-Z0-9_-]+$"` 兜底。
+
+### 前端：心愿单 409 Conflict
+
+**问题 1**：`POST /api/wishlists` 返 409（已存在同名清单）—— toggle race condition 下两次并发 create 第二个 409。
+**修**：`stores/wishlist.ts` 的 `toggle()` catch 块识别 `err.response?.status === 409` → `await fetchAll()` → 复用 `lists[0].id`。
+
+**问题 2**：WishlistView `+ 新建清单` 输入已有名字时静默吞错（error 写 store 但没 toast 给用户）。
+**修**：`WishlistView.onCreate()` 提交前先 `lists.some(w => w.name === name)` 检查 → 重复 toast.warning；`createWishlist()` catch 加 detail 兜底。
+
+### 前端：F5 后红心不亮（双源真相）
+
+**问题**：登录态点 ❤️ → 红心亮 → F5 刷新 → 红心灰（但服务端数据库里依然有收藏）。`lists` 没持久化到 localStorage，且 HomeView / SearchView / ListingDetailView 都不调 `fetchAll()`，只有 WishlistView 才调。
+**修**（两层防御）：
+- `stores/wishlist.ts` — `partialize` 增加 `lists: state.lists`，localStorage key 从 `stayagent-wishlist-anon` 改为 `stayagent-wishlist`
+- `HomeView / SearchView / ListingDetailView` 都加 `useEffect(() => useWishlistStore.getState().fetchAll(), [])`
+
+### WishlistView / TripsView 中文化
+
+- "Saved places" → "已收藏的房源"
+- "Your itinerary" → "你的行程"
+- "New collection" → "+ 新建清单"
+- 单复数文案："X places" → "X 处房源"；"X trips · Y nights total" → "X 段行程 · Y 晚"
+- 按钮文字："Cancel" → "取消"；"guests" → "位客人"
+
+**文件变更**（11 个）：
+- 后端（5）：`redis_client.py` / `auth.py` / `deps.py` / `main.py` / `wishlists.py`
+- 前端（6）：`RegisterView.tsx` / `wishlist.ts` / `WishlistView.tsx` / `HomeView.tsx` / `SearchView.tsx` / `ListingDetailView.tsx` / `TripsView.tsx`
+

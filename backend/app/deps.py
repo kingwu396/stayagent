@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.core.security import decode_token
-from app.core.redis_client import get_redis
+from app.core.redis_client import get_redis, is_available
 from app.models import User
 
 
@@ -56,9 +56,9 @@ async def get_current_user(
         )
 
     # 🔥 检查 access 黑名单（Redis 可选）
-    if is_available():
+    if await is_available():
         try:
-            redis = get_redis()
+            redis = await get_redis()
             is_blacklisted = await redis.exists(f"access_blacklist:{jti}")
             if is_blacklisted:
                 raise HTTPException(

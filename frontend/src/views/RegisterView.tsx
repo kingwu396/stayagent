@@ -50,7 +50,6 @@ export function RegisterView() {
               required
               minLength={3}
               maxLength={50}
-              pattern="[a-zA-Z0-9_-]+"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"

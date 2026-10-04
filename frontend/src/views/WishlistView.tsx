@@ -52,11 +52,19 @@ export function WishlistView() {
   async function onCreate() {
     const name = newName.trim()
     if (!name) return
+    // 前端防重名，避免无意义请求
+    if (lists.some((w) => w.name === name)) {
+      toast.warning(`已存在同名清单「${name}」`)
+      return
+    }
     const wl = await createWishlist(name)
     if (wl) {
       setNewName('')
       setShowNewCollection(false)
       toast.success(`已创建「${wl.name}」`)
+    } else {
+      const err = useWishlistStore.getState().error
+      toast.error(err || '创建失败')
     }
   }
 
@@ -86,12 +94,12 @@ export function WishlistView() {
         {/* Title */}
         <header className="mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-ink mb-2 tracking-tight">
-            Saved places
+            已收藏的房源
           </h1>
           <p className="text-sm text-stone-500">
             {totalListings > 0
-              ? `${totalListings} ${totalListings === 1 ? 'place' : 'places'} across ${lists.length} ${lists.length === 1 ? 'collection' : 'collections'}`
-              : 'Your personal collections'}
+              ? `共 ${totalListings} 处房源 · ${lists.length} 个清单`
+              : '你还没有创建清单'}
           </p>
         </header>
 
@@ -136,7 +144,7 @@ export function WishlistView() {
             <p className="text-xs uppercase tracking-wider text-stone-400 mb-3">
               — empty —
             </p>
-            <h2 className="text-2xl text-ink mb-2">No saved places yet</h2>
+            <h2 className="text-2xl text-ink mb-2">还没有收藏的房源</h2>
             <p className="text-stone-500 mb-6">
               Browse listings and tap the heart to save them here.
             </p>
@@ -164,7 +172,7 @@ export function WishlistView() {
                   </h2>
                 </div>
                 <p className="text-xs text-stone-500 ml-9">
-                  {wl.items.length} {wl.items.length === 1 ? 'place' : 'places'} · created{' '}
+                  {wl.items.length} 处房源 · 创建于{' '}
                   {new Date(wl.created_at).toLocaleDateString('en-CA')}
                 </p>
               </div>
@@ -240,7 +248,7 @@ export function WishlistView() {
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-ink hover:text-brand-500 border-b border-ink hover:border-brand-500 pb-0.5 transition"
               >
                 <Plus className="w-4 h-4" />
-                New collection
+                + 新建清单
               </button>
             )}
           </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useWishlistStore } from '@/stores/wishlist'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Hotel, Star, Users, Bed, Bath, ArrowLeft, MapPin } from 'lucide-react'
 import { UserMenu } from '@/components/UserMenu'
@@ -45,6 +46,11 @@ export function ListingDetailView() {
       setIsLoading(false)
     }
   }
+  // 心愿单状态同步
+  useEffect(() => {
+    useWishlistStore.getState().fetchAll()
+  }, [])
+
 
   return (
     <div className="min-h-screen bg-white">

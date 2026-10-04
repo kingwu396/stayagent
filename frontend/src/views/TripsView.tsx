@@ -28,7 +28,7 @@ export function TripsView() {
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [canceling, setCanceling] = useState<number | null>(null)
+  const [canceling, set取消ing] = useState<number | null>(null)
   const toast = useToast()
 
   async function load() {
@@ -49,9 +49,9 @@ export function TripsView() {
     load()
   }, [])
 
-  async function onCancel(b: Booking) {
+  async function on取消(b: Booking) {
     if (!confirm(`确认取消「${b.listing.title}」的预订？`)) return
-    setCanceling(b.id)
+    set取消ing(b.id)
     try {
       await bookingsApi.cancel(b.id)
       toast.info('预订已取消')
@@ -59,7 +59,7 @@ export function TripsView() {
     } catch (err: any) {
       toast.error(err.response?.data?.detail || '取消失败')
     } finally {
-      setCanceling(null)
+      set取消ing(null)
     }
   }
 
@@ -86,12 +86,12 @@ export function TripsView() {
         {/* Title */}
         <header className="mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-ink mb-2 tracking-tight">
-            Your itinerary
+            你的行程
           </h1>
           <p className="text-sm text-stone-500">
             {!isLoading && total > 0
-              ? `${total} ${total === 1 ? 'trip' : 'trips'} · ${totalNights} ${totalNights === 1 ? 'night' : 'nights'} total`
-              : 'Booked journeys and stays'}
+              ? `共 ${total} 段行程 · ${totalNights} 晚`
+              : '还没有预订的行程'}
           </p>
         </header>
 
@@ -130,7 +130,7 @@ export function TripsView() {
               <BookingRow
                 key={b.id}
                 booking={b}
-                onCancel={() => onCancel(b)}
+                on取消={() => on取消(b)}
                 canceling={canceling === b.id}
               />
             ))}
@@ -144,19 +144,19 @@ export function TripsView() {
 
 interface BookingRowProps {
   booking: Booking
-  onCancel: () => void
+  on取消: () => void
   canceling: boolean
 }
 
-function BookingRow({ booking: b, onCancel, canceling }: BookingRowProps) {
-  const isCancelled = b.status === 'cancelled'
+function BookingRow({ booking: b, on取消, canceling }: BookingRowProps) {
+  const is取消led = b.status === 'cancelled'
   const checkIn = formatDate(b.check_in)
   const checkOut = formatDate(b.check_out)
 
   return (
     <article
       className={`bg-paper border border-slate-200 rounded-md p-6 transition ${
-        isCancelled ? 'opacity-50' : 'hover:border-slate-300'
+        is取消led ? 'opacity-50' : 'hover:border-slate-300'
       }`}
     >
       <div className="flex flex-col md:flex-row md:items-start gap-6">
@@ -187,7 +187,7 @@ function BookingRow({ booking: b, onCancel, canceling }: BookingRowProps) {
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <h3 className={`text-xl font-bold text-ink mb-1 ${isCancelled ? 'line-through' : ''}`}>
+          <h3 className={`text-xl font-bold text-ink mb-1 ${is取消led ? 'line-through' : ''}`}>
             {b.listing.title}
           </h3>
           <p className="text-sm text-stone-500 mb-3">
@@ -198,11 +198,11 @@ function BookingRow({ booking: b, onCancel, canceling }: BookingRowProps) {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-stone-600 mb-3">
             <span className="flex items-center gap-1">
               <Calendar className="w-3 h-3" />
-              {b.nights} {b.nights === 1 ? 'night' : 'nights'}
+              {b.nights} 晚
             </span>
             <span className="flex items-center gap-1">
               <Users className="w-3 h-3" />
-              {b.guests} {b.guests === 1 ? 'guest' : 'guests'}
+              {b.guests} 位客人
             </span>
           </div>
 
@@ -217,7 +217,7 @@ function BookingRow({ booking: b, onCancel, canceling }: BookingRowProps) {
           </div>
 
           {/* Actions */}
-          {!isCancelled && (
+          {!is取消led && (
             <div className="flex items-center justify-end gap-2 mt-3">
               <Link
                 to={`/listings/${b.listing_id}`}
@@ -226,11 +226,11 @@ function BookingRow({ booking: b, onCancel, canceling }: BookingRowProps) {
                 View listing
               </Link>
               <button
-                onClick={onCancel}
+                onClick={on取消}
                 disabled={canceling}
                 className="px-3 py-1.5 text-xs text-stone-600 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded transition disabled:opacity-50"
               >
-                {canceling ? '取消中…' : 'Cancel'}
+                {canceling ? '取消中…' : '取消'}
               </button>
             </div>
           )}
@@ -243,7 +243,7 @@ function BookingRow({ booking: b, onCancel, canceling }: BookingRowProps) {
 function statusText(b: Booking): string {
   const map: Record<string, string> = {
     confirmed: `Confirmed · Booked ${new Date(b.created_at).toLocaleDateString('en-CA')}`,
-    cancelled: `Cancelled · ${new Date(b.created_at).toLocaleDateString('en-CA')}`,
+    cancelled: `取消led · ${new Date(b.created_at).toLocaleDateString('en-CA')}`,
     completed: `Completed · ${new Date(b.created_at).toLocaleDateString('en-CA')}`,
     pending: `Pending · ${new Date(b.created_at).toLocaleDateString('en-CA')}`,
   }

@@ -106,8 +106,18 @@ export const useWishlistStore = create<WishlistState>()(
               targetId = created.id
               set({ lists: [created, ...get().lists] })
             } catch (err: any) {
-              set({ error: '创建默认清单失败' })
-              return
+              // 409 = 已存在同名清单（race condition），重新拉列表复用现有清单
+              if (err.response?.status === 409) {
+                await get().fetchAll()
+                targetId = get().lists[0]?.id
+                if (!targetId) {
+                  set({ error: '创建默认清单失败' })
+                  return
+                }
+              } else {
+                set({ error: '创建默认清单失败' })
+                return
+              }
             }
           }
           // Optimistic
@@ -149,7 +159,8 @@ export const useWishlistStore = create<WishlistState>()(
           set({ lists: [wl, ...get().lists] })
           return wl
         } catch (err: any) {
-          set({ error: err.response?.data?.detail || err.message })
+          const detail = err.response?.data?.detail || err.message || '创建失败'
+          set({ error: detail })
           return null
         }
       },
@@ -200,8 +211,11 @@ export const useWishlistStore = create<WishlistState>()(
       },
     }),
     {
-      name: 'stayagent-wishlist-anon',
-      partialize: (state) => ({ anonymousIds: state.anonymousIds }),
+      name: 'stayagent-wishlist',
+      partialize: (state) => ({
+        anonymousIds: state.anonymousIds,
+        lists: state.lists,  // F5 也能立刻恢复红心状态
+      }),
     }
   )
 )
