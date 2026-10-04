@@ -55,21 +55,22 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # 🔥 检查 access 黑名单（Redis）
-    try:
-        redis = get_redis()
-        is_blacklisted = await redis.exists(f"access_blacklist:{jti}")
-        if is_blacklisted:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="令牌已被撤销",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    except HTTPException:
-        raise
-    except Exception:
-        # Redis 故障不阻断请求，但记日志（这里简单 pass）
-        pass
+    # 🔥 检查 access 黑名单（Redis 可选）
+    if is_available():
+        try:
+            redis = get_redis()
+            is_blacklisted = await redis.exists(f"access_blacklist:{jti}")
+            if is_blacklisted:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="令牌已被撤销",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            # Redis 故障不阻断请求，但记日志（这里简单 pass）
+            pass
 
     try:
         user_id = int(user_id_str)

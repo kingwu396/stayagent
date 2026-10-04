@@ -994,3 +994,37 @@ echo "OK changelog updated"
 - [ ] 临时加 `console.log('[SearchMap]', { listings, vw })` 在 `SearchMap.tsx` 第一行
 
 **不影响**：所有 listings / filter / wishlist / trips 功能正常，**只地图 div 不渲染**。
+
+---
+
+## 📅 2026-10-04 — 🐛 Fix：后端 Redis 软启动（不再因 Redis 缺失而无法启动）
+
+**问题**：`make dev` 启动时报 `ConnectionRefusedError: Redis` 导致整个后端崩溃。  
+`redis_client.connect()` 在 lifespan 里抛错 → 整个应用启动失败 → 用户必须先手动启动 Redis。
+
+**修复**（**软启动模式**）：
+- `redis_client.connect()` 不再抛错：连接失败时 `_pool = None` + `_available = False` + 警告日志
+- 路由层用 `is_available()` 检查：Redis 不可用 → 返 **503** + 友好提示（不是 500 Internal Error）
+- 涉及 Redis 的端点：`/api/auth/{login,refresh,logout}`（认证+黑名单）
+- 不涉及的端点（listings/wishlists/trips/register/...）：完全正常工作
+
+**验证**：
+| 端点 | Redis 不可用时 | Redis 在线时 |
+|---|---|---|
+| `POST /api/auth/login` | 503 + "Redis 不可用" | 200 |
+| `POST /api/auth/register` | 201（不需要） | 201 |
+| `GET /api/listings` | 200（不需要） | 200 |
+
+**启动日志对比**：
+```
+旧: ERROR    ConnectionRefusedError ... [app crashes]
+新: ⚠️  Redis 连接失败 ... — 认证相关 API 会返 503，其他功能正常
+```
+
+**文件变更**（3 个）：
+- `core/redis_client.py` — 加 `socket_connect_timeout` + try/except
+- `api/auth.py` — 加 `_require_redis()` helper + login/refresh/logout 用
+- `deps.py` — `get_current_user` 用 `is_available()` 包裹 Redis 检查
+
+**用户可选**：要完整功能 → `make redis` 或 `redis-server` 启动 Redis。
+

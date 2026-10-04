@@ -22,10 +22,18 @@ from app.core.security import (
     create_refresh_token,
     decode_token,
 )
-from app.core.redis_client import get_redis
+from app.core.redis_client import get_redis, is_available
 from app.config import settings
 
 router = APIRouter()
+
+def _require_redis():
+    """Redis 不可用时返 503"""
+    if not is_available():
+        raise HTTPException(
+            status_code=503,
+            detail="Redis 不可用，认证功能暂时关闭。请跑 `make redis` 或 `redis-server` 启动 Redis。",
+        )
 
 REFRESH_COOKIE_NAME = "refresh_token"
 
@@ -102,6 +110,7 @@ async def login(payload: LoginRequest, response: Response, db: DBSession):
     refresh_token, refresh_jti, refresh_exp = create_refresh_token(user.id)
 
     # Redis: refresh 白名单
+    _require_redis()
     redis = get_redis()
     await redis.set(f"refresh:{refresh_jti}", str(user.id), ex=refresh_exp)
 
@@ -123,6 +132,7 @@ async def refresh(
     db: DBSession,
     refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE_NAME)] = None,
 ):
+    _require_redis()
     if not refresh_token:
         raise HTTPException(status_code=401, detail="缺少 refresh token")
 
@@ -177,6 +187,7 @@ async def logout(
     authorization: Annotated[str | None, Header()] = None,
     refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE_NAME)] = None,
 ):
+    _require_redis()
     redis = get_redis()
 
     # 1. 撤销 refresh
