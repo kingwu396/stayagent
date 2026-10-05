@@ -11,8 +11,10 @@
   "dependencies": {
     "@babel/runtime-corejs2": "^7.29.7",
     "axios": "^1.6.7",
+    "dompurify": "^3.4.16",
     "leaflet": "1.9.4",
     "lucide-react": "^0.344.0",
+    "marked": "^12.0.2",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-leaflet": "4.2.1",

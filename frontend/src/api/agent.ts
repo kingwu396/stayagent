@@ -6,7 +6,11 @@
 
 import { api } from './client'
 import { getToken } from './client'
-import type { AgentStreamEvent } from '@/types/agent'
+import type {
+  AgentStreamEvent,
+  ConversationSummary,
+  AgentRunDetail,
+} from '@/types/agent'
 
 export interface ChatStreamParams {
   message: string
@@ -109,6 +113,18 @@ export const agentApi = {
       message: params.message,
       conversation_id: params.conversation_id ?? null,
     })
+    return res.data
+  },
+
+  /** 拉用户所有对话 (Block 11 全屏侧栏用) */
+  async listConversations(): Promise<ConversationSummary[]> {
+    const res = await api.get<ConversationSummary[]>('/agent/conversations')
+    return res.data
+  },
+
+  /** 拉某对话的所有 run + steps (Block 11 切换历史用) */
+  async getConversationRuns(convId: number): Promise<AgentRunDetail[]> {
+    const res = await api.get<AgentRunDetail[]>(`/agent/conversations/${convId}/runs`)
     return res.data
   },
 }

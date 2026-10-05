@@ -10,6 +10,8 @@ import type {
   AgentChatMessage,
   AgentStep,
   AgentStreamEvent,
+  ConversationSummary,
+  AgentRunDetail,
 } from '@/types/agent'
 
 interface AgentState {
@@ -20,6 +22,12 @@ interface AgentState {
   abortController: AbortController | null
   error: string | null
 
+  // ============ Block 11 ============
+  mode: 'floating' | 'fullscreen'
+  conversations: ConversationSummary[]
+  isHistoryLoaded: boolean
+  isLoadingHistory: boolean
+
   // ============ actions ============
   openPanel: () => void
   closePanel: () => void
@@ -27,6 +35,12 @@ interface AgentState {
   clearHistory: () => void
   cancelStream: () => void
   sendMessage: (text: string) => Promise<void>
+
+  setMode: (mode: 'floating' | 'fullscreen') => void
+  toggleFullscreen: () => void
+  loadHistory: () => Promise<void>
+  loadConversation: (convId: number) => Promise<void>
+  startNewChat: () => void
 
   // 内部: 把 stream event 应用到 messages
   _applyEvent: (evt: AgentStreamEvent, msgId: string) => void
@@ -44,6 +58,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   abortController: null,
   error: null,
 
+  mode: 'floating',
+  conversations: [],
+  isHistoryLoaded: false,
+  isLoadingHistory: false,
+
   openPanel: () => set({ isOpen: true }),
   closePanel: () => set({ isOpen: false }),
   togglePanel: () => set((s) => ({ isOpen: !s.isOpen })),
@@ -60,6 +79,49 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       set({ abortController: null, isStreaming: false })
     }
   },
+
+
+  setMode: (mode: 'floating' | 'fullscreen') => set({ mode }),
+
+  toggleFullscreen: () =>
+    set((s) => ({ mode: s.mode === 'floating' ? 'fullscreen' : 'floating' })),
+
+  loadHistory: async () => {
+    set({ isLoadingHistory: true })
+    try {
+      const list = await agentApi.listConversations()
+      set({ conversations: list, isHistoryLoaded: true, isLoadingHistory: false })
+    } catch (err) {
+      console.error('loadHistory failed', err)
+      set({ isLoadingHistory: false })
+    }
+  },
+
+  loadConversation: async (convId: number) => {
+    try {
+      const runs = await agentApi.getConversationRuns(convId)
+      const messages: AgentChatMessage[] = []
+      runs.sort((a, b) => a.started_at.localeCompare(b.started_at)).forEach((run, i) => {
+        messages.push({ id: run.id + '-u-' + i, role: 'user', content: run.user_message })
+        if (run.final_content) {
+          messages.push({
+            id: run.id + '-a-' + i,
+            role: 'assistant',
+            content: run.final_content,
+            steps: run.steps || [],
+            status: run.status,
+            runId: run.id,
+            conversationId: convId,
+          })
+        }
+      })
+      set({ messages, conversationId: convId, error: null, mode: 'fullscreen' })
+    } catch (err) {
+      console.error('loadConversation failed', err)
+    }
+  },
+
+  startNewChat: () => set({ messages: [], conversationId: null, error: null }),
 
   _applyEvent: (evt, msgId) => {
     set((s) => {

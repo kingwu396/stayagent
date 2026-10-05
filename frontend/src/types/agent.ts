@@ -66,3 +66,24 @@ export type AgentStreamEvent =
   | StepCompletedEvent
   | FinalEvent
   | ErrorEvent
+
+
+// ============ Block 11: 历史对话 ============
+
+export interface ConversationSummary {
+  id: number
+  title: string | null
+  created_at: string
+  updated_at: string
+  run_count: number
+}
+
+export interface AgentRunDetail {
+  id: number
+  user_message: string
+  status: string
+  final_content: string | null
+  steps: AgentStep[]
+  started_at: string
+  finished_at: string | null
+}
