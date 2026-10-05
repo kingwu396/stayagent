@@ -98,3 +98,80 @@ body {
 .leaflet-container a {
   color: #e11d48;
 }
+
+/* ============ Block 10: Chat Markdown (prose-chat) ============ */
+.prose-chat {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--ink, #1B1B1B);
+}
+.prose-chat p {
+  margin: 0.25em 0;
+}
+.prose-chat p:first-child {
+  margin-top: 0;
+}
+.prose-chat p:last-child {
+  margin-bottom: 0;
+}
+.prose-chat strong {
+  font-weight: 600;
+  color: var(--ink, #1B1B1B);
+}
+.prose-chat em {
+  font-style: italic;
+}
+.prose-chat ul, .prose-chat ol {
+  margin: 0.4em 0;
+  padding-left: 1.25rem;
+}
+.prose-chat li {
+  margin: 0.15em 0;
+}
+.prose-chat li::marker {
+  color: var(--slate-400, #94a3b8);
+}
+.prose-chat code {
+  font-size: 0.8em;
+  padding: 0.05em 0.3em;
+  background: rgb(241 245 249);
+  border-radius: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+.prose-chat pre {
+  margin: 0.5em 0;
+  padding: 0.6em 0.75em;
+  background: rgb(241 245 249);
+  border-radius: 0.4rem;
+  overflow-x: auto;
+  font-size: 0.8em;
+}
+.prose-chat pre code {
+  background: transparent;
+  padding: 0;
+}
+.prose-chat table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+  font-size: 0.85em;
+}
+.prose-chat th, .prose-chat td {
+  border: 1px solid rgb(226 232 240);
+  padding: 0.3em 0.5em;
+  text-align: left;
+}
+.prose-chat th {
+  background: rgb(248 250 252);
+  font-weight: 600;
+}
+.prose-chat a {
+  color: rgb(225 29 72); /* brand-500 */
+  text-decoration: underline;
+}
+.prose-chat blockquote {
+  margin: 0.5em 0;
+  padding-left: 0.75em;
+  border-left: 3px solid rgb(226 232 240);
+  color: rgb(100 116 139);
+}

@@ -1198,3 +1198,64 @@ echo "OK changelog updated"
 - [ ] Block 12: PDF 解析 tool
 - [ ] Block 13: 多轮对话 + Memory + RAG
 - [ ] Block 14: UI 打磨 + README + 答辩
+
+## 📅 2026-10-05 — Block 10：AgentPanel UI + SSE 流式
+
+**目标**：前端接入 Agent 后端,实时呈现 tool step 轨迹和最终回复。后端加 SSE 流式端点（保留 Block 9 同步端点兼容）。**HITL + create_booking 工具留 Block 11**。
+
+**新增文件**：
+- `backend/scripts/test_stream_block10.py` (147 行) — httpx.stream SSE 验证
+- `frontend/src/types/agent.ts` (68 行) — AgentStep + 4 种 stream event 类型
+- `frontend/src/api/agent.ts` (114 行) — SSE fetch + ReadableStream 解析 + AbortSignal
+- `frontend/src/stores/agent.ts` (181 行) — Zustand store (isOpen / messages / isStreaming / abortController)
+- `frontend/src/components/AgentFab.tsx` (32 行) — 右下角浮动按钮 + 流式脉冲指示
+- `frontend/src/components/AgentPanel.tsx` (128 行) — 480px 右侧抽屉 + 滑入动画 + 空状态 3 建议
+- `frontend/src/components/AgentMessage.tsx` (84 行) — user / assistant 气泡 + marked + DOMPurify markdown
+- `frontend/src/components/AgentToolStep.tsx` (91 行) — tool 步骤折叠卡片 (args + result/error + duration)
+- `frontend/src/components/AgentInput.tsx` (82 行) — textarea + 发送/停止按钮 + Enter 发 / Shift+Enter 换行
+
+**修改文件**：
+- `backend/app/services/agent/orchestrator.py` — 重构: 抽出 `_execute_step()` 共享函数, 新增 `stream_agent()` async generator
+- `backend/app/api/agent.py` — 加 `POST /api/agent/chat/stream` SSE 端点
+- `frontend/src/main.tsx` — 全局挂载 AgentFab + AgentPanel
+- `frontend/src/index.css` — 加 `.prose-chat` markdown 样式
+- `frontend/pnpm-workspace.yaml` — allow core-js build (装 marked 依赖 dompurify)
+- `frontend/package.json` + `pnpm-lock.yaml` — 加 marked@12.0.2 + dompurify@3.4.16
+- `.gitignore` — 排除根目录意外 package.json/pnpm-lock.yaml + 个人面试文档
+
+**SSE 事件流**：
+```
+run_started → step_started → step_completed → ... → final → done
+```
+
+**加分项落地**：
+- **A2** Streaming (SSE 多 event, Block 10 核心)
+- **F7** Streaming UI (前端实时 append step 卡片)
+- **F2** 高复用 (AgentToolStep 折叠卡片可在所有 tool 复用)
+- **A5** Tool 执行过程展示 (AgentToolStep 折叠卡片, 显示 args/result/duration)
+
+**验证**：
+- ✅ `uv run python -m scripts.test_stream_block10` → 1/1 通过
+  - HTTP 200 + 4 个 event 类型 + 461 字内容 + 1 个 step (search_listings, 1057ms)
+- ✅ Playwright 浏览器 E2E (Chrome 系统):
+  - 截图 1: 首页 + Fab 浮动按钮
+  - 截图 2: Panel 空状态 (3 个建议 chip)
+  - 截图 3: 流式中 (中间状态)
+  - 截图 4: 单步完成 (search_listings → markdown 表格推荐)
+  - 截图 5: 多步完成 (search + compare → 对比表 + 推荐)
+- ✅ 现有 `/api/agent/chat` (Block 9 sync) 不受影响
+- ✅ TypeScript build: 193KB gzip
+- ✅ 现有 HomeView / SearchView / WishlistView / TripsView 不受影响
+
+**提交**：见 git log 顶部 "Block 10" commit
+
+---
+
+## 📊 进度跟踪
+
+- [x] Block 1-9: 业务 + Agent 基建 ✅
+- [x] **Block 10: AgentPanel UI + SSE 流式** ✅
+- [ ] Block 11: create_booking tool + HITL UI
+- [ ] Block 12: PDF 解析 tool
+- [ ] Block 13: 多轮对话 + Memory + RAG
+- [ ] Block 14: UI 打磨 + README + 答辩

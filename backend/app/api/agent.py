@@ -1,4 +1,4 @@
-"""Agent API: /api/agent/chat + 对话/Run 管理
+"""Agent API: /api/agent/chat + 对话/Run 管理 + SSE 流式 (Block 10)
 
 Block 9 范围:
 - POST /api/agent/chat: 跑一次 agent 调用循环, 返回最终结果
@@ -7,6 +7,9 @@ Block 9 范围:
 
 Block 10+ 才接 SSE 流式 + AgentPanel UI.
 """
+import asyncio
+import logging
+
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
@@ -23,6 +26,7 @@ from app.schemas.agent import (
 )
 from app.services.agent.orchestrator import run_agent
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -130,3 +134,60 @@ async def list_runs(
         )
         for r in rows
     ]
+
+
+import asyncio
+import json
+import logging
+from fastapi.responses import StreamingResponse
+
+from app.services.agent.orchestrator import stream_agent as _stream_agent
+
+
+@router.post("/chat/stream")
+async def chat_stream(
+    payload: AgentChatRequest,
+    current_user: CurrentUser,
+    db: DBSession,
+):
+    """
+    SSE 流式 agent chat (Block 10). 实时推 step 事件.
+
+    Events:
+      - run_started:    {run_id, conversation_id}
+      - step_started:   {step_index, tool_name, tool_args, reasoning}
+      - step_completed: {step_index, tool_result, tool_error, duration_ms}
+      - final:          {run_id, conversation_id, status, content, prompt_tokens, completion_tokens}
+      - error:          {message}
+      - done:           {}
+    """
+    async def event_gen():
+        try:
+            async for evt in _stream_agent(
+                db=db,
+                user=current_user,
+                user_message=payload.message,
+                conversation_id=payload.conversation_id,
+            ):
+                evt_type = evt.get("type", "message")
+                payload_json = json.dumps(evt, ensure_ascii=False)
+                yield f"event: {evt_type}\ndata: {payload_json}\n\n"
+        except asyncio.CancelledError:
+            logger.info("SSE stream aborted by client")
+            raise
+        except Exception as e:
+            logger.exception("SSE stream error")
+            err = json.dumps({"type": "error", "message": str(e)}, ensure_ascii=False)
+            yield f"event: error\ndata: {err}\n\n"
+        finally:
+            yield "event: done\ndata: {}\n\n"
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )

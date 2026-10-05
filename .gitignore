@@ -23,3 +23,10 @@ dist/
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
+
+# 根目录意外生成的 pnpm 文件（Block 10 dev 期间误操作）
+/package.json
+/pnpm-lock.yaml
+
+# 用户个人面试准备文档 (不属于项目代码)
+/docs/agent-interview-prep.md
