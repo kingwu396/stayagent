@@ -2,8 +2,9 @@
  *
  * 显示: listing 标题 + 日期 + 人数 + 合计, 带「查看行程」按钮跳 /trips
  */
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, Calendar, Users, ArrowRight } from 'lucide-react'
+import { useAgentStore } from '@/stores/agent'
 
 export interface AgentBookingItem {
   booking_id: number | string
@@ -18,6 +19,14 @@ export interface AgentBookingItem {
 
 export function AgentBookingCard({ item }: { item: AgentBookingItem }) {
   const total = typeof item.total === 'string' ? parseFloat(item.total) : item.total
+  const closePanel = useAgentStore((s) => s.closePanel)
+  const navigate = useNavigate()
+
+  function handleClick() {
+    closePanel()
+    queueMicrotask(() => navigate('/trips'))
+  }
+
   return (
     <div className="rounded-lg bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 bg-emerald-100/60 border-b border-emerald-200">
@@ -41,13 +50,14 @@ export function AgentBookingCard({ item }: { item: AgentBookingItem }) {
           <span className="text-base font-bold text-emerald-700">¥{total}</span>
         </div>
       </div>
-      <Link
-        to="/trips"
-        className="flex items-center justify-center gap-1 px-3 py-2 bg-white text-emerald-700 hover:bg-emerald-50 transition text-xs font-medium border-t border-emerald-200"
+      <button
+        type="button"
+        onClick={handleClick}
+        className="w-full flex items-center justify-center gap-1 px-3 py-2 bg-white text-emerald-700 hover:bg-emerald-50 transition text-xs font-medium border-t border-emerald-200"
       >
         查看行程
         <ArrowRight className="w-3.5 h-3.5" />
-      </Link>
+      </button>
     </div>
   )
 }

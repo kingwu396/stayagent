@@ -387,6 +387,124 @@ async def run_agent(
     return run
 
 
+# ============ Block 17: streaming 版 _execute_step (yield content_delta) ============
+
+async def _execute_step_stream(
+    db,
+    user: User,
+    messages: list[dict],
+    run: AgentRun,
+    step_idx: int,
+    *,
+    emit_content_delta: bool = True,
+) -> AsyncGenerator[dict, None]:
+    """
+    流式 LLM 调用. emit_content_delta=False 时把 LLM 的 content 累积起来,
+    但不 yield content_delta events (用于避免 DeepSeek stream 模式的英文 hallucination preamble
+    干扰用户体验; preamble 通常是 "I'll check..." 这种 LLM 套话).
+
+    与 _execute_step() 行为一致, 唯一区别:
+    - LLM final answer (no tool calls) 时按 token 切分, yield content_delta
+    - 最后一个 content_delta 同时带 finish_reason
+    - tool_calls 路径: emit_content_delta=True 也无害, 因为我们根据 finish_reason 决定走哪条路
+    """
+    """
+    流式 LLM 调用. 每拿到一个 token 就 yield {"type": "content_delta", "delta": str}.
+
+    与 _execute_step() 行为一致, 唯一区别:
+    - LLM final answer (no tool calls) 时按 token 切分, yield content_delta
+    - 最后一个 content_delta 同时带 finish_reason (type 切回 'final' 时使用)
+    - tool_calls 路径保持原样 (LLM 流式返回整段 tool_calls args 也行, 但简化:
+      我们只在 final-answer 路径用流式; tool-call 路径仍走非流式)
+    """
+    t0 = time.monotonic()
+
+    try:
+        resp_iter = get_llm_client().chat_stream(
+            messages=messages,
+            tools=ALL_TOOL_SCHEMAS,
+        )
+    except Exception as e:
+        logger.exception("LLM stream init failed")
+        yield {"type": "error", "message": f"{type(e).__name__}: {e}"}
+        return
+
+    # 累积 LLM 完整响应
+    full_content = ""
+    full_tool_calls: list[dict] = []
+    finish_reason: str | None = None
+    usage: dict = {}
+
+    # 累积 LLM 完整响应
+    full_content = ""
+    full_tool_calls: list[dict] = []
+    finish_reason: str | None = None
+    usage: dict = {}
+
+    # emit_content_delta=True 时逐 token yield (打字机效果, 用于 post-tool final)
+    # emit_content_delta=False 时 buffer 不 yield, 用于 step_idx=0 第一次 LLM
+    #   (DeepSeek stream 模式容易出英文 preamble, 不让它干扰)
+    try:
+        async for delta, fr in resp_iter:
+            if delta:
+                full_content += delta
+                if emit_content_delta:
+                    yield {"type": "content_delta", "delta": delta}
+            if fr:
+                finish_reason = fr
+    except Exception as e:
+        logger.exception("LLM stream chunk failed")
+        yield {"type": "error", "message": f"{type(e).__name__}: {e}"}
+        return
+
+    # DeepSeek stream 不会返回 usage; 退化为 0
+    # 累加 token (虽然 stream 模式拿不到, 标记为 0)
+    run.prompt_tokens += int(usage.get("prompt_tokens", 0))
+    run.completion_tokens += int(usage.get("completion_tokens", 0))
+
+    # ============ 处理最终响应 ============
+    # 因为 streaming 模式拿不到 msg['tool_calls'] 的完整结构 (要等 finish),
+    # 这里假设 DeepSeek 在 finish_reason='stop' 时是纯文本, 否则有 tool_calls.
+    # 简化策略: 如果有 tool_calls 字段累积, 处理; 否则当 final text 处理.
+    # 实际: DeepSeek 流式也会传 tool_calls 增量. 但要解析 tool_calls 增量很复杂.
+    # 因此: 流式模式只用于纯文本 final answer; tool_calls 路径走非流式.
+    # 判定 - 如果 full_content 看起来像完整 final text, 当 final 处理.
+    # 否则回退到非流式 chat.
+    # stream 模式下 LLM 经常先 emit "I'll check..." (英文套话), 再 emit finish_reason='tool_calls'.
+    # 这是 preamble hallucination, 不是 final answer. fallback 到非流式 chat 让 _execute_step 走原路径.
+    if finish_reason == "tool_calls":
+        # 流式模式拿到了 tool_calls, 但我们没解析 tool_call chunks (复杂),
+        # 退回到非流式 chat 让它走原 _execute_step() 路径
+        logger.info("Stream got finish_reason=tool_calls, fallback to non-stream _execute_step")
+        events = await _execute_step(db, user, messages, run, step_idx)
+        for evt in events:
+            yield evt
+        return
+
+    if finish_reason == "stop" or (full_content != "" and not full_tool_calls and finish_reason is None):
+        # 纯文本 final answer
+        # - emit_content_delta=True: 已经实时 yield 了 content_delta, 不重复
+        # - emit_content_delta=False: 之前 stream 没 yield (DeepSeek preamble 风险), 现在 batch emit
+        if not emit_content_delta and full_content:
+            for ch in [full_content[i:i+4] for i in range(0, len(full_content), 4)]:
+                yield {"type": "content_delta", "delta": ch}
+        yield {
+            "type": "final",
+            "content": full_content,
+            "msg": {"role": "assistant", "content": full_content},
+        }
+        return
+
+    # 其他情况 (含 tool_calls), 退回到非流式 chat 获取完整响应
+    logger.info(
+        "Stream path got finish_reason=%s, falling back to non-stream chat for tool_calls",
+        finish_reason,
+    )
+    events = await _execute_step(db, user, messages, run, step_idx)
+    for evt in events:
+        yield evt
+
+
 # ============ SSE Streaming API (Block 10) ============
 
 async def stream_agent(
@@ -431,14 +549,22 @@ async def stream_agent(
     llm_user_message = _augment_user_message_with_attachment(user_message, attachment)
     messages = _build_messages(db, user, llm_user_message, conv.id)
 
-    # 4. Loop
+    # 4. Loop (Block 17: 使用 streaming LLM, 在 final answer 时 emit content_delta)
     final_event = None
     error_event = None
     pending_event = None
+    final_delta_buf: list[str] = []
     for step_idx in range(MAX_STEPS):
-        events = await _execute_step(db, user, messages, run, step_idx)
-        for evt in events:
-            if evt["type"] == "final":
+        async for evt in _execute_step_stream(db, user, messages, run, step_idx, emit_content_delta=(step_idx > 0)):
+            if evt["type"] == "content_delta":
+                # Block 17: 累积 final content 的 token, 同时 yield 给前端 (打字机效果)
+                final_delta_buf.append(evt["delta"])
+                yield evt
+            elif evt["type"] == "final":
+                # 如果 streaming 路径已经累积了 tokens, 把它们填进 final.content
+                if final_delta_buf:
+                    evt["content"] = "".join(final_delta_buf)
+                    final_delta_buf = []
                 final_event = evt
             elif evt["type"] == "error":
                 error_event = evt

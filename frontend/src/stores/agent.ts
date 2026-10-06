@@ -46,6 +46,9 @@ interface AgentState {
   // ============ Block 11.5: HITL ============
   confirmRun: (runId: number, approved: boolean) => Promise<void>
 
+  // ============ Block 17: 删除对话 ============
+  deleteConversation: (convId: number) => Promise<void>
+
   // 内部: 把 stream event 应用到 messages
   _applyEvent: (evt: AgentStreamEvent, msgId: string) => void
 }
@@ -160,7 +163,24 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
   },
 
-  _applyEvent: (evt, msgId) => {
+  // ============ Block 17: 删除对话 ============
+  deleteConversation: async (convId: number) => {
+    try {
+      await agentApi.deleteConversation(convId)
+      set((s) => ({
+        conversations: s.conversations.filter((c) => c.id !== convId),
+        // 如果删的是当前打开的对话, 清空消息 + conversationId
+        ...(s.conversationId === convId
+          ? { messages: [], conversationId: null, error: null }
+          : {}),
+      }))
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.message || '删除失败'
+      throw new Error(msg)
+    }
+  },
+
+    _applyEvent: (evt, msgId) => {
     set((s) => {
       const messages = s.messages.map((m) => {
         if (m.id !== msgId) return m
@@ -169,6 +189,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             ...m,
             runId: evt.run_id,
             conversationId: evt.conversation_id,
+          }
+        }
+        if (evt.type === 'content_delta') {
+          // Block 17: 累积 LLM 输出的 token (打字机效果)
+          return {
+            ...m,
+            content: (m.content || '') + (evt.delta || ''),
+            status: 'streaming',
           }
         }
         if (evt.type === 'step_started') {

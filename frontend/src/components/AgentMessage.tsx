@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -24,6 +25,12 @@ function renderMarkdown(text: string): string {
 }
 
 export function AgentMessage({ message }: AgentMessageProps) {
+  // Block 17: 缓存 markdown 渲染结果, 避免每个 content_delta token 重新解析
+  const renderedHtml = useMemo(
+    () => renderMarkdown(message.content),
+    [message.content]
+  )
+
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
@@ -49,6 +56,25 @@ export function AgentMessage({ message }: AgentMessageProps) {
   const isStreaming = message.status === 'streaming'
   const isFailed = message.status === 'failed'
   const isEmpty = !message.content && (!message.steps || message.steps.length === 0)
+
+  // Block 17: 思考 / 调 tool 状态 pill (仅当还没 content 时显示)
+  // - 还没有 content + 没有 step → "思考中"
+  // - 有 step_started 但还没 step_completed → "调用 <name> 中"
+  // - 有 step_completed 但 content 还没出现 → "正在生成回复"
+  // 只要 content 已经有内容, 一律渲染 markdown (打字机流)
+  const lastStep = message.steps && message.steps.length > 0
+    ? message.steps[message.steps.length - 1]
+    : null
+  let statusText: string | null = null
+  if (isStreaming && !message.content) {
+    if (!lastStep) {
+      statusText = '思考中'
+    } else if (lastStep.tool_result == null && !lastStep.tool_error) {
+      statusText = `调用 ${lastStep.tool_name} 中`
+    } else {
+      statusText = '正在生成回复'
+    }
+  }
 
   return (
     <motion.div
@@ -76,24 +102,19 @@ export function AgentMessage({ message }: AgentMessageProps) {
           <AgentConfirmCard pending={message.pendingConfirmation} />
         )}
 
-        {/* 最终内容 */}
-        {!isEmpty && (
+        {/* 最终内容 / 思考状态 pill */}
+        {!isEmpty || statusText ? (
           <div className="px-4 py-2.5 bg-white border border-slate-200 rounded-2xl rounded-bl-md text-sm leading-relaxed">
-            {isStreaming && !message.content ? (
-              <div className="flex items-center gap-2 text-slate-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse" />
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:0.2s]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:0.4s]" />
-                <span className="text-xs ml-1">思考中…</span>
-              </div>
+            {statusText ? (
+              <ThinkingPill text={statusText} />
             ) : (
               <div
                 className="prose-chat"
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content) }}
+                dangerouslySetInnerHTML={{ __html: renderedHtml }}
               />
             )}
           </div>
-        )}
+        ) : null}
 
         {/* 错误 */}
         {isFailed && message.error && (
@@ -103,5 +124,20 @@ export function AgentMessage({ message }: AgentMessageProps) {
         )}
       </div>
     </motion.div>
+  )
+}
+
+
+/**
+ * Block 17: 思考 / 调 tool 状态 pill (三个点的脉冲 + 当前状态文字)
+ */
+function ThinkingPill({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-2 text-slate-500">
+      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse" />
+      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:0.2s]" />
+      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:0.4s]" />
+      <span className="text-xs ml-1">{text}…</span>
+    </div>
   )
 }

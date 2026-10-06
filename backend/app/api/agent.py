@@ -139,6 +139,32 @@ async def list_runs(
     ]
 
 
+@router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_conversation(
+    conversation_id: int,
+    current_user: CurrentUser,
+    db: DBSession,
+):
+    """删除当前用户的某个对话 (级联删除其下所有 AgentRun / AgentStep / Message).
+
+    404 如果不存在或非本人所有 (不区分, 防枚举)。
+    """
+    conv = db.execute(
+        select(Conversation).where(
+            Conversation.id == conversation_id,
+            Conversation.user_id == current_user.id,
+        )
+    ).scalar_one_or_none()
+    if conv is None:
+        raise HTTPException(status_code=404, detail="对话不存在")
+
+    # Conversation → AgentRun (CASCADE) → AgentStep (CASCADE)
+    # Message (看 Conversation 模型定义; 多数情况 CASCADE) 自动清理
+    db.delete(conv)
+    db.commit()
+    return None
+
+
 # ============ Block 11.5: HITL /confirm 端点 ============
 
 @router.post("/runs/{run_id}/confirm", response_model=AgentRunResponse)

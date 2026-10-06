@@ -10,14 +10,49 @@ interface AgentToolStepProps {
   step: AgentStep
 }
 
+/**
+ * Block 17: 精简 tool_args 摘要, 避免超长字符串破坏 header 视觉.
+ * 规则:
+ *   - 截断 string 值到 MAX 字符, 末尾 ...
+ *   - 跳过 > 200 字符的 key (典型是 plan_text / text 等大字段)
+ *   - 最多展示 MAX_ENTRIES 个 key, 多余显示 (N params)
+ */
+const MAX_ARG_VALUE = 60
+const MAX_ENTRIES = 3
+const SKIP_KEYS = new Set(['plan_text', 'text'])
+
+function formatValue(v: unknown): string {
+  if (v == null) return String(v)
+  if (typeof v === 'string') {
+    if (v.length > MAX_ARG_VALUE) return `"${v.slice(0, MAX_ARG_VALUE)}…"`
+    return JSON.stringify(v)
+  }
+  if (typeof v === 'object') return JSON.stringify(v).slice(0, MAX_ARG_VALUE) + (JSON.stringify(v).length > MAX_ARG_VALUE ? '…' : '')
+  return String(v)
+}
+
 function formatArgs(args: AgentStep['tool_args']): string {
   if (!args) return ''
   try {
     const obj = typeof args === 'string' ? JSON.parse(args) : args
-    const entries = Object.entries(obj).slice(0, 3)
-    return entries.map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(', ')
+    if (!obj || typeof obj !== 'object') return String(obj).slice(0, MAX_ARG_VALUE)
+    const allEntries = Object.entries(obj as Record<string, unknown>)
+    const filtered = allEntries.filter(([k, v]) => {
+      if (SKIP_KEYS.has(k)) return false
+      if (typeof v === 'string' && v.length > 200) return false
+      return true
+    })
+    const entries = filtered.slice(0, MAX_ENTRIES)
+    const shown = entries.map(([k, v]) => `${k}: ${formatValue(v)}`).join(', ')
+    const hidden = filtered.length - entries.length
+    const skipped = allEntries.length - filtered.length
+    const parts: string[] = []
+    if (shown) parts.push(shown)
+    if (hidden > 0) parts.push(`+${hidden} more`)
+    if (skipped > 0) parts.push(`(${skipped} skipped)`)
+    return parts.join('  ·  ')
   } catch {
-    return String(args)
+    return String(args).slice(0, MAX_ARG_VALUE)
   }
 }
 
@@ -74,12 +109,46 @@ function renderResult(toolName: string | null | undefined, result: unknown) {
     }
     case 'parse_travel_plan_pdf': {
       if (r?.parsed) {
+        const p = r.parsed
+        const cities: string[] = p.cities ?? []
+        const dates: string[] = p.dates ?? []
+        const days: number | undefined = p.duration_days
+        const themes: string[] = p.themes ?? []
+        const guests: number | undefined = p.guests_estimate
+        const budget: string | number | undefined = p.budget_estimate
         return (
-          <div className="rounded-lg bg-white border border-slate-200 p-3 space-y-1.5 text-sm">
+          <div className="rounded-lg bg-white border border-slate-200 p-3 space-y-2 text-sm">
             <div className="text-xs font-medium text-slate-500">解析结果</div>
-            <pre className="text-xs bg-slate-50 p-2 rounded overflow-x-auto">
-              {JSON.stringify(r.parsed, null, 2)}
-            </pre>
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+              {cities.length > 0 && (
+                <Field label="城市" value={cities.join(' / ')} />
+              )}
+              {dates.length > 0 && (
+                <Field label="日期" value={dates.join(' ~ ')} />
+              )}
+              {days != null && (
+                <Field label="天数" value={`${days} 天`} />
+              )}
+              {guests != null && (
+                <Field label="人数" value={`${guests} 人`} />
+              )}
+              {themes.length > 0 && (
+                <Field label="主题" value={themes.join(' / ')} />
+              )}
+              {budget != null && (
+                <Field label="预算" value={String(budget)} />
+              )}
+            </div>
+            {r.raw_excerpt && (
+              <details className="text-xs text-slate-500">
+                <summary className="cursor-pointer hover:text-slate-700 select-none">
+                  查看原文摘要
+                </summary>
+                <pre className="mt-1 bg-slate-50 p-2 rounded text-[11px] whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
+                  {r.raw_excerpt}
+                </pre>
+              </details>
+            )}
           </div>
         )
       }
@@ -94,6 +163,16 @@ function renderResult(toolName: string | null | undefined, result: unknown) {
   )
 }
 
+
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <span className="text-xs text-slate-400">{label}</span>
+      <span className="text-sm text-slate-900 font-medium">{value}</span>
+    </div>
+  )
+}
 export function AgentToolStep({ step }: AgentToolStepProps) {
   const [expanded, setExpanded] = useState(false)
   const isError = !!step.tool_error
@@ -123,10 +202,10 @@ export function AgentToolStep({ step }: AgentToolStepProps) {
 
         <Wrench className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
 
-        <code className="text-xs font-mono text-slate-700 flex-1">
-          {step.tool_name}
+        <code className="text-xs font-mono text-slate-700 flex-1 min-w-0 truncate">
+          <span className="font-semibold">{step.tool_name}</span>
           {step.tool_args ? (
-              <span className="text-slate-400 ml-1.5">({formatArgs(step.tool_args)})</span>
+              <span className="text-slate-400 ml-1.5 font-normal">({formatArgs(step.tool_args)})</span>
           ) : null}
         </code>
 

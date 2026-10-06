@@ -3,10 +3,11 @@
  * 与 ListingCard 的区别:
  * - 简化为 chat 场景用: 横向小卡 (cover + 信息), 不带收藏按钮 (chat 里不合适)
  * - 数据来自 search_listings tool (缺 primary_image / lat/lng 等)
- * - 点击跳 /listings/:id (可由 router 处理, 不影响 chat)
+ * - 点击跳 /listings/:id (用 useNavigate + div onClick, 不依赖 <Link>)
  */
-import { Link } from 'react-router-dom'
-import { Star, MapPin } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Star } from 'lucide-react'
+import { useAgentStore } from '@/stores/agent'
 
 export interface AgentListingItem {
   id: number
@@ -29,10 +30,25 @@ export function AgentListingCard({ item }: { item: AgentListingItem }) {
   const rating = item.rating != null
     ? (typeof item.rating === 'string' ? parseFloat(item.rating) : item.rating)
     : 0
+  // Block 17 fix: 关掉 AgentPanel 再导航, 避免 fixed inset-0 覆盖目标页面
+  const closePanel = useAgentStore((s) => s.closePanel)
+  const navigate = useNavigate()
+
+  function handleClick(e?: React.MouseEvent | React.KeyboardEvent) {
+    e?.preventDefault()
+    e?.stopPropagation()
+    // 直接 navigate (react-router v6 的 useNavigate 是同步调度;
+    // closePanel() 是异步 setState, 下次渲染 panel 卸载)
+    navigate(`/listings/${item.id}`)
+    closePanel()
+  }
 
   return (
-    <Link
-      to={`/listings/${item.id}`}
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={handleClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleClick() }}
       className="block rounded-lg overflow-hidden bg-white hover:shadow-md transition-shadow group"
     >
       <div className="flex gap-2.5 p-2">
@@ -69,6 +85,6 @@ export function AgentListingCard({ item }: { item: AgentListingItem }) {
           </div>
         </div>
       </div>
-    </Link>
+    </div>
   )
 }

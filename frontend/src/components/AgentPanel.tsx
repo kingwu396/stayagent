@@ -117,18 +117,20 @@ function AgentPanelFloat() {
 
   useEffect(function() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [messages])
+  }, [messages, messages.length > 0 ? messages[messages.length - 1].content : null, messages.length > 0 ? messages[messages.length - 1].id : null])
 
   return (
     <div ref={panelRef} style={panelStyle} className='w-[560px] max-w-[95vw] h-[700px] max-h-[80vh] rounded-2xl shadow-2xl bg-white flex flex-col overflow-hidden border border-slate-200'>
       <div onMouseDown={handleHeaderMouseDown} className='cursor-move'>
         <AgentHeader onMaximize={toggleFullscreen} onMinimize={toggleFullscreen} onClose={closePanel} onClear={clearHistory} messagesCount={messages.length} mode='floating' />
       </div>
-      <div ref={scrollRef} className='flex-1 overflow-y-auto overscroll-contain px-4 py-3 space-y-4 bg-slate-50/50'>
+      <div ref={scrollRef} className='flex-1 overflow-y-auto overscroll-contain px-4 py-5 bg-slate-50/50'>
         {messages.length === 0 ? (
           <EmptyState onSuggestion={sendMessage} />
         ) : (
-          messages.map(function(m) { return <AgentMessage key={m.id} message={m} /> })
+          <div className='space-y-7'>
+            {messages.map(function(m) { return <AgentMessage key={m.id} message={m} /> })}
+          </div>
         )}
       </div>
       <AgentInput />
@@ -144,7 +146,7 @@ function AgentPanelFullscreen() {
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(function() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [messages])
+  }, [messages, messages.length > 0 ? messages[messages.length - 1].content : null, messages.length > 0 ? messages[messages.length - 1].id : null])
 
   return (
     <div className='fixed inset-0 z-[80] bg-white flex'>
@@ -169,11 +171,13 @@ function AgentPanelFullscreen() {
         <div className='bg-white border-b border-slate-200'>
           <AgentHeader onMaximize={toggleFullscreen} onMinimize={toggleFullscreen} onClose={closePanel} onClear={clearHistory} messagesCount={messages.length} mode='fullscreen' />
         </div>
-        <div ref={scrollRef} className='overflow-y-auto overscroll-contain px-6 py-4 max-w-3xl w-full mx-auto'>
+        <div ref={scrollRef} className='overflow-y-auto overscroll-contain px-6 py-6 max-w-3xl w-full mx-auto'>
           {messages.length === 0 ? (
             <EmptyState onSuggestion={sendMessage} />
           ) : (
-            messages.map(function(m) { return <AgentMessage key={m.id} message={m} /> })
+            <div className='space-y-7'>
+              {messages.map(function(m) { return <AgentMessage key={m.id} message={m} /> })}
+            </div>
           )}
         </div>
         <div className='bg-white border-t border-slate-200'>

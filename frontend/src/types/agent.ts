@@ -60,10 +60,16 @@ export interface FinalEvent {
   type: 'final'
   run_id: number
   conversation_id: number
-  status: 'completed' | 'failed' | 'timeout'
+  status: 'completed' | 'failed' | 'timeout' | 'pending_confirmation' | 'cancelled'
   content: string | null
   prompt_tokens: number
   completion_tokens: number
+}
+
+/** Block 17: 流式 LLM token 增量 (打字机效果) */
+export interface ContentDeltaEvent {
+  type: 'content_delta'
+  delta: string
 }
 
 export interface ErrorEvent {
@@ -84,6 +90,7 @@ export type AgentStreamEvent =
   | RunStartedEvent
   | StepStartedEvent
   | StepCompletedEvent
+  | ContentDeltaEvent
   | FinalEvent
   | ErrorEvent
   | PendingConfirmationEvent

@@ -144,4 +144,12 @@ export const agentApi = {
     )
     return res.data
   },
+
+  /** Block 17: 删除一个对话 (级联删除其下所有 run / message).
+   * 后端: DELETE /api/agent/conversations/{id}.
+   * 404 if 不存在或非本人 (前端用 toast 反馈).
+   */
+  async deleteConversation(conversationId: number): Promise<void> {
+    await api.delete(`/agent/conversations/${conversationId}`)
+  },
 }

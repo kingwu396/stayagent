@@ -7,7 +7,7 @@
 4. 不引 LangChain / openai SDK, 手写 60 行可控代码 (charter §3 + 用户偏好)
 """
 import logging
-from typing import Any, Optional
+from typing import Any, AsyncGenerator, Optional
 
 import httpx
 
@@ -98,6 +98,72 @@ class DeepSeekClient:
         resp = await client.post(self.CHAT_COMPLETIONS_PATH, json=body)
         resp.raise_for_status()
         return resp.json()
+
+    async def chat_stream(
+        self,
+        messages: list[dict[str, Any]],
+        tools: Optional[list[dict[str, Any]]] = None,
+        model: str = DEFAULT_MODEL,
+        temperature: float = DEFAULT_TEMPERATURE,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+    ) -> AsyncGenerator[tuple[str, str], None]:
+        """
+        Block 17: 流式 chat. 返回 AsyncGenerator, 每个 chunk yield (delta, finish_reason).
+
+        delta: LLM 返回的 incremental content 片段 (可能是 "")
+        finish_reason: 当 chunk 是最后一个时为 "stop"/"tool_calls"/None, 否则 None
+
+        OpenAI/DeepSeek SSE 格式: data: {"choices": [{"delta": {...}, "finish_reason": ...}]}\n\n
+        终止信号: data: [DONE]
+
+        Raises:
+            RuntimeError: API key 未配置
+            httpx.HTTPStatusError: HTTP 错误 (4xx/5xx)
+        """
+        if not self.api_key:
+            raise RuntimeError(
+                "DEEPSEEK_API_KEY 未配置, 请在 backend/.env 中设置。"
+                "获取: https://platform.deepseek.com/api_keys"
+            )
+
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": True,
+        }
+        if tools:
+            body["tools"] = tools
+            body["tool_choice"] = "auto"
+
+        client = self._get_client()
+
+        # Use stream() to read SSE chunks
+        async with client.stream("POST", self.CHAT_COMPLETIONS_PATH, json=body) as resp:
+            resp.raise_for_status()
+            buffer = ""
+            async for raw_line in resp.aiter_lines():
+                if not raw_line:
+                    continue
+                if not raw_line.startswith("data:"):
+                    continue
+                payload = raw_line[5:].strip()
+                if payload == "[DONE]":
+                    return
+                try:
+                    import json as _json
+                    chunk = _json.loads(payload)
+                except Exception:
+                    continue
+                choices = chunk.get("choices") or []
+                if not choices:
+                    continue
+                choice = choices[0]
+                delta = (choice.get("delta") or {}).get("content") or ""
+                finish_reason = choice.get("finish_reason")
+                if delta or finish_reason:
+                    yield (delta, finish_reason or "")
 
     async def aclose(self) -> None:
         """关闭底层 httpx 客户端 (lifespan 关闭时调用)"""
