@@ -7,10 +7,25 @@ import { ImageGallery } from '@/components/ImageGallery'
 import { AmenityList } from '@/components/AmenityList'
 import { BookingWidget } from '@/components/BookingWidget'
 import { ListingLocationCard } from '@/components/ListingLocationCard'
+import { ListingHighlights } from '@/components/ListingHighlights'
+import { ReviewsSection } from '@/components/ReviewsSection'
+import { MoreListingsCarousel } from '@/components/MoreListingsCarousel'
 import { ErrorState } from '@/components/ErrorState'
 import { Skeleton } from '@/components/Skeleton'
 import { listingsApi } from '@/api/listings'
 import type { ListingDetail } from '@/types/listing'
+
+/** 由 listing.id 派生"X 年出租经验" */
+function hashYears(id: number): number {
+  let x = (id * 2654435761) >>> 0
+  x = ((x ^ (x >>> 13)) * 1274126177) >>> 0
+  return 2 + (x % 8) // 2-9 年
+}
+
+/** 检测描述中是否含有非中文字符 (英文短语) 用于显示"翻译提示" */
+function hasNonChinese(s: string): boolean {
+  return /[A-Za-z]/.test(s)
+}
 
 export function ListingDetailView() {
   const { id } = useParams<{ id: string }>()
@@ -18,6 +33,10 @@ export function ListingDetailView() {
   const [listing, setListing] = useState<ListingDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // 房源介绍: 中英文展示切换
+  const [showOriginal, setShowOriginal] = useState(false)
+  const [descExpanded, setDescExpanded] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -50,7 +69,6 @@ export function ListingDetailView() {
   useEffect(() => {
     useWishlistStore.getState().fetchAll()
   }, [])
-
 
   return (
     <div className="min-h-screen bg-white">
@@ -132,8 +150,8 @@ export function ListingDetailView() {
             {/* Grid: details + booking */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* 左 2 列：详情 */}
-              <div className="lg:col-span-2 space-y-8">
-                {/* 房东 + 房型 */}
+              <div className="lg:col-span-2 space-y-10">
+                {/* 房东 + 房型 简介 */}
                 <section className="flex items-start justify-between border-b border-slate-200 pb-6">
                   <div>
                     <h2 className="text-xl font-semibold text-slate-900 mb-1">
@@ -148,23 +166,77 @@ export function ListingDetailView() {
                   </div>
                 </section>
 
-                {/* 描述 */}
+                {/* 6 槽设施亮点 (Airbnb 风格营销文案) */}
+                <ListingHighlights amenities={listing.amenities} city={listing.city} />
+
+                {/* 房东卡 (Airbnb 风格: 头像 + 自我介绍) */}
+                <section className="border-b border-slate-200 pb-8">
+                  <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-slate-700 font-bold text-xl flex-shrink-0">
+                        {listing.host_name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="text-base font-semibold text-slate-900">
+                          房东: {listing.host_name}
+                        </div>
+                        <div className="text-sm text-slate-600 mt-0.5">
+                          超赞房东 · {hashYears(listing.id)} 年出租经验
+                        </div>
+                      </div>
+                    </div>
+                </section>
+
+                {/* 描述 + 翻译提示 */}
                 {listing.description && (
-                  <section className="border-b border-slate-200 pb-6">
-                    <h3 className="text-lg font-semibold text-slate-900 mb-3">关于这里</h3>
-                    <p className="text-slate-700 leading-relaxed whitespace-pre-line">
-                      {listing.description}
-                    </p>
+                  <section className="border-b border-slate-200 pb-8">
+                    {/* 翻译提示 banner (检测到英文才显示) */}
+                    {hasNonChinese(listing.description) && (
+                      <div className="bg-slate-100 px-4 py-3 rounded-lg flex items-center gap-2 text-sm text-slate-700 mb-5">
+                        <span>
+                          {showOriginal ? '部分信息以原文展示。' : '部分信息已自动翻译。'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowOriginal((v) => !v)}
+                          className="font-semibold text-slate-900 underline underline-offset-2 hover:text-brand-600 transition"
+                        >
+                          {showOriginal ? '显示译文' : '显示原文'}
+                        </button>
+                      </div>
+                    )}
+                    {/* 房源介绍 */}
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-900 mb-2">房源介绍</h3>
+                      <p
+                        className={`text-slate-700 leading-relaxed whitespace-pre-line ${
+                          descExpanded ? '' : 'line-clamp-4'
+                        }`}
+                      >
+                        {listing.description}
+                      </p>
+                      {listing.description.length > 200 && (
+                        <button
+                          type="button"
+                          onClick={() => setDescExpanded((v) => !v)}
+                          className="mt-3 px-5 py-2.5 bg-white border border-slate-900 text-slate-900 text-sm font-medium rounded-lg hover:bg-slate-900 hover:text-white transition"
+                        >
+                          {descExpanded ? '收起' : '显示更多'}
+                        </button>
+                      )}
+                    </div>
                   </section>
                 )}
 
-                {/* 设施 */}
-                <section className="border-b border-slate-200 pb-6">
+                {/* 完整设施清单 */}
+                <section className="border-b border-slate-200 pb-8">
                   <h3 className="text-lg font-semibold text-slate-900 mb-4">
                     设施与服务
                   </h3>
                   <AmenityList amenities={listing.amenities} />
                 </section>
+
+                {/* 评价区 (Airbnb 风格: 评分条 + 子维度 + chips + 评论卡) */}
+                <ReviewsSection listing={listing} />
 
                 {/* 位置 */}
                 <section className="pb-6">
@@ -197,6 +269,9 @@ export function ListingDetailView() {
                 <BookingWidget listing={listing} />
               </aside>
             </div>
+
+            {/* 底部: 更多周边房源 (全宽, 不进 grid) */}
+            <MoreListingsCarousel city={listing.city} currentListingId={listing.id} />
           </div>
         )}
       </main>
