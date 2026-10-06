@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { CompactTopbar } from '@/components/CompactTopbar'
 import { EMPTY_GUESTS, type CompactSearchState } from '@/hooks/useCompactSearch'
+import { motion } from 'framer-motion'
 import { ListingCard } from '@/components/ListingCard'
 import { SearchMap } from '@/components/SearchMap'
 import { ListingCardSkeleton } from '@/components/Skeleton'
@@ -358,16 +359,19 @@ export function SearchView() {
           {!error && items.length > 0 && (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {items.map((l) => (
-                  <div
+                {items.map((l, idx) => (
+                  <motion.div
                     key={l.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: Math.min(idx * 0.03, 0.4), ease: 'easeOut' }}
                     ref={(el) => {
                       if (el) cardRefs.current.set(l.id, el)
                       else cardRefs.current.delete(l.id)
                     }}
                   >
                     <ListingCard listing={l} highlighted={highlightedId === l.id} />
-                  </div>
+                  </motion.div>
                 ))}
               </div>
 

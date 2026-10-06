@@ -1,123 +1,198 @@
 # StayAgent
 
-> Airbnb 风格住宿平台 × AI Travel Agent
-> 立项文档见 `outputs/project-charter.md`（本地参考用，不上传）
+> **Airbnb 风格住宿平台 × AI Travel Agent**
+> Agent 能真正帮你订房 — 不只是聊天，能调工具、改数据、影响实际业务流程
+
+立项文档见 `docs/project-charter.md`（本地参考用，不上传 git）。
+
+---
+
+## 📍 项目板块（25 项全部完成 ✅）
+
+| Block | 内容 | 加分项覆盖 |
+|---|---|---|
+| 1 | 项目骨架 + Hello StayAgent | F1, B1, B2 |
+| 2 | 用户系统 | B4, F3 |
+| 3 | Listing seed 数据 | B8 |
+| 4-7 | 首页 / 搜索 / 详情 / 心愿单 / Trips | F2, F4, F6 |
+| 8 | LLM 客户端 + 12 Tool Schema | A1 |
+| 9 | Agent Orchestrator + 7 Tool | A10 |
+| 10 | AgentPanel UI + SSE 流式 | A2, F7 |
+| 11 | AgentPanel 重构 (浮动+全屏+历史) | A4, A5, A8 |
+| 11.5 | create_booking (HITL) + 拖动 + 全屏微调 | A9 |
+| **12** | **Tools 9-12 + RAG (Travel Tips) + PDF 上传** | **A3, A6, A7** |
+| **13** | **F5 动画 + F8 Generative UI + 演示文档** | **F5, F8** |
+
+---
+
+## 🏛️ 架构总览
+
+```mermaid
+graph LR
+  User([用户]) --> FE[React Frontend<br/>Vite + TS + Tailwind]
+  User -->|PDF| FE
+
+  FE -->|HTTPS + JWT| BE[FastAPI Backend]
+  FE -->|SSE Stream| BE
+
+  BE --> ORM[SQLAlchemy 2.0]
+  ORM --> DB[(MySQL)]
+
+  BE --> Redis[(Redis<br/>refresh 白名单 + access 黑名单)]
+  BE --> LLM[DeepSeek Chat API]
+  BE --> Embed[Sentence-Transformers<br/>all-MiniLM-L6-v2]
+
+  Embed --> RAG[RAG Retriever<br/>cosine similarity]
+
+  subgraph Tools[Agent 工具 12 个]
+      T1[search_listings]
+      T2[get_listing_detail]
+      T3[compare_listings]
+      T4-7[心愿单 4 个]
+      T8[create_booking<br/>HITL]
+      T9[list_my_trips]
+      T10-11[PDF tools]
+      T12[search_travel_tips RAG]
+    end
+
+  BE --> Tools
+  RAG --> Tools
+```
+
+---
+
+## 🔄 Agent 调用流程
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant FE as Frontend
+  participant BE as Backend
+  participant L as LLM (DeepSeek)
+  participant DB
+
+  U->>FE: 输入问题 + (可选) PDF
+  FE->>BE: POST /api/agent/chat/stream
+  BE->>DB: 写 user message
+  BE->>L: 拼 messages (system + history + augmented)
+  L-->>BE: tool_calls: [search_listings, ...]
+  loop 直到 final 或 timeout
+    BE->>DB: 写 AgentStep
+    BE->>BE: 调 tool (查 DB 或 RAG)
+    BE-->>FE: SSE: step_started/completed
+  end
+  L-->>BE: final content
+  BE->>DB: 写 assistant message + AgentRun
+  BE-->>FE: SSE: final + done
+  FE-->>U: 渐入消息 + tool cards 展开
+```
+
+HITL 例外：`create_booking` 触发时返回 `status=pending_confirmation`，前端渲染 `AgentConfirmCard`，用户点确认后调 `/api/agent/runs/{id}/confirm`。
+
+RAG 流程：`search_travel_tips(query)` → `embed(query)` → 全表 cosine similarity → top-3 tips → LLM 二次组织成中文回答。
+
+---
 
 ## 🚀 快速开始
 
-### 首次安装
+### 安装
 
 ```bash
-make install
+make install            # uv sync + pnpm install
 ```
 
-会做两件事：
-1. `uv sync` 创建 `.venv` 并安装后端依赖（**超快，2 秒搞定**）
-2. `pnpm install` 安装前端依赖
+### 配置环境
 
-### 配置环境变量
+编辑 `backend/.env`，填入 MySQL 密码和 DeepSeek API key。
 
-编辑 `backend/.env`，填入你的 MySQL 密码（其他字段已预填）。
-
-### Seed 演示数据（首次）
+### Seed 演示数据
 
 ```bash
-make seed
+make seed                                  # 100 条房源 (10 城 × 10 条)
+uv run python -m scripts.seed_travel_tips  # 30 条 RAG 知识库 (5 类 × 6 条)
 ```
 
-会生成 100 条全球房源数据（10 个城市 × 10 条），幂等可重跑。
-
-**重置数据**：
+### 启动
 
 ```bash
-mysql -u root -p -e "USE stayagent; TRUNCATE TABLE listings;"
-make seed
+make dev      # 同时启动前后端
 ```
 
-### 启动开发环境
+- 🎨 前端：<http://localhost:5173>
+- 🚀 后端：<http://127.0.0.1:8000>
+- 📚 API 文档：<http://127.0.0.1:8000/docs>
+
+---
+
+## 🧪 验证
 
 ```bash
-make dev
+# 后端 unit tests
+cd backend
+uv run python -m scripts.test_agent_block11_5    # 5/5
+uv run python -m scripts.test_agent_block12      # 10/10
+
+# 前端 build
+cd ../frontend
+pnpm exec tsc --noEmit
+pnpm run build
 ```
 
-会同时启动：
-- 🎨 前端: http://localhost:5173
-- 🚀 后端: http://127.0.0.1:8000
-- 📚 API 文档: http://127.0.0.1:8000/docs
+---
 
-按 `Ctrl+C` 关闭。
+## 🎬 演示脚本
 
-## 📦 包管理
+详见 **[docs/demo.md](docs/demo.md)** — 5 分钟答辩脚本。
 
-| 端 | 工具 | 锁文件 | 说明 |
-|---|---|---|---|
-| 后端 | **uv** | `backend/uv.lock`（提交）| 超快 Rust 写的 pip 替代 |
-| 前端 | **pnpm** | `frontend/pnpm-lock.yaml`（提交）| 速度快、磁盘省 |
+---
 
-### 为什么用 uv？
+## 🔑 关键技术决策
 
-- 🚀 **快 10-100 倍**（Rust 写的，比 pip 快很多）
-- 🔒 **自动管理虚拟环境**（不用手动 `python -m venv`）
-- 📦 **统一锁文件**（uv.lock 跨机器可复现）
-- 🐍 **自动下载 Python 版本**（指定 `.python-version` 即可）
+| 决策 | 替代方案 | 为何选这个 |
+|---|---|---|
+| **uv** (Rust 写的 pip) | pip + venv | 快 10-100×，自动管虚拟环境 |
+| **pnpm** | npm / yarn | 速度快、磁盘省、monorepo 友好 |
+| **Sentence-Transformers** (本地 RAG) | 云 embedding API / LangChain | 0 成本、不引依赖、规模 30 条足够 |
+| **DeepSeek** | OpenAI / Claude | 中文强、价格低、OpenAI 协议兼容 |
+| **手写 ReAct** | LangChain / LlamaIndex | 透明可控，无黑盒 |
+| **MySQL** + SQLAlchemy 2.0 | Postgres / MongoDB | 项目 ORM 基础 |
+| **Redis 黑名单** | JWT-only | 即时撤销 access token，无需等过期 |
+| **PDF inline 注入** | file_id 引用 | LLM 直接读，避免幻觉参数 |
 
-常用 uv 命令：
+---
 
-```bash
-# 安装所有依赖
-uv sync
-
-# 添加新依赖
-uv add fastapi
-
-# 移除依赖
-uv remove fastapi
-
-# 运行命令（自动激活 venv）
-uv run python script.py
-uv run uvicorn app.main:app
-
-# 更新依赖到最新版本
-uv lock --upgrade
-```
-
-## 📁 项目结构
+## 📦 项目结构
 
 ```
 stayagent/
-├── backend/          # FastAPI 后端（uv）
-├── frontend/         # React 前端（pnpm）
-├── outputs/（本地参考）
-└── Makefile          # 一键启动
+├── backend/
+│   ├── app/
+│   │   ├── api/         # HTTP 路由 (auth/listings/bookings/wishlists/agent/uploads)
+│   │   ├── core/        # llm_client / redis_client / security
+│   │   ├── db/          # SQLAlchemy Base + Session
+│   │   ├── models/      # 9 张表
+│   │   ├── schemas/     # Pydantic schemas
+│   │   └── services/
+│   │       ├── agent/   # orchestrator / tools / tool_schemas / prompts / retry
+│   │       └── rag/      # Block 12: sentence-transformers + cosine
+│   ├── scripts/         # seed_listings / seed_travel_tips / test_block_*
+│   └── pyproject.toml
+├── frontend/
+│   ├── src/
+│   │   ├── api/         # axios + uploads + agent
+│   │   ├── components/  # 33+ 组件 + agent/ 子目录 (F8)
+│   │   ├── views/       # 7 页面
+│   │   ├── stores/      # auth / wishlist / agent / toast (zustand)
+│   │   ├── hooks/ / lib/ / types/ / router/
+│   │   └── index.css
+│   └── tailwind.config.js
+├── docs/
+│   ├── CHANGELOG.md
+│   ├── CONSTITUTION.md
+│   ├── project-charter.md
+│   ├── demo.md             # Block 13: 5 分钟演示脚本
+│   ├── architecture.md     # Block 13: 架构详解
+│   └── screenshots/        # Block 13: 截图占位
+├── Makefile
+└── README.md
 ```
-
-## 📍 当前进度
-
-- [x] **Block 1**: 项目骨架 + Hello StayAgent ✅
-- [x] Block 2: 用户系统 ✅
-- [x] Block 3: 房源 seed 数据 ✅
-- [x] Block 4-7: 业务 (首页/搜索/详情/心愿单/Trips) ✅
-- [x] Block 8: LLM 客户端 + 12 个 Tool Schema ✅
-- [x] Block 9: Agent Orchestrator + 7 个 Tool ✅
-- [x] Block 10: AgentPanel UI + SSE 流式 ✅
-- [x] Block 11: AgentPanel 重构 (浮动+全屏+历史列表) ✅
-- [x] Block 11.5: create_booking (HITL) + 拖动 + 全屏微调 ✅
-- [x] **Block 12**: Tools 9-12 + RAG (Travel Tips) + PDF 上传 ✅
-
-### 第一次使用需跑
-
-```bash
-# 安装依赖 (含 sentence-transformers + pdfplumber)
-uv sync
-
-# 填充房源数据 (幂等)
-make seed
-
-# 填充 RAG 知识库 (30 条, 幂等)
-uv run python -m scripts.seed_travel_tips
-
-# 启动
-make dev
-```
-
-立项文档存放在 outputs/（本地参考用，不上传 git）

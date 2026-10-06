@@ -1340,3 +1340,38 @@ run_started → step_started → step_completed → ... → final → done
 - embedding 模型首次启动会下载 (~80MB), 后续从 ~/.cache/huggingface 加载
 
 **提交**: (待用户说 "commit git")
+
+## 📅 2026-10-06 — Block 13: F5 动画 + F8 Generative UI + Day 19 演示准备
+
+**目标**: 把项目从"功能齐全"打磨到"答辩级别". Agent 聊天里 tool 结果渲染成真卡片, 加 framer-motion, 重写 README + 演示脚本
+
+**新增**:
+- frontend: `+ framer-motion 14.0.0` (依赖)
+- frontend: `components/PageTransition.tsx` (路由 fade+slide 包装)
+- frontend: `components/agent/AgentListingCard.tsx` (F8 - 横向房源小卡)
+- frontend: `components/agent/AgentTipsCard.tsx` (F8 - RAG 贴士带 score 高亮)
+- frontend: `components/agent/AgentBookingCard.tsx` (F8 - HITL 确认后的订单卡, 含跳 /trips)
+- frontend: `components/agent/AgentPlanCard.tsx` (F8 - parse_travel_plan_pdf / recommend_from_plan)
+- frontend: `AgentToolStep.tsx` 重构 — 按 tool_name 路由到对应卡片, 未知 tool 走 JSON 兜底
+- frontend: `router/index.tsx` 加 AnimatedLayout + PageTransition
+- frontend: `AgentMessage.tsx` 外层 motion.div 渐入
+- frontend: `HomeView.tsx` / `SearchView.tsx` ListingCard 列表 stagger 入场
+- frontend: `Toast.tsx` AnimatePresence + spring 入场/退场
+- frontend: `AgentFab.tsx` whileHover/whileTap spring
+- docs: `README.md` 重写 — 项目板块表 + 架构图 (mermaid) + Agent 流程时序 + 关键技术决策
+- docs: `docs/demo.md` 新建 — 5 分钟 8 段演示步骤 + 计时表
+- docs: `docs/architecture.md` 新建 — 10 节架构详解 (含 mermaid 图)
+- docs: `docs/screenshots/` 新建 — 10 张截图占位 + 截图脚本
+
+**验证**:
+- [x] `pnpm run build` 通过
+- [x] `pnpm exec tsc --noEmit` 0 报错
+- [ ] 浏览器手测: 路由切换 fade / 列表 stagger / Agent 卡片渲染 / toast spring (按宪法由用户手测)
+
+**约定 / 假设**:
+- framer-motion 14.0.0 (原计划 ^11.x, 实际升到 14, 仍兼容 React 18 + Vite 5)
+- chat 卡片用专属轻量组件, 不复用 ListingCard (避免传 props 爆炸)
+- 未知 tool 保留 JSON dump (debug 友好)
+- 截图占位 (手测时补图)
+
+**提交**: (待用户说 "commit git")

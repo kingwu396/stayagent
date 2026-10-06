@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { Sparkles } from 'lucide-react'
@@ -50,7 +51,12 @@ export function AgentMessage({ message }: AgentMessageProps) {
   const isEmpty = !message.content && (!message.steps || message.steps.length === 0)
 
   return (
-    <div className="flex gap-2 items-start">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: 'easeOut' }}
+      className="flex gap-2 items-start"
+    >
       <div className="flex-shrink-0 w-7 h-7 rounded-full bg-brand-500 flex items-center justify-center">
         <Sparkles className="w-4 h-4 text-white" />
       </div>
@@ -96,6 +102,6 @@ export function AgentMessage({ message }: AgentMessageProps) {
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }

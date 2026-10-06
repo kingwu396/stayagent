@@ -6,6 +6,7 @@ import { UserMenu } from '@/components/UserMenu'
 import { HeroSearch } from '@/components/HeroSearch'
 import { CompactTopbar } from '@/components/CompactTopbar'
 import { CategoryStrip } from '@/components/CategoryStrip'
+import { motion } from 'framer-motion'
 import { ListingCard } from '@/components/ListingCard'
 import { ListingCardSkeleton } from '@/components/Skeleton'
 import { EmptyState } from '@/components/EmptyState'
@@ -124,8 +125,15 @@ export function HomeView() {
 
         {!isLoading && !error && listings.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {listings.map((l) => (
-              <ListingCard key={l.id} listing={l} />
+            {listings.map((l, idx) => (
+              <motion.div
+                key={l.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: Math.min(idx * 0.04, 0.5), ease: 'easeOut' }}
+              >
+                <ListingCard listing={l} />
+              </motion.div>
             ))}
           </div>
         )}

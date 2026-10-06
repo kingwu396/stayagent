@@ -1,4 +1,5 @@
 import { Sparkles } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { useAgentStore } from '@/stores/agent'
 
 /** 右下角浮动按钮, 点开 AgentPanel */
@@ -8,13 +9,15 @@ export function AgentFab() {
   const isStreaming = useAgentStore((s) => s.isStreaming)
 
   return (
-    <button
+    <motion.button
       onClick={togglePanel}
+      whileHover={{ scale: 1.08 }}
+      whileTap={{ scale: 0.92 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 20 }}
       className={[
         'fixed bottom-6 right-6 z-40',
         'w-14 h-14 rounded-full shadow-lg',
         'flex items-center justify-center',
-        'transition-all duration-200 hover:scale-105 active:scale-95',
         isOpen
           ? 'bg-slate-700 hover:bg-slate-800'
           : 'bg-brand-500 hover:bg-brand-600',
@@ -25,8 +28,13 @@ export function AgentFab() {
         className={`w-6 h-6 text-white ${isStreaming ? 'animate-pulse' : ''}`}
       />
       {isStreaming && (
-        <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 ring-2 ring-white rounded-full" />
+        <motion.span
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+          className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 ring-2 ring-white rounded-full"
+        />
       )}
-    </button>
+    </motion.button>
   )
 }
