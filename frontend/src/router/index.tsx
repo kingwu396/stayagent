@@ -3,6 +3,7 @@ import { AnimatePresence } from 'framer-motion'
 import { HomeView } from '@/views/HomeView'
 import { ListingDetailView } from '@/views/ListingDetailView'
 import { WishlistView } from '@/views/WishlistView'
+import { HostDashboardView } from '@/views/HostDashboardView'
 import { TripsView } from '@/views/TripsView'
 import { SearchView } from '@/views/SearchView'
 import { LoginView } from '@/views/LoginView'
@@ -44,6 +45,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <TripsView />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/host',
+        element: (
+          <ProtectedRoute>
+            <HostDashboardView />
           </ProtectedRoute>
         ),
       },

@@ -302,8 +302,12 @@ async def filter_options(
 
 @router.get("/{listing_id}", response_model=ListingResponse)
 async def get_listing(listing_id: int, db: DBSession):
-    """房源详情"""
+    """房源详情 (Block 15: 顺便 view_count +1)"""
     listing = db.get(Listing, listing_id)
     if not listing:
         raise HTTPException(status_code=404, detail="房源不存在")
+    # Block 15: 详情访问自增 (list 接口不增)
+    listing.view_count = (listing.view_count or 0) + 1
+    db.commit()
+    db.refresh(listing)
     return _to_response(listing)

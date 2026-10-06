@@ -8,12 +8,14 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     username: str = Field(min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
     password: str = Field(min_length=8, max_length=128)
+    is_host: bool = Field(default=False, description="是否注册为房东 (可后端自建房源)")
 
 
 class RegisterResponse(BaseModel):
     id: int
     email: str
     username: str
+    is_host: bool = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

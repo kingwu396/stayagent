@@ -1409,3 +1409,74 @@ run_started → step_started → step_completed → ... → final → done
 - 影响: 首次 RAG 查询 ~3s 一次性延迟 (lazy load), 之后命中缓存
 
 **提交**: (待用户说 "commit git")
+
+## 📅 2026-10-06 — Block 15: 房东后台 (Host Dashboard) + view 计数
+
+**目标**: 加多租户维度, 房东能看到自己房源的访问量 / 预订 / 营收
+
+**新增**:
+- backend: `User.is_host` 字段 (默认 False, 老用户不受影响)
+- backend: `Listing.host_id` (FK to User, nullable) + `Listing.view_count` (默认 0)
+- backend: ALTER TABLE (users + listings) — live DB 已落地
+- backend: `seed_listings.py` 升级 — 创建 3 个 demo 房东账号 (host1/2/3 @test.com, 密码 TestPass123!), 1000 条 listings 轮转分配
+- backend: `POST /api/auth/register` 加 `is_host` 可选字段
+- backend: `GET /api/listings/{id}` 详情访问自增 view_count (list 接口不增)
+- backend: 新 API `/api/host/*` — GET /me / GET /listings / GET /listings/{id}/stats (403 if 非 host)
+- backend: 新 schema `HostMeResponse / HostListingStat / HostDashboardResponse`
+- backend: 新测试 `scripts/test_host_dashboard.py` (5 个测试)
+- frontend: 新类型 `types/host.ts`
+- frontend: 新 API `api/host.ts` (getMe / getListings / getListingStats)
+- frontend: 新视图 `views/HostDashboardView.tsx` (KPI + Top 5 SVG bar + listings 表)
+- frontend: `router/index.tsx` 加 `/host` 路由 (ProtectedRoute)
+- frontend: `UserMenu.tsx` 加 "房东后台" 链接 (is_host 时显示)
+- frontend: `User.is_host` 字段 + register 时可勾选
+
+**验证**:
+- [x] `test_host_dashboard`: 5/5 通过 (3 hosts / 非 host 403 / view_count 准确 +5 / revenue 聚合 / listings 隔离)
+- [x] `test_listings_db_filter`: 9/9 (没破坏)
+- [x] `test_agent_block11_5`: 5/5 (没破坏)
+- [x] `test_agent_block12`: 10/10 (没破坏)
+- [x] `pnpm run build`: TS 0 报错
+- [ ] 浏览器手测: host1@test.com 登录 -> /host 看自己 334 房源 (按宪法由用户手测)
+
+**约定 / 假设**:
+- 3 个 demo 房东: host1/2/3 @test.com, 密码 TestPass123!, is_host=True
+- view_count 仅在详情页 (GET /listings/{id}) 自增, list 接口不增
+- 非 host 用户调 /api/host/* 返 403
+- revenue 仅含 status='confirmed' 的 booking (pending 不算实际营收)
+- 不引新依赖 (纯 SQLAlchemy + SVG inline)
+
+**小修** (Block 15 后续):
+- backend: 新增 `POST /api/host/become` 端点 (idempotent, 一键 is_host=True)
+- frontend: `api/host.ts` 加 `becomeHost()`
+- frontend: `stores/auth.ts` 加 `updateUser(patch)` (部分更新 user 字段)
+- frontend: `UserMenu.tsx`:
+  - is_host=true → 显示 "房东后台" 链接 (跳 /host)
+  - is_host=false → 显示 "成为房东" 按钮 (调 becomeHost, 自动跳 /host)
+- 修复: 任意用户都有入口, 不用记 demo 账号
+- 测试: test_host_dashboard Test 6 (become_host 幂等 + DB 验证)
+
+**小修 2** (房东后台闪烁):
+- frontend: `HostDashboardView.tsx`:
+  - 用 `mountedRef` 防 dev StrictMode 双触发 fetch
+  - 用 `cancelled` flag 在 cleanup 时忽略 stale setState
+  - loading state 改为 null vs data 二态 (避免短暂 flicker)
+  - 加载中显示 skeleton 占位 (而不是 "加载中..." 文字闪烁)
+- 测试: TS 0 报错, build OK
+
+**小修 3** (root cause: 永久 loading):
+- bug: `useToast()` 每次 render 返回新 literal `{ success, error, ... }` 对象
+  → HostDashboardView 的 useEffect deps `[toast]` 每次都是新值
+  → useEffect 反复 fire → fetch 永远 in-flight → skeleton 永久显示
+- fix: useEffect deps 改 `[]` (mount-only), 注释警告后人不要再犯
+- fix: 错误 catch 不再依赖 toast.success, 直接 setErrorMsg 显示, console.error 调试
+- 测试: TS 0 报错, build OK
+
+**小修 4** (重写, 简化状态机):
+- 进一步: 把 `info / dashboard / errorMsg` 三个 state 合并成单一 `state` 对象 (atomic update)
+- 简化 `useEffect`: Promise.all + then/catch + mounted flag (无 useRef 嵌套)
+- 移除 unused imports / variables (useToast, useRef, useAuthStore)
+- 修复 `me?.username || info.username` 引用未定义 me 变量
+- 测试: TS 0 报错, build OK
+
+**提交**: (待用户说 "commit git")

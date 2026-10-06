@@ -85,6 +85,7 @@ async def register(payload: RegisterRequest, db: DBSession):
         email=payload.email,
         username=payload.username,
         password_hash=hash_password(payload.password),
+        is_host=payload.is_host,
     )
     db.add(user)
     db.commit()

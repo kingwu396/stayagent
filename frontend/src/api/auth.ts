@@ -4,6 +4,7 @@ export interface User {
   id: number
   email: string
   username: string
+  is_host: boolean
   avatar_url: string | null
   created_at: string
 }
@@ -16,8 +17,13 @@ export interface LoginResponse {
 }
 
 export const authApi = {
-  async register(email: string, username: string, password: string): Promise<User> {
-    const res = await api.post<User>('/auth/register', { email, username, password })
+  async register(
+    email: string,
+    username: string,
+    password: string,
+    is_host: boolean = false,
+  ): Promise<User> {
+    const res = await api.post<User>('/auth/register', { email, username, password, is_host })
     return res.data
   },
 

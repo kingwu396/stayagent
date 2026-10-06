@@ -11,9 +11,11 @@ interface AuthState {
   error: string | null
 
   login: (account: string, password: string) => Promise<void>
-  register: (email: string, username: string, password: string) => Promise<void>
+  register: (email: string, username: string, password: string, is_host?: boolean) => Promise<void>
   logout: () => void
   fetchMe: () => Promise<void>
+  /** Block 15: 部分更新 user 字段 (e.g. become_host 后 is_host=true) */
+  updateUser: (patch: Partial<User>) => void
   clearError: () => void
 }
 
@@ -40,10 +42,10 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      async register(email, username, password) {
-        set({ isLoading: true, error: null })
+      async register(email, username, password, is_host = false) {
+        set({ isLoading: true })
         try {
-          await authApi.register(email, username, password)
+          const user = await authApi.register(email, username, password, is_host)
           // 注册成功后自动登录
           await get().login(username, password)
         } catch (err: any) {
@@ -58,6 +60,12 @@ export const useAuthStore = create<AuthState>()(
       logout() {
         clearToken()
         set({ user: null, token: null })
+      },
+
+      updateUser(patch: Partial<User>) {
+        const cur = get().user
+        if (!cur) return
+        set({ user: { ...cur, ...patch } })
       },
 
       async fetchMe() {

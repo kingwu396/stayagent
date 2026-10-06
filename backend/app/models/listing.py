@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import BigInteger, String, Text, Integer, DECIMAL, DateTime, Enum, JSON, func, Index
+from sqlalchemy import BigInteger, String, Text, Integer, DECIMAL, DateTime, Enum, ForeignKey, JSON, func, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -35,6 +35,15 @@ class Listing(Base):
 
     rating: Mapped[Decimal] = mapped_column(DECIMAL(2, 1), default=Decimal("0"))
     review_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Block 15: 多租户 + 访问计数
+    host_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    view_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False, server_default="0")
 
     # JSON 字段：amenities 和 images 都是 list[str]
     # SQLAlchemy 2.0 的 JSON 类型跨 MySQL/PostgreSQL/SQLite 都通用

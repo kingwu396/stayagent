@@ -21,7 +21,8 @@ from decimal import Decimal
 from sqlalchemy import select, func, text
 from app.db.session import SessionLocal, engine
 from app.db.base import Base
-from app.models import Listing
+from app.core.security import hash_password
+from app.models import Listing, User
 
 import app.models  # noqa: F401  确保所有模型注册
 
@@ -206,7 +207,7 @@ AMENITIES_BY_TYPE = {
 
 
 def random_listing(city: str, country: str, lat: float, lng: float,
-                   neighborhoods: list[str], prop_type: str) -> Listing:
+                   neighborhoods: list[str], prop_type: str, host_id: int | None = None) -> Listing:
     """生成一条随机房源"""
     neighborhood = random.choice(neighborhoods)
     price_min, price_max = PRICE_RANGES[prop_type]
@@ -270,6 +271,7 @@ def random_listing(city: str, country: str, lat: float, lng: float,
         title=title,
         description=description,
         host_name=random.choice(HOST_NAMES),
+        host_id=host_id,
         city=city,
         country=country,
         latitude=lat_off,
@@ -301,6 +303,39 @@ def maybe_truncate(db, force: bool) -> None:
     db.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
     db.commit()
     print("🗑  TRUNCATE: wishlist_items, bookings, listings")
+
+
+# Block 15: 3 个 demo 房东账号, 分配 listings
+DEMO_HOSTS = [
+    ("host1@test.com", "host1", "Host Demo One"),
+    ("host2@test.com", "host2", "Host Demo Two"),
+    ("host3@test.com", "host3", "Host Demo Three"),
+]
+HOST_PASSWORD = "TestPass123!"
+
+
+def ensure_demo_hosts(db) -> list[int]:
+    """确保 3 个 demo 房东账号存在, 返回 user_id 列表 (3 个, 顺序固定)"""
+    ids: list[int] = []
+    for email, username, _ in DEMO_HOSTS:
+        u = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+        if u is None:
+            u = User(
+                email=email,
+                username=username,
+                password_hash=hash_password(HOST_PASSWORD),
+                is_host=True,
+            )
+            db.add(u)
+            db.commit()
+            db.refresh(u)
+        else:
+            # 老 user 没 is_host 时也升一下
+            if not u.is_host:
+                u.is_host = True
+                db.commit()
+        ids.append(u.id)
+    return ids
 
 
 def existing_city_counts(db) -> dict[str, int]:
@@ -342,12 +377,17 @@ def main():
             return
 
         new_listings: list[Listing] = []
-        # 每城市生成 20 条: 5 类型 × 4 个
+        # Block 15: host_id 轮转分配
+        host_ids = ensure_demo_hosts(db)
+        # 每城市生成 20 条: 5 类型 × 4 个, host_id 轮转
+        idx_counter = 0
         for city, country, lat, lng, neighborhoods in cities_to_seed:
             for prop_type in PROPERTY_TYPES:
                 for _ in range(4):
+                    host_id = host_ids[idx_counter % len(host_ids)]
+                    idx_counter += 1
                     new_listings.append(
-                        random_listing(city, country, lat, lng, neighborhoods, prop_type)
+                        random_listing(city, country, lat, lng, neighborhoods, prop_type, host_id)
                     )
 
         # 批量插入, 每 200 一批

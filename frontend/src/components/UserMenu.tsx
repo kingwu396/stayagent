@@ -1,14 +1,19 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { User, LogOut, Heart, MapPin } from 'lucide-react'
+import { BarChart3, LogOut, Heart, Home, MapPin, User } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
+import { hostApi } from '@/api/host'
+import { useToast } from '@/hooks/useToast'
 
 export function UserMenu() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const fetchMe = useAuthStore((s) => s.fetchMe)
   const logout = useAuthStore((s) => s.logout)
+  const updateUser = useAuthStore((s) => s.updateUser)
   const [open, setOpen] = useState(false)
+  const [becomingHost, setBecomingHost] = useState(false)
+  const toast = useToast()
   const ref = useRef<HTMLDivElement>(null)
 
   // 挂载时如果有 token 但没 user，尝试拉取
@@ -74,6 +79,39 @@ export function UserMenu() {
             <MapPin className="w-4 h-4" />
             我的行程
           </Link>
+          {user.is_host ? (
+            <Link
+              to="/host"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm text-brand-600 hover:bg-slate-50 font-medium"
+            >
+              <BarChart3 className="w-4 h-4" />
+              房东后台
+            </Link>
+          ) : (
+            <button
+              onClick={async () => {
+                if (becomingHost) return
+                setBecomingHost(true)
+                try {
+                  await hostApi.becomeHost()
+                  updateUser({ is_host: true })
+                  setOpen(false)
+                  toast.success('已成为房东, 进入后台')
+                  navigate('/host')
+                } catch (err: any) {
+                  toast.error('操作失败, 请重试')
+                } finally {
+                  setBecomingHost(false)
+                }
+              }}
+              disabled={becomingHost}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-brand-600 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Home className="w-4 h-4" />
+              {becomingHost ? '处理中...' : '成为房东'}
+            </button>
+          )}
           <button
             onClick={async () => {
               setOpen(false)
