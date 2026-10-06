@@ -22,10 +22,9 @@ async def lifespan(app: FastAPI):
     # 启动
     Base.metadata.create_all(bind=engine)
     await redis_client.connect()
-    # Block 12: 预热 embedding 模型 (避免首次 RAG 查询延迟 ~3s)
-    await rag_service.warmup()
+    # Block 14 fix: 移除 eager warmup (启动不再阻塞 embedding 模型加载)
+    # 首次 RAG 查询会触发 lazy load (~3s 一次性延迟), 之后命中缓存
     yield
-    # 关闭
     await llm_client.close()
     await redis_client.close()
 

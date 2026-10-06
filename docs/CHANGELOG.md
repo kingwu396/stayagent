@@ -1375,3 +1375,37 @@ run_started → step_started → step_completed → ... → final → done
 - 截图占位 (手测时补图)
 
 **提交**: (待用户说 "commit git")
+
+## 📅 2026-10-06 — Block 14: 房源扩容 1000 条 + DB 端过滤/分页
+
+**目标**: 房源 100 → 1000 (50 城 × 20), list 接口从 Python 过滤搬到 DB 端, 1000 条规模响应 < 100ms
+
+**新增**:
+- backend: `seed_listings.py` 扩展到 50 城市 (10 原有 + 40 新增, 覆盖亚/欧/美/澳/中东)
+- backend: `--truncate` flag 支持严格 1000 条重建 (TRUNCATE 依赖表 + listings)
+- backend: `listings.py` amenities 过滤从 Python list filter 改为 MySQL `JSON_CONTAINS` (AND 语义, 全 DB)
+- backend: `listings.py` 分页从 Python list slice 改为 SQL `OFFSET/LIMIT`
+- backend: `listings.py` count_stmt 包含 amenities 过滤 (之前 count 不算 amenities, 会算错)
+- backend: 新测试 `scripts/test_listings_db_filter.py` (9 个测试: count, 50 城市, city/price/amenities 过滤, OFFSET 分页, 越界, 性能 < 100ms)
+
+**验证**:
+- [x] seed 1000 (50 城 × 20), 幂等保留已有城市
+- [x] `test_listings_db_filter`: 9/9 通过
+  - amenities JSON_CONTAINS DB 端验证: total 50 与二次查询一致
+  - OFFSET 分页无重叠 (page=1 ids vs page=2 ids)
+  - 性能: 复杂查询 (city+price+amenities) avg=2.7ms, 远低于 100ms 目标
+- [x] `test_agent_block11_5`: 5/5 仍通过 (没破坏)
+- [x] `test_agent_block12`: 10/10 仍通过 (没破坏)
+
+**约定 / 假设**:
+- 默认 seed 行为**不重置**: 增量添加 (已有城市 >= 20 跳过), 最终 ~1000
+- 严格 1000: `uv run python -m scripts.seed_listings --truncate` (先 TRUNCATE wishlist_items/bookings/listings)
+- JSON_CONTAINS 是 AND 语义 (与原 Python `all(a in listing.amenities for a in amenities_list)` 一致)
+- 不引新依赖 (用 SQLAlchemy `func.json_contains`)
+
+**小修** (Block 14 后续):
+- backend `lifespan`: 移除 eager warmup (embedding 模型改 lazy load). 启动 ~8s -> < 600ms
+- frontend `vite.config.ts`: proxy `timeout: 30000` (safety net for cold start)
+- 影响: 首次 RAG 查询 ~3s 一次性延迟 (lazy load), 之后命中缓存
+
+**提交**: (待用户说 "commit git")

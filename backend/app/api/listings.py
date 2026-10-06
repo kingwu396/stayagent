@@ -1,4 +1,5 @@
 """房源 API：列表 / 详情 / 城市筛选 / 筛选选项"""
+import json
 from collections import Counter
 from typing import Optional
 from decimal import Decimal
@@ -164,30 +165,22 @@ async def list_listings(
         stmt = stmt.where(Listing.title.like(like))
         count_stmt = count_stmt.where(Listing.title.like(like))
 
-    # amenities：先查所有候选（不分页），Python 端 AND 过滤 + 排序 + 分页
-    amenities_list = []
+    # amenities (Block 14 DB 端过滤, JSON_CONTAINS 是 MySQL JSON AND-contains 操作符)
+    amenities_list: list[str] = []
     if amenities:
         amenities_list = [a.strip() for a in amenities.split(",") if a.strip()]
+        if amenities_list:
+            json_arr = json.dumps(amenities_list)
+            stmt = stmt.where(func.json_contains(Listing.amenities, json_arr) == 1)
+            count_stmt = count_stmt.where(func.json_contains(Listing.amenities, json_arr) == 1)
 
     # 排序：评分降序 + 评论数降序
     stmt = stmt.order_by(Listing.rating.desc(), Listing.review_count.desc())
 
-    # 拉全部候选（100 条以内）
-    all_candidates = db.execute(stmt).scalars().all()
-
-    # amenities 过滤
-    if amenities_list:
-        filtered = [
-            l for l in all_candidates
-            if l.amenities and all(a in l.amenities for a in amenities_list)
-        ]
-    else:
-        filtered = list(all_candidates)
-
-    total = len(filtered)
-    # Python 端分页
+    # Block 14: count + 分页全部走 SQL (OFFSET/LIMIT)
+    total = db.execute(count_stmt).scalar() or 0
     offset = (page - 1) * page_size
-    paged = filtered[offset : offset + page_size]
+    paged = db.execute(stmt.offset(offset).limit(page_size)).scalars().all()
 
     return ListingListResponse(
         items=[_to_summary(l) for l in paged],
