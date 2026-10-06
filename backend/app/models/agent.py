@@ -29,7 +29,7 @@ class AgentRun(Base):
 
     status: Mapped[str] = mapped_column(
         Enum(
-            "running", "pending_confirmation", "completed", "failed", "timeout",
+            "running", "pending_confirmation", "completed", "failed", "timeout", "cancelled",
             name="agent_run_status_enum",
         ),
         nullable=False,

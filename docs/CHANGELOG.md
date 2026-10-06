@@ -1259,3 +1259,40 @@ run_started → step_started → step_completed → ... → final → done
 - [ ] Block 12: PDF 解析 tool
 - [ ] Block 13: 多轮对话 + Memory + RAG
 - [ ] Block 14: UI 打磨 + README + 答辩
+
+## 📅 2026-10-06 — Block 11.5 (扩展): create_booking HITL + compare/remove 增强 + AgentPanelFloat 拖动
+
+**目标**: 让 Agent 能真正下单 (带人工确认) + 浮动面板可拖
+
+**新增**:
+- backend: tools.create_booking (HITL, 调共用 helper `_compute_booking_totals`)
+- backend: tools.compare_listings 输出加 `amenities` / `bedrooms` / `coordinates: {lat,lng}`
+- backend: tools.remove_from_wishlist 支持 `listing_name` 模糊删 (有歧义时回 `ambiguous_match` + 候选)
+- backend: orchestrator 检测 create_booking → 写入 `AgentRun.status=pending_confirmation` + `pending_tool_call`
+- backend: 新增 `POST /api/agent/runs/{run_id}/confirm` (`approved` / `rejected` 两路)
+- backend: `AgentRun.status` enum 增加 `cancelled` 值 (同时 ALTER TABLE)
+- frontend: `types/agent.ts` 加 `PendingConfirmation` / `PendingConfirmationEvent`
+- frontend: `api/agent.ts` 加 `confirmRun(runId, approved)`
+- frontend: `stores/agent.ts` 加 `confirmRun` action + 处理 `pending_confirmation` SSE
+- frontend: 新组件 `AgentConfirmCard.tsx` (含房源/日期/人数 + 确认/取消按钮)
+- frontend: `AgentMessage.tsx` 渲染确认卡片
+- frontend: `AgentPanelFloat` 加 ~30 行拖动 (mousedown header → window mousemove/mouseup, 视口约束)
+
+**验证**:
+- [x] `python -m scripts.test_agent_block11_5` 通过 (5/5)
+  - Test C: compare_listings amenities/coords + remove_from_wishlist by_name
+  - Test E: _compute_booking_totals helper
+  - Test A1: HITL approved → booking 落库, run=completed
+  - Test A2: HITL rejected → run=cancelled, 无新 booking
+  - Test D: 非 pending_confirmation confirm → 409
+- [x] `pnpm run build` 通过
+- [ ] 浏览器手测: 让 agent 订房 → 看到确认卡片 → 确认/取消 → TripsView 出现/不出现订单 (待 user 验证)
+- [ ] 浏览器手测: 拖动浮动面板, 关闭再开会重置位置 (in-memory, 见约定)
+
+**约定 / 假设**:
+- 拖动位置仅 in-memory, 不入 localStorage / store
+- HITL approved/rejected 后服务端直接写中文 Markdown 总结, 不再调 LLM (省 token)
+- Booking.status 仍只用 confirmed (HITL 的 pending_confirmation 在 AgentRun 层, 与 Booking 表无关)
+- cancel 是新增到 `agent_run_status_enum` 的值; 旧 DB 需要 `ALTER TABLE agent_runs MODIFY COLUMN status ENUM(...,'cancelled') NOT NULL DEFAULT 'running'`
+
+**提交**: (待用户说 "commit git")

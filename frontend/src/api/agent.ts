@@ -127,4 +127,16 @@ export const agentApi = {
     const res = await api.get<AgentRunDetail[]>(`/agent/conversations/${convId}/runs`)
     return res.data
   },
+
+  /**
+   * Block 11.5: HITL 确认/拒绝 create_booking.
+   * 返回更新后的 AgentRunDetail (含新 step + final_content + status).
+   */
+  async confirmRun(runId: number, approved: boolean): Promise<AgentRunDetail> {
+    const res = await api.post<AgentRunDetail>(
+      `/agent/runs/${runId}/confirm`,
+      { run_id: runId, approved },
+    )
+    return res.data
+  },
 }

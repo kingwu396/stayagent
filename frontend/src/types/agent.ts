@@ -15,10 +15,19 @@ export interface AgentChatMessage {
   role: 'user' | 'assistant'
   content: string
   steps?: AgentStep[]    // assistant 消息附带的 tool step 轨迹
-  status?: string  // 'streaming' | 'completed' | 'failed' | 'timeout'
+  status?: string  // 'streaming' | 'completed' | 'failed' | 'timeout' | 'pending_confirmation' | 'cancelled'
   error?: string
   runId?: number
   conversationId?: number
+  /** Block 11.5: HITL 确认. 前端根据此字段渲染确认卡片. */
+  pendingConfirmation?: PendingConfirmation
+}
+
+export interface PendingConfirmation {
+  run_id: number
+  step_index: number
+  tool_name: string
+  tool_args: Record<string, unknown>
 }
 
 // ============ SSE 流事件 ============
@@ -60,12 +69,22 @@ export interface ErrorEvent {
   message: string
 }
 
+/** Block 11.5: HITL pending 事件 (orchestrator 在 create_booking 时发出) */
+export interface PendingConfirmationEvent {
+  type: 'pending_confirmation'
+  run_id: number
+  step_index: number
+  tool_name: string
+  tool_args: Record<string, unknown>
+}
+
 export type AgentStreamEvent =
   | RunStartedEvent
   | StepStartedEvent
   | StepCompletedEvent
   | FinalEvent
   | ErrorEvent
+  | PendingConfirmationEvent
 
 
 // ============ Block 11: 历史对话 ============
@@ -83,6 +102,7 @@ export interface AgentRunDetail {
   user_message: string
   status: string
   final_content: string | null
+  error: string | null
   steps: AgentStep[]
   started_at: string
   finished_at: string | null

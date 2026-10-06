@@ -16,15 +16,17 @@ from sqlalchemy.orm import selectinload
 from fastapi import APIRouter, HTTPException, status
 
 from app.deps import CurrentUser, DBSession
-from app.models import Conversation, AgentRun, AgentStep
+from app.models import Conversation, AgentRun, AgentStep, Message
 from app.schemas.agent import (
     AgentChatRequest,
     AgentChatResponse,
     AgentStepResponse,
     AgentRunResponse,
     ConversationSummary,
+    ToolConfirmRequest,
 )
 from app.services.agent.orchestrator import run_agent
+from app.services.agent.tools import TOOL_DISPATCH, ToolError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -134,6 +136,184 @@ async def list_runs(
         )
         for r in rows
     ]
+
+
+# ============ Block 11.5: HITL /confirm 端点 ============
+
+@router.post("/runs/{run_id}/confirm", response_model=AgentRunResponse)
+async def confirm_run(
+    run_id: int,
+    payload: ToolConfirmRequest,
+    current_user: CurrentUser,
+    db: DBSession,
+):
+    """
+    Human-in-the-loop 确认/拒绝 create_booking.
+
+    - approved=True: 执行待确认的 tool_call, 写入 final_content, status='completed'
+    - approved=False: 写入一条拒绝 step, status='cancelled', final_content="已取消"
+    """
+    if payload.run_id != run_id:
+        raise HTTPException(status_code=400, detail="URL run_id 与 body.run_id 不一致")
+
+    # 1. 加载 run (含 steps), 校验归属
+    run = db.execute(
+        select(AgentRun)
+        .where(AgentRun.id == run_id)
+        .options(selectinload(AgentRun.steps))
+    ).scalar_one_or_none()
+    if run is None:
+        raise HTTPException(status_code=404, detail="AgentRun 不存在")
+    if run.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权操作此 AgentRun")
+    if run.status != "pending_confirmation":
+        raise HTTPException(
+            status_code=409,
+            detail=f"AgentRun 当前状态为 {run.status}, 不允许确认 (需要 pending_confirmation)",
+        )
+    if not run.pending_tool_call:
+        raise HTTPException(
+            status_code=500,
+            detail="AgentRun.pending_tool_call 为空, 数据异常",
+        )
+
+    tool_name = run.pending_tool_call.get("tool_name")
+    tool_args = run.pending_tool_call.get("tool_args") or {}
+    tool_fn = TOOL_DISPATCH.get(tool_name or "")
+
+    # 找最初的 create_booking step (用来更新 duration_ms / step_index)
+    pending_step = next(
+        (s for s in run.steps if s.tool_name == tool_name),
+        None,
+    )
+    next_step_index = (pending_step.step_index + 1) if pending_step else (len(run.steps))
+
+    if payload.approved:
+        # 2. 执行 create_booking
+        try:
+            result = tool_fn(user=current_user, db=db, **tool_args)
+        except ToolError as e:
+            # 业务错误: 把错误回写到 run, 让用户知道为什么失败
+            run.status = "failed"
+            run.error = f"{e.code}: {e}"
+            from datetime import datetime, timezone
+            run.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            db.commit()
+            db.refresh(run)
+            return _run_to_response(run)
+
+        # 写一条新 step (result)
+        confirm_step = AgentStep(
+            run_id=run.id,
+            step_index=next_step_index,
+            tool_name=tool_name,
+            tool_args=tool_args,
+            tool_call_id=None,
+            tool_calls=None,
+            tool_result=result,
+            tool_error=None,
+            reasoning="用户已确认",
+            duration_ms=0,
+        )
+        db.add(confirm_step)
+
+        # 3. 写 final_content (中文 Markdown)
+        run.final_content = _format_booking_confirmed(result)
+        run.status = "completed"
+        from datetime import datetime, timezone
+        run.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        run.pending_tool_call = None
+
+        # 4. 写 assistant Message 到 Conversation
+        db.add(Message(
+            conversation_id=run.conversation_id,
+            role="assistant",
+            content=run.final_content,
+        ))
+
+        db.commit()
+        db.refresh(run)
+        logger.info("AgentRun #%d HITL approved: booking #%d", run.id, result.get("booking_id"))
+    else:
+        # 用户拒绝: 写拒绝 step + final_content
+        reject_step = AgentStep(
+            run_id=run.id,
+            step_index=next_step_index,
+            tool_name=tool_name,
+            tool_args={"approved": False},
+            tool_call_id=None,
+            tool_calls=None,
+            tool_result=None,
+            tool_error="USER_REJECTED",
+            reasoning="用户已取消下单",
+            duration_ms=0,
+        )
+        db.add(reject_step)
+        run.final_content = "好的, 已取消下单。如需查看其它房源, 随时问我 🙌"
+        run.status = "cancelled"
+        from datetime import datetime, timezone
+        run.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        run.pending_tool_call = None
+        db.add(Message(
+            conversation_id=run.conversation_id,
+            role="assistant",
+            content=run.final_content,
+        ))
+        db.commit()
+        db.refresh(run)
+        logger.info("AgentRun #%d HITL rejected by user", run.id)
+
+    # 重载 steps (含新加的 confirm/reject step)
+    db.refresh(run)
+
+    return AgentRunResponse(
+        id=run.id,
+        conversation_id=run.conversation_id,
+        user_message=run.user_message,
+        status=run.status,
+        final_content=run.final_content,
+        error=run.error,
+        prompt_tokens=run.prompt_tokens,
+        completion_tokens=run.completion_tokens,
+        started_at=run.started_at,
+        finished_at=run.finished_at,
+        steps=[_step_to_response(s) for s in (run.steps or [])],
+    )
+
+
+def _format_booking_confirmed(result: dict) -> str:
+    """把 create_booking 的 tool_result 渲染成用户友好的 Markdown 总结."""
+    listing_title = result.get("listing_title") or f"房源 #{result.get('listing_id')}"
+    check_in = result.get("check_in", "")
+    check_out = result.get("check_out", "")
+    guests = result.get("guests", 1)
+    nights = result.get("nights", 1)
+    total = result.get("total", 0)
+    booking_id = result.get("booking_id", "?")
+    return (
+        f"✅ 已下单, **#{booking_id}**\n\n"
+        f"- 房源: {listing_title}\n"
+        f"- 入住: {check_in} → {check_out} ({nights} 晚)\n"
+        f"- 人数: {guests} 位\n"
+        f"- **合计: ¥{total}**\n\n"
+        f"可在 `/trips` 查看行程, 祝入住愉快!"
+    )
+
+
+def _run_to_response(run: AgentRun) -> AgentRunResponse:
+    return AgentRunResponse(
+        id=run.id,
+        conversation_id=run.conversation_id,
+        user_message=run.user_message,
+        status=run.status,
+        final_content=run.final_content,
+        error=run.error,
+        prompt_tokens=run.prompt_tokens,
+        completion_tokens=run.completion_tokens,
+        started_at=run.started_at,
+        finished_at=run.finished_at,
+        steps=[_step_to_response(s) for s in (run.steps or [])],
+    )
 
 
 import asyncio

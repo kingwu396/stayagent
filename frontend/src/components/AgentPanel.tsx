@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { X, Trash2, Sparkles, Maximize2, Minimize2 } from 'lucide-react'
 import { useAgentStore } from '@/stores/agent'
 import { AgentMessage } from './AgentMessage'
@@ -68,14 +68,63 @@ function AgentPanelFloat() {
   const sendMessage = useAgentStore(function(s) { return s.sendMessage })
   const toggleFullscreen = useAgentStore(function(s) { return s.toggleFullscreen })
   const scrollRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  // ============ Block 11.5: 拖动 ============
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
+  const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null)
+
+  const handleHeaderMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // 跳过按钮点击 (避免和最大化/关闭冲突)
+    if ((e.target as HTMLElement).closest('button')) return
+    const rect = panelRef.current?.getBoundingClientRect()
+    if (!rect) return
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: position?.x ?? rect.left,
+      originY: position?.y ?? rect.top,
+    }
+    e.preventDefault()
+  }
+
+  useEffect(function() {
+    const onMove = (e: MouseEvent) => {
+      const d = dragRef.current
+      if (!d) return
+      const dx = e.clientX - d.startX
+      const dy = e.clientY - d.startY
+      let nx = d.originX + dx
+      let ny = d.originY + dy
+      const w = panelRef.current?.offsetWidth ?? 560
+      const h = panelRef.current?.offsetHeight ?? 700
+      nx = Math.max(0, Math.min(window.innerWidth - w, nx))
+      ny = Math.max(0, Math.min(window.innerHeight - h, ny))
+      setPosition({ x: nx, y: ny })
+    }
+    const onUp = () => { dragRef.current = null }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return function() {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [position])
+
+  const panelStyle: React.CSSProperties = position
+    ? { position: 'fixed', left: position.x, top: position.y, zIndex: 40 }
+    : { position: 'fixed', right: '16px', bottom: '72px', zIndex: 40 }
+
   useEffect(function() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages])
 
   return (
-    <div style={{ position: 'fixed', right: '16px', bottom: '72px', zIndex: 40 }} className='w-[560px] max-w-[95vw] h-[700px] max-h-[80vh] rounded-2xl shadow-2xl bg-white flex flex-col overflow-hidden border border-slate-200'>
-      <AgentHeader onMaximize={toggleFullscreen} onMinimize={toggleFullscreen} onClose={closePanel} onClear={clearHistory} messagesCount={messages.length} mode='floating' />
-      <div ref={scrollRef} className='flex-1 overflow-y-auto px-4 py-3 space-y-4 bg-slate-50/50'>
+    <div ref={panelRef} style={panelStyle} className='w-[560px] max-w-[95vw] h-[700px] max-h-[80vh] rounded-2xl shadow-2xl bg-white flex flex-col overflow-hidden border border-slate-200'>
+      <div onMouseDown={handleHeaderMouseDown} className='cursor-move'>
+        <AgentHeader onMaximize={toggleFullscreen} onMinimize={toggleFullscreen} onClose={closePanel} onClear={clearHistory} messagesCount={messages.length} mode='floating' />
+      </div>
+      <div ref={scrollRef} className='flex-1 overflow-y-auto overscroll-contain px-4 py-3 space-y-4 bg-slate-50/50'>
         {messages.length === 0 ? (
           <EmptyState onSuggestion={sendMessage} />
         ) : (
@@ -98,7 +147,7 @@ function AgentPanelFullscreen() {
   }, [messages])
 
   return (
-    <div className='fixed inset-0 z-40 bg-white flex'>
+    <div className='fixed inset-0 z-[80] bg-white flex'>
       <aside className='w-[240px] flex-shrink-0 border-r border-slate-200 bg-slate-50 flex flex-col'>
         <div className='px-4 py-3 border-b border-slate-200 flex items-center justify-between'>
           <div className='flex items-center gap-2'>
@@ -113,16 +162,23 @@ function AgentPanelFullscreen() {
         </div>
         <AgentHistoryList />
       </aside>
-      <main className='flex-1 flex flex-col bg-white min-w-0'>
-        <AgentHeader onMaximize={toggleFullscreen} onMinimize={toggleFullscreen} onClose={closePanel} onClear={clearHistory} messagesCount={messages.length} mode='fullscreen' />
-        <div ref={scrollRef} className='flex-1 overflow-y-auto px-6 py-4 space-y-4 bg-slate-50/30 max-w-3xl w-full mx-auto'>
+      <main
+        className='flex-1 grid bg-slate-50/30 min-w-0 overflow-hidden'
+        style={{ gridTemplateRows: 'auto 1fr auto' }}
+      >
+        <div className='bg-white border-b border-slate-200'>
+          <AgentHeader onMaximize={toggleFullscreen} onMinimize={toggleFullscreen} onClose={closePanel} onClear={clearHistory} messagesCount={messages.length} mode='fullscreen' />
+        </div>
+        <div ref={scrollRef} className='overflow-y-auto overscroll-contain px-6 py-4 max-w-3xl w-full mx-auto'>
           {messages.length === 0 ? (
             <EmptyState onSuggestion={sendMessage} />
           ) : (
             messages.map(function(m) { return <AgentMessage key={m.id} message={m} /> })
           )}
         </div>
-        <AgentInput />
+        <div className='bg-white border-t border-slate-200'>
+          <AgentInput />
+        </div>
       </main>
     </div>
   )
@@ -131,6 +187,19 @@ function AgentPanelFullscreen() {
 export function AgentPanel() {
   const isOpen = useAgentStore(function(s) { return s.isOpen })
   const mode = useAgentStore(function(s) { return s.mode })
+
+  // Block 11.5 修复: 全屏模式时锁 body 滚动, 防止背景页面 (房源列表 + 搜索栏) 跟动
+  // - 锁住 body 后, 右侧滚动条消失, wheel 事件无法 bubble 到 body
+  // - 卸下全屏 / 关闭面板时, cleanup 自动恢复
+  useEffect(function() {
+    if (!isOpen || mode !== 'fullscreen') return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return function() {
+      document.body.style.overflow = prev
+    }
+  }, [isOpen, mode])
+
   if (!isOpen) return null
   return mode === 'fullscreen' ? React.createElement(AgentPanelFullscreen): React.createElement(AgentPanelFloat)
 }

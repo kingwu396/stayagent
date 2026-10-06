@@ -153,6 +153,57 @@ async def _execute_step(
     except json.JSONDecodeError:
         tool_args = {}
 
+    # ============ HITL 拦截: create_booking 需要用户确认 ============
+    # 不调 LO, 先记 step + 设 run.status='pending_confirmation'
+    if tool_name == "create_booking":
+        step = AgentStep(
+            run_id=run.id,
+            step_index=step_idx,
+            tool_name=tool_name,
+            tool_args=tool_args,
+            tool_call_id=first_tc["id"],
+            tool_calls=tool_calls,
+            reasoning=msg.get("content"),
+        )
+        db.add(step)
+        db.commit()
+        db.refresh(step)
+        step.duration_ms = int((time.monotonic() - t0) * 1000)
+
+        run.status = "pending_confirmation"
+        run.pending_tool_call = {"tool_name": tool_name, "tool_args": tool_args}
+        run.finished_at = _utcnow()
+        db.commit()
+
+        logger.info(
+            "AgentRun #%d HITL pending_confirmation: %s(%s)",
+            run.id, tool_name, tool_args,
+        )
+
+        # step_started 让前端展示「即将下单」, pending_confirmation 触发确认 UI
+        events.append({
+            "type": "step_started",
+            "step_index": step.step_index,
+            "tool_name": tool_name,
+            "tool_args": tool_args,
+            "reasoning": msg.get("content"),
+        })
+        events.append({
+            "type": "step_completed",
+            "step_index": step.step_index,
+            "tool_result": None,
+            "tool_error": "pending_confirmation",
+            "duration_ms": step.duration_ms,
+        })
+        events.append({
+            "type": "pending_confirmation",
+            "run_id": run.id,
+            "step_index": step.step_index,
+            "tool_name": tool_name,
+            "tool_args": tool_args,
+        })
+        return events
+
     step = AgentStep(
         run_id=run.id,
         step_index=step_idx,
@@ -266,9 +317,10 @@ async def run_agent(
 
     # 4. Loop
     final_event = None
+    pending_event = None
     for step_idx in range(MAX_STEPS):
         events = await _execute_step(db, user, messages, run, step_idx)
-        # events: [{type, ...}] — 通常 [step_started, step_completed], 或 [final], 或 [error]
+        # events: [{type, ...}] — 通常 [step_started, step_completed], 或 [final], 或 [error], 或 [pending_confirmation]
         for evt in events:
             if evt["type"] == "final":
                 final_event = evt
@@ -280,10 +332,17 @@ async def run_agent(
                 db.commit()
                 logger.warning("AgentRun #%d failed: %s", run.id, evt["message"])
                 return run
-        if final_event is not None:
+            if evt["type"] == "pending_confirmation":
+                pending_event = evt
+                break
+        if final_event is not None or pending_event is not None:
             break
 
-    # 5. 处理 final 或 timeout
+    # 5. 处理 final / pending_confirmation / timeout
+    if pending_event is not None:
+        logger.info("AgentRun #%d paused (HITL pending_confirmation)", run.id)
+        return run
+
     if final_event is not None:
         _persist_final(db, run, conv.id, final_event["content"], "completed")
         logger.info(
@@ -344,6 +403,7 @@ async def stream_agent(
     # 4. Loop
     final_event = None
     error_event = None
+    pending_event = None
     for step_idx in range(MAX_STEPS):
         events = await _execute_step(db, user, messages, run, step_idx)
         for evt in events:
@@ -351,13 +411,29 @@ async def stream_agent(
                 final_event = evt
             elif evt["type"] == "error":
                 error_event = evt
+            elif evt["type"] == "pending_confirmation":
+                pending_event = evt
             else:
                 # step_started / step_completed
                 yield evt
-        if final_event is not None or error_event is not None:
+        if final_event is not None or error_event is not None or pending_event is not None:
             break
 
     # 5. Final event
+    if pending_event is not None:
+        # HITL: 先 yield pending_confirmation, 再 yield final (status=pending_confirmation, content=None)
+        yield pending_event
+        yield {
+            "type": "final",
+            "run_id": run.id,
+            "conversation_id": run.conversation_id,
+            "status": "pending_confirmation",
+            "content": None,
+            "prompt_tokens": run.prompt_tokens,
+            "completion_tokens": run.completion_tokens,
+        }
+        return
+
     if error_event is not None:
         run.status = "failed"
         run.error = error_event["message"]

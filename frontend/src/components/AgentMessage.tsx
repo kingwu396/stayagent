@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify'
 import { Sparkles } from 'lucide-react'
 import type { AgentChatMessage } from '@/types/agent'
 import { AgentToolStep } from './AgentToolStep'
+import { AgentConfirmCard } from './AgentConfirmCard'
 
 interface AgentMessageProps {
   message: AgentChatMessage
@@ -51,6 +52,11 @@ export function AgentMessage({ message }: AgentMessageProps) {
               <AgentToolStep key={step.step_index} step={step} />
             ))}
           </div>
+        )}
+
+        {/* Block 11.5: HITL 确认卡片 */}
+        {message.pendingConfirmation && message.status === 'pending_confirmation' && (
+          <AgentConfirmCard pending={message.pendingConfirmation} />
         )}
 
         {/* 最终内容 */}

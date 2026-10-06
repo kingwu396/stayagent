@@ -7,13 +7,14 @@
 - 同步函数 (直接读 DB), orchestrator 直接调用无需 await
 """
 import logging
+from datetime import date
 from decimal import Decimal
 from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.models import (
-    User, Listing, Wishlist, WishlistItem,
+    User, Listing, Wishlist, WishlistItem, Booking,
 )
 
 logger = logging.getLogger(__name__)
@@ -143,6 +144,11 @@ def compare_listings(
             "review_count": r.review_count or 0,
             "amenities": r.amenities or [],
             "max_guests": r.max_guests,
+            "bedrooms": r.bedrooms or 1,
+            "coordinates": {
+                "latitude": float(r.latitude) if r.latitude else None,
+                "longitude": float(r.longitude) if r.longitude else None,
+            },
         })
     return {"count": len(items), "items": items}
 
@@ -197,28 +203,75 @@ def add_to_wishlist(
 def remove_from_wishlist(
     user: User, db,
     wishlist_id: int,
-    listing_id: int,
+    listing_id: int | None = None,
+    listing_name: str | None = None,
     **_kwargs,
 ) -> dict:
-    """从心愿单移除房源。"""
+    """从心愿单移除房源 (listing_id 或 listing_name 二选一)。"""
+    if (listing_id is None) == (listing_name is None):
+        raise ToolError(
+            "必须且只能传入 listing_id 或 listing_name 其中一个",
+            code="INVALID_ARGS",
+        )
+
     w = db.execute(
         select(Wishlist).where(Wishlist.id == wishlist_id, Wishlist.user_id == user.id)
     ).scalar_one_or_none()
     if not w:
         raise ToolError(f"心愿单 #{wishlist_id} 不存在或无权访问", code="NOT_FOUND")
 
-    item = db.execute(
-        select(WishlistItem).where(
-            WishlistItem.wishlist_id == wishlist_id,
-            WishlistItem.listing_id == listing_id,
+    if listing_id is not None:
+        item = db.execute(
+            select(WishlistItem).where(
+                WishlistItem.wishlist_id == wishlist_id,
+                WishlistItem.listing_id == listing_id,
+            )
+        ).scalar_one_or_none()
+        matched_id = listing_id
+        matched_title = None
+    else:
+        # listing_name: 在该 wishlist 的 items 内模糊匹配, 取第一个
+        stmt = (
+            select(WishlistItem, Listing)
+            .join(Listing, WishlistItem.listing_id == Listing.id)
+            .where(
+                WishlistItem.wishlist_id == wishlist_id,
+                Listing.title.like(f"%{listing_name}%"),
+            )
         )
-    ).scalar_one_or_none()
-    if not item:
+        rows = db.execute(stmt).all()
+        if not rows:
+            return {
+                "status": "not_found_by_name",
+                "wishlist_id": wishlist_id,
+                "wishlist_name": w.name,
+                "listing_name": listing_name,
+            }
+        item, listing = rows[0]
+        matched_id = listing.id
+        matched_title = listing.title
+        if len(rows) > 1:
+            candidates = [
+                {"listing_id": l.id, "title": l.title}
+                for _, l in rows[:5]
+            ]
+            return {
+                "status": "ambiguous_match",
+                "wishlist_id": wishlist_id,
+                "wishlist_name": w.name,
+                "listing_name": listing_name,
+                "matched_listing_id": matched_id,
+                "matched_title": matched_title,
+                "candidates": candidates,
+            }
+
+    if item is None:
         return {
             "status": "not_in_wishlist",
             "wishlist_id": wishlist_id,
             "wishlist_name": w.name,
-            "listing_id": listing_id,
+            "listing_id": matched_id,
+            "listing_title": matched_title,
         }
 
     db.delete(item)
@@ -227,7 +280,8 @@ def remove_from_wishlist(
         "status": "removed",
         "wishlist_id": wishlist_id,
         "wishlist_name": w.name,
-        "listing_id": listing_id,
+        "matched_listing_id": matched_id,
+        "matched_title": matched_title,
     }
 
 
@@ -294,6 +348,95 @@ def list_wishlists(
     return {"count": len(wishlists), "wishlists": wishlists}
 
 
+# ============ Tool 8: create_booking ============
+
+def _compute_booking_totals(listing: Listing, check_in: date, check_out: date) -> dict:
+    """复用 app/api/bookings.py 的同款 nights/total 计算, 抽到这里共用."""
+    if check_out <= check_in:
+        raise ToolError("退房日期必须晚于入住日期", code="INVALID_ARGS")
+    nights = (check_out - check_in).days
+    price = Decimal(str(listing.price_per_night))
+    cleaning = Decimal(str(listing.cleaning_fee or 0))
+    service = Decimal(str(listing.service_fee or 0))
+    subtotal = price * nights
+    total = subtotal + cleaning + service
+    return {
+        "nights": nights,
+        "subtotal": subtotal,
+        "cleaning_fee": cleaning,
+        "service_fee": service,
+        "total": total,
+    }
+
+
+def create_booking(
+    user: User, db,
+    listing_id: int,
+    check_in,  # date 或 ISO 字符串 (LLM 偶尔会传 str)
+    check_out,
+    guests: int = 1,
+    **_kwargs,
+) -> dict:
+    """为当前用户下单. 抛 ToolError 表示业务错 (HITL 二次确认前会先暂停)."""
+    # 参数规范化
+    if isinstance(check_in, str):
+        check_in = date.fromisoformat(check_in)
+    if isinstance(check_out, str):
+        check_out = date.fromisoformat(check_out)
+
+    if guests < 1 or guests > 20:
+        raise ToolError(f"人数 {guests} 超出合法范围 (1-20)", code="INVALID_ARGS")
+
+    listing = db.get(Listing, listing_id)
+    if not listing:
+        raise ToolError(f"房源 #{listing_id} 不存在", code="NOT_FOUND")
+
+    totals = _compute_booking_totals(listing, check_in, check_out)
+
+    if guests > listing.max_guests:
+        raise ToolError(
+            f"该房源最多接待 {listing.max_guests} 位客人 (你输入 {guests})",
+            code="INVALID_ARGS",
+        )
+
+    booking = Booking(
+        user_id=user.id,
+        listing_id=listing_id,
+        check_in=check_in,
+        check_out=check_out,
+        guests=guests,
+        nights=totals["nights"],
+        subtotal=totals["subtotal"],
+        cleaning_fee=totals["cleaning_fee"],
+        service_fee=totals["service_fee"],
+        total=totals["total"],
+        status="confirmed",
+    )
+    db.add(booking)
+    db.commit()
+    db.refresh(booking)
+
+    logger.info(
+        "create_booking: user=%d listing=%d %s -> booking #%d (¥%s)",
+        user.id, listing_id, check_in, booking.id, totals["total"],
+    )
+
+    return {
+        "status": "confirmed",
+        "booking_id": booking.id,
+        "listing_id": listing_id,
+        "listing_title": listing.title,
+        "check_in": check_in.isoformat(),
+        "check_out": check_out.isoformat(),
+        "guests": guests,
+        "nights": totals["nights"],
+        "subtotal": float(totals["subtotal"]),
+        "cleaning_fee": float(totals["cleaning_fee"]),
+        "service_fee": float(totals["service_fee"]),
+        "total": float(totals["total"]),
+    }
+
+
 # ============ Tool dispatch (orchestrator 用) ============
 
 TOOL_DISPATCH: dict[str, Any] = {
@@ -304,5 +447,6 @@ TOOL_DISPATCH: dict[str, Any] = {
     "remove_from_wishlist": remove_from_wishlist,
     "create_wishlist": create_wishlist,
     "list_wishlists": list_wishlists,
+    "create_booking": create_booking,
 }
 """Tool name → 实现函数. orchestrator 按 tc.function.name 路由."""

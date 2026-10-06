@@ -42,6 +42,9 @@ interface AgentState {
   loadConversation: (convId: number) => Promise<void>
   startNewChat: () => void
 
+  // ============ Block 11.5: HITL ============
+  confirmRun: (runId: number, approved: boolean) => Promise<void>
+
   // 内部: 把 stream event 应用到 messages
   _applyEvent: (evt: AgentStreamEvent, msgId: string) => void
 }
@@ -123,6 +126,39 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   startNewChat: () => set({ messages: [], conversationId: null, error: null }),
 
+  confirmRun: async (runId, approved) => {
+    try {
+      const run2 = await agentApi.confirmRun(runId, approved)
+      // 找到对应的 assistant 消息, 用响应里的 final_content/steps/status 更新
+      set((s) => ({
+        messages: s.messages.map((m) => {
+          if (m.runId !== runId) return m
+          // 把新的 steps 合并进来, 替换 status/final_content
+          const newSteps = (run2.steps || []).map((st) => ({
+            step_index: st.step_index,
+            tool_name: st.tool_name,
+            tool_args: st.tool_args as any,
+            tool_result: st.tool_result as any,
+            tool_error: st.tool_error,
+            reasoning: st.reasoning,
+            duration_ms: st.duration_ms,
+          }))
+          return {
+            ...m,
+            content: run2.final_content || m.content,
+            status: run2.status,
+            steps: newSteps,
+            pendingConfirmation: undefined,  // 确认完成, 清除 pending
+            error: run2.error || undefined,
+          }
+        }),
+      }))
+    } catch (err: any) {
+      console.error('confirmRun failed', err)
+      set({ error: err.message || String(err) })
+    }
+  },
+
   _applyEvent: (evt, msgId) => {
     set((s) => {
       const messages = s.messages.map((m) => {
@@ -160,12 +196,25 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           return { ...m, steps }
         }
         if (evt.type === 'final') {
+          // Block 11.5: pending_confirmation 时 content 为 null, 不要清掉占位
           return {
             ...m,
-            content: evt.content || '',
+            content: evt.content ?? m.content,
             status: evt.status,
             promptTokens: evt.prompt_tokens,
             completionTokens: evt.completion_tokens,
+          }
+        }
+        if (evt.type === 'pending_confirmation') {
+          return {
+            ...m,
+            status: 'pending_confirmation',
+            pendingConfirmation: {
+              run_id: evt.run_id,
+              step_index: evt.step_index,
+              tool_name: evt.tool_name,
+              tool_args: evt.tool_args,
+            },
           }
         }
         if (evt.type === 'error') {
