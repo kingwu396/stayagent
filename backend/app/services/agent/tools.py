@@ -6,7 +6,9 @@
 - 返回 dict 让 LLM 看到结构化数据
 - 同步函数 (直接读 DB), orchestrator 直接调用无需 await
 """
+import json
 import logging
+import re
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -14,8 +16,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.models import (
-    User, Listing, Wishlist, WishlistItem, Booking,
+    User, Listing, Wishlist, WishlistItem, Booking, Message,
 )
+from app.services.rag import retrieve_tips
 
 logger = logging.getLogger(__name__)
 
@@ -437,6 +440,200 @@ def create_booking(
     }
 
 
+# ============ Tool 9: list_my_trips ============
+
+def list_my_trips(
+    user: User, db,
+    status: str | None = None,
+    limit: int = 10,
+    **_kwargs,
+) -> dict:
+    """查当前用户的所有订单, 可按 status 过滤 (pending/confirmed/cancelled/completed)."""
+    valid_statuses = {"pending", "confirmed", "cancelled", "completed"}
+    if status and status not in valid_statuses:
+        raise ToolError(f"status 必须从 {valid_statuses} 中选", code="INVALID_ARGS")
+
+    limit = min(max(limit, 1), 50)
+    stmt = (
+        select(Booking, Listing)
+        .join(Listing, Booking.listing_id == Listing.id)
+        .where(Booking.user_id == user.id)
+        .order_by(Booking.check_in.desc(), Booking.created_at.desc())
+        .limit(limit)
+    )
+    if status:
+        stmt = stmt.where(Booking.status == status)
+
+    rows = db.execute(stmt).all()
+    items = []
+    for b, l in rows:
+        items.append({
+            "booking_id": b.id,
+            "listing_id": b.listing_id,
+            "listing_title": l.title if l else None,
+            "listing_city": l.city if l else None,
+            "check_in": b.check_in.isoformat() if b.check_in else None,
+            "check_out": b.check_out.isoformat() if b.check_out else None,
+            "guests": b.guests,
+            "nights": b.nights,
+            "total": float(b.total),
+            "status": b.status,
+            "created_at": b.created_at.isoformat() if b.created_at else None,
+        })
+    return {"count": len(items), "items": items}
+
+
+# ============ Tool 10: parse_travel_plan_pdf ============
+
+# 简易日期/城市正则 (兜底用, LLM 抽取失败时)
+_RE_ISO_DATE = re.compile(r"\b20\d{2}-\d{2}-\d{2}\b")
+# 已知常见城市名 (其它城市 LLM 应能识别)
+_KNOWN_CITIES = {
+    "Tokyo", "Kyoto", "Osaka", "Paris", "London", "New York", "Los Angeles",
+    "Barcelona", "Rome", "Milan", "Berlin", "Amsterdam", "Bangkok", "Singapore",
+    "Seoul", "Sydney", "Melbourne", "Dubai", "Istanbul", "Cairo", "Bali",
+    "Busan", "Hong Kong", "Taipei", "Shanghai", "Beijing", "Hanoi", "Ho Chi Minh",
+    "Jakarta", "Manila", "Kuala Lumpur", "Phuket", "Chiang Mai",
+}
+
+
+def _regex_parse_plan(text: str) -> dict:
+    """LLM 抽取失败时的兜底: regex 抽 ISO 日期 + 城市名"""
+    dates = list(dict.fromkeys(_RE_ISO_DATE.findall(text)))[:10]
+    cities = []
+    for city in _KNOWN_CITIES:
+        if re.search(rf"\b{re.escape(city)}\b", text, re.IGNORECASE):
+            cities.append(city)
+        if len(cities) >= 5:
+            break
+    return {
+        "cities": cities,
+        "dates": dates,
+        "duration_days": len(dates) - 1 if len(dates) >= 2 else None,
+        "themes": [],
+        "guests_estimate": None,
+        "budget_estimate": None,
+    }
+
+
+def parse_travel_plan_pdf(
+    user: User, db,
+    plan_text: str,
+    **_kwargs,
+) -> dict:
+    """从已抽取的 PDF 文本中解析结构化字段. 优先 LLM, 失败降级 regex."""
+    if not plan_text or not plan_text.strip():
+        raise ToolError("plan_text 不能为空", code="INVALID_ARGS")
+
+    fallback = _regex_parse_plan(plan_text)
+    return {
+        "status": "ok",
+        "method": "regex",
+        "parsed": fallback,
+        "raw_excerpt": plan_text[:500],
+        "note": "regex 抽取 (LLM 增强留给后续 Block)",
+    }
+
+
+def _parse_travel_plan_pdf_sync_placeholder(  # noqa
+    user: User, db, plan_text: str, parsed: dict,
+) -> dict:
+    """保留占位避免 orphan import (实际用不上)"""
+    fallback = _regex_parse_plan(plan_text)
+    return {
+        "status": "ok", "method": "llm" if parsed else "regex",
+        "parsed": parsed or fallback, "raw_excerpt": plan_text[:500],
+}
+
+
+# ============ Tool 11: recommend_from_plan ============
+
+def recommend_from_plan(
+    user: User, db,
+    plan_text: str,
+    max_results: int = 5,
+    **_kwargs,
+) -> dict:
+    """
+    根据 PDF 文本推荐房源. 流程:
+    1. 抽结构化 (LLM 优先, regex 兜底)
+    2. 取首个城市 + text 前缀作为 query, 调 search_listings
+    3. 返回房源 + 抽取的 plan summary
+    """
+    if not plan_text or not plan_text.strip():
+        raise ToolError("plan_text 不能为空", code="INVALID_ARGS")
+
+    # 1. 先 regex 兜底拿城市 (LLM 那条路要走 async, 暂用 regex 给 search_listings 用)
+    fallback = _regex_parse_plan(plan_text)
+    city = fallback["cities"][0] if fallback["cities"] else None
+
+    # 2. 提取关键词 (从 themes 或 plan_text 第一个名词) 作为 q
+    # 但 LIKE 模糊匹配不靠谱, 有 city 时直接用 city 过滤, q 留空
+    # 让 LLM 通过 tool description 知道 plan_text 后, 可以独立调 search_listings(q=...) 细化
+    search_kwargs = {
+        "limit": min(max(max_results, 1), 20),
+    }
+    if city:
+        search_kwargs["city"] = city
+        # 不再传 q, 避免整段 LIKE 不命中
+    else:
+        # 没 city 时才退化到 q (兜底)
+        short_q = plan_text[:16].strip()
+        short_q = re.sub(r"[^\w\s]", " ", short_q).strip()
+        if short_q:
+            search_kwargs["q"] = short_q
+
+    try:
+        from app.services.agent.tools import search_listings
+        search_result = search_listings(user=user, db=db, **search_kwargs)
+    except ToolError as e:
+        search_result = {"count": 0, "items": [], "warning": str(e)}
+
+    return {
+        "plan_summary": {
+            "cities": fallback["cities"],
+            "dates": fallback["dates"],
+            "themes": fallback["themes"],
+            "duration_days": fallback["duration_days"],
+            "method": "regex",  # async LLM 抽取放后续 Block
+        },
+        "recommendations": search_result.get("items", []),
+        "sources": "search_listings",
+        "note": "parsing 走 regex 兜底; recommend 走 search_listings",
+    }
+
+
+# ============ Tool 12: search_travel_tips (RAG) ============
+
+def search_travel_tips(
+    user: User, db,
+    query: str,
+    top_k: int = 3,
+    category: str | None = None,
+    **_kwargs,
+) -> dict:
+    """RAG 检索: 从 travel_tips 知识库找最相关的贴士."""
+    if not query or not query.strip():
+        raise ToolError("query 不能为空", code="INVALID_ARGS")
+    top_k = min(max(top_k, 1), 10)
+
+    try:
+        tips = retrieve_tips(db=db, query=query, top_k=top_k, category=category)
+    except Exception as e:
+        logger.exception("search_travel_tips failed")
+        raise ToolError(f"RAG 检索失败: {e}", code="RAG_UNAVAILABLE")
+
+    if tips and isinstance(tips[0], dict) and "error" in tips[0]:
+        # embedding 模型加载失败的情况
+        raise ToolError(tips[0]["error"], code="RAG_UNAVAILABLE")
+
+    return {
+        "count": len(tips),
+        "query": query,
+        "tips": tips,
+    }
+
+
 # ============ Tool dispatch (orchestrator 用) ============
 
 TOOL_DISPATCH: dict[str, Any] = {
@@ -448,5 +645,9 @@ TOOL_DISPATCH: dict[str, Any] = {
     "create_wishlist": create_wishlist,
     "list_wishlists": list_wishlists,
     "create_booking": create_booking,
+    "list_my_trips": list_my_trips,
+    "parse_travel_plan_pdf": parse_travel_plan_pdf,
+    "recommend_from_plan": recommend_from_plan,
+    "search_travel_tips": search_travel_tips,
 }
 """Tool name → 实现函数. orchestrator 按 tc.function.name 路由."""

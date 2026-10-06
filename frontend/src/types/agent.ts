@@ -21,6 +21,8 @@ export interface AgentChatMessage {
   conversationId?: number
   /** Block 11.5: HITL 确认. 前端根据此字段渲染确认卡片. */
   pendingConfirmation?: PendingConfirmation
+  /** Block 12 fix: 用户上传的 PDF 附件 (只存元数据用于 UI chip, 实际 text 走单独 attachment 通道给后端) */
+  attachment?: { filename: string; char_count: number; page_count: number }
 }
 
 export interface PendingConfirmation {
@@ -106,4 +108,15 @@ export interface AgentRunDetail {
   steps: AgentStep[]
   started_at: string
   finished_at: string | null
+}
+
+// ============ Block 12: PDF 附件 ============
+
+export interface PdfAttachment {
+  file_id: string
+  filename: string
+  text: string
+  char_count: number
+  page_count: number
+  summary?: string | null
 }

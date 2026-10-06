@@ -227,19 +227,21 @@ parse_travel_plan_pdf = {
     "function": {
         "name": "parse_travel_plan_pdf",
         "description": (
-            "解析用户上传的旅行计划 PDF, 抽取目的地、日期、预算、人数等关键信息。"
-            "当用户提到'PDF'/'上传的计划'/'这份行程单', 必须先使用此工具。"
-            "返回 plan_id, 供 recommend_from_plan 使用。"
+            "从旅行计划文本中抽取结构化字段: 目的地、日期、预算、人数、主题。"
+            "参数 plan_text 是已抽取的文本内容 (不是文件路径)."
+            "**用法**: 用户上传 PDF 时, PDF 文本已经 inline 在用户消息里 (``` 代码块包裹), "
+            "直接提取 ``` 里的内容作为 plan_text 调用本工具, 得到结构化字段. "
+            "用户粘贴/输入旅行计划文字时, 也直接调这个工具."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "file_path": {
+                "plan_text": {
                     "type": "string",
-                    "description": "服务器上的 PDF 文件路径 (前端已上传)",
+                    "description": "旅行计划文本内容 (PDF 抽取的全文 或 用户粘贴的文字)",
                 },
             },
-            "required": ["file_path"],
+            "required": ["plan_text"],
         },
     },
 }
@@ -250,17 +252,17 @@ recommend_from_plan = {
     "function": {
         "name": "recommend_from_plan",
         "description": (
-            "基于已解析的旅行计划 (parse_travel_plan_pdf 的产物), 自动推荐匹配的房源。"
-            "**依赖**: 必须先调用 parse_travel_plan_pdf 解析。"
+            "基于旅行计划文本推荐房源. 自动抽取城市/关键词, 调 search_listings 找匹配."
+            "参数 plan_text 是旅行计划内容 (同 parse_travel_plan_pdf 的 plan_text)."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "plan_id": {
-                    "type": "integer",
-                    "description": "解析后的计划 ID (parse_travel_plan_pdf 返回)",
+                "plan_text": {
+                    "type": "string",
+                    "description": "旅行计划文本内容 (同 parse_travel_plan_pdf)",
                 },
-                "limit": {
+                "max_results": {
                     "type": "integer",
                     "default": 5,
                     "minimum": 1,
@@ -268,7 +270,7 @@ recommend_from_plan = {
                     "description": "返回推荐条数",
                 },
             },
-            "required": ["plan_id"],
+            "required": ["plan_text"],
         },
     },
 }

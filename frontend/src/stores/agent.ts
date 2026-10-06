@@ -12,6 +12,7 @@ import type {
   AgentStreamEvent,
   ConversationSummary,
   AgentRunDetail,
+  PdfAttachment,
 } from '@/types/agent'
 
 interface AgentState {
@@ -34,7 +35,7 @@ interface AgentState {
   togglePanel: () => void
   clearHistory: () => void
   cancelStream: () => void
-  sendMessage: (text: string) => Promise<void>
+  sendMessage: (text: string, attachment?: PdfAttachment | null) => Promise<void>
 
   setMode: (mode: 'floating' | 'fullscreen') => void
   toggleFullscreen: () => void
@@ -228,14 +229,23 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     })
   },
 
-  sendMessage: async (text: string) => {
-    if (!text.trim()) return
+  sendMessage: async (text: string, attachment?: PdfAttachment | null) => {
+    if (!text.trim() && !attachment) return
     if (get().isStreaming) return  // 防并发
 
+    const trimmed = text.trim()
     const userMsg: AgentChatMessage = {
       id: makeMessageId(),
       role: 'user',
-      content: text.trim(),
+      // Block 12 fix: 只存用户打的文字, PDF text 不污染 bubble
+      content: trimmed,
+      attachment: attachment
+        ? {
+            filename: attachment.filename,
+            char_count: attachment.char_count,
+            page_count: attachment.page_count,
+          }
+        : undefined,
     }
     const assistantMsg: AgentChatMessage = {
       id: makeMessageId(),
@@ -260,7 +270,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     // 3. 消费 stream events
     try {
       const stream = agentApi.chatStream(
-        { message: text.trim(), conversation_id: get().conversationId },
+        { message: trimmed, conversation_id: get().conversationId, attachment },
         ctrl.signal,
       )
       for await (const evt of stream) {

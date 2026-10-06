@@ -30,6 +30,7 @@ from app.services.agent.prompts import SYSTEM_PROMPT
 from app.services.agent.tool_schemas import ALL_TOOL_SCHEMAS
 from app.services.agent.retry import retry_on_llm_error
 from app.services.agent.tools import TOOL_DISPATCH, ToolError
+from app.schemas.agent import AttachmentPayload
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,27 @@ def _load_history(db, conversation_id: int, limit: int = HISTORY_LIMIT) -> list[
             out.append({"role": "assistant", "content": m.content or ""})
     return out
 
+
+
+
+def _augment_user_message_with_attachment(user_message: str, attachment: AttachmentPayload | None) -> str:
+    """Block 12 fix: 把附件 text 注入 LLM 上下文, 但不污染 user_message (DB 存的还是纯文字).
+
+    LLM 看到的格式:
+        [用户消息]
+
+        [附件: filename.pdf, 7 页, 1234 字]
+        ```
+        <PDF text>
+        ```
+    """
+    if attachment is None:
+        return user_message
+    return (
+        f"{user_message}\n\n"
+        f"[附件: {attachment.filename}, {attachment.page_count} 页, {attachment.char_count} 字]\n"
+        f"```\n{attachment.text}\n```"
+    )
 
 def _build_messages(db, user: User, run_message: str, conversation_id: int) -> list[dict]:
     """拼装 messages: system + 历史 (不含刚 insert 的 user) + 当前 user"""
@@ -290,12 +312,15 @@ async def run_agent(
     user: User,
     user_message: str,
     conversation_id: int | None = None,
+    attachment: AttachmentPayload | None = None,
 ) -> AgentRun:
     """
     同步版: 跑一次 agent 调用循环, 返回完整 AgentRun (DB row).
     内部步骤通过 _execute_step() 共享 stream_agent 逻辑.
+
+    Block 12: attachment 注入 LLM 上下文, 但 DB user_message 只存纯文字.
     """
-    # 1. Conversation + user message
+    # 1. Conversation + user message (DB 只存纯文字)
     conv = _get_or_create_conversation(db, user, conversation_id)
     db.add(Message(conversation_id=conv.id, role="user", content=user_message))
     db.commit()
@@ -310,10 +335,14 @@ async def run_agent(
     db.add(run)
     db.commit()
     db.refresh(run)
-    logger.info("AgentRun #%d started (conv=%d user=%d)", run.id, conv.id, user.id)
+    logger.info(
+        "AgentRun #%d started (conv=%d user=%d, has_attachment=%s)",
+        run.id, conv.id, user.id, attachment is not None,
+    )
 
-    # 3. Messages
-    messages = _build_messages(db, user, user_message, conv.id)
+    # 3. Messages: LLM 上下文 augment 附件
+    llm_user_message = _augment_user_message_with_attachment(user_message, attachment)
+    messages = _build_messages(db, user, llm_user_message, conv.id)
 
     # 4. Loop
     final_event = None
@@ -365,6 +394,7 @@ async def stream_agent(
     user: User,
     user_message: str,
     conversation_id: int | None = None,
+    attachment: AttachmentPayload | None = None,
 ) -> AsyncGenerator[dict, None]:
     """
     流式版: async generator, 每步 yield 一个 event dict.
@@ -397,8 +427,9 @@ async def stream_agent(
         "conversation_id": conv.id,
     }
 
-    # 3. Messages
-    messages = _build_messages(db, user, user_message, conv.id)
+    # 3. Messages: LLM 上下文 augment 附件 (Block 12)
+    llm_user_message = _augment_user_message_with_attachment(user_message, attachment)
+    messages = _build_messages(db, user, llm_user_message, conv.id)
 
     # 4. Loop
     final_event = None

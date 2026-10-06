@@ -56,6 +56,7 @@ async def chat(
         user=current_user,
         user_message=payload.message,
         conversation_id=payload.conversation_id,
+        attachment=payload.attachment,
     )
     return AgentChatResponse(
         run_id=run.id,
@@ -348,6 +349,7 @@ async def chat_stream(
                 user=current_user,
                 user_message=payload.message,
                 conversation_id=payload.conversation_id,
+                attachment=payload.attachment,
             ):
                 evt_type = evt.get("type", "message")
                 payload_json = json.dumps(evt, ensure_ascii=False)

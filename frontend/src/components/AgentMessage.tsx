@@ -26,8 +26,19 @@ export function AgentMessage({ message }: AgentMessageProps) {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] px-4 py-2.5 bg-brand-500 text-white rounded-2xl rounded-br-md text-sm leading-relaxed whitespace-pre-wrap break-words">
-          {message.content}
+        <div className="max-w-[85%]">
+          {/* Block 12: 附件元数据 chip (PDF text 走 attachment 通道, 不在这里显示) */}
+          {message.attachment && (
+            <div className="mb-1 flex items-center justify-end gap-1.5 text-xs text-slate-500">
+              <span>📎 {message.attachment.filename}</span>
+              <span className="text-slate-400">
+                {message.attachment.page_count}p · {message.attachment.char_count}字
+              </span>
+            </div>
+          )}
+          <div className="px-4 py-2.5 bg-brand-500 text-white rounded-2xl rounded-br-md text-sm leading-relaxed whitespace-pre-wrap break-words">
+            {message.content}
+          </div>
         </div>
       </div>
     )

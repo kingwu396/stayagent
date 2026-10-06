@@ -96,6 +96,28 @@ stayagent/
 - [x] **Block 1**: 项目骨架 + Hello StayAgent ✅
 - [x] Block 2: 用户系统 ✅
 - [x] Block 3: 房源 seed 数据 ✅
-- [ ] Block 3-14: 业务 + Agent
+- [x] Block 4-7: 业务 (首页/搜索/详情/心愿单/Trips) ✅
+- [x] Block 8: LLM 客户端 + 12 个 Tool Schema ✅
+- [x] Block 9: Agent Orchestrator + 7 个 Tool ✅
+- [x] Block 10: AgentPanel UI + SSE 流式 ✅
+- [x] Block 11: AgentPanel 重构 (浮动+全屏+历史列表) ✅
+- [x] Block 11.5: create_booking (HITL) + 拖动 + 全屏微调 ✅
+- [x] **Block 12**: Tools 9-12 + RAG (Travel Tips) + PDF 上传 ✅
+
+### 第一次使用需跑
+
+```bash
+# 安装依赖 (含 sentence-transformers + pdfplumber)
+uv sync
+
+# 填充房源数据 (幂等)
+make seed
+
+# 填充 RAG 知识库 (30 条, 幂等)
+uv run python -m scripts.seed_travel_tips
+
+# 启动
+make dev
+```
 
 立项文档存放在 outputs/（本地参考用，不上传 git）

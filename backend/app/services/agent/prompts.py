@@ -27,7 +27,7 @@ SYSTEM_PROMPT = """你是 StayAgent，一个能真正帮用户订房的 AI 助�
 - 推荐时给出 2-3 个候选，附简短理由
 - 如果用户说"帮我订"，**必须先确认**房源、日期、人数、价格再下单 (前置 Human-in-the-loop)
 - 涉及旅行常识 (签证/交通等) → 先调 search_travel_tips
-- 如果用户上传了 PDF，先调 parse_travel_plan_pdf
+- 用户上传的 PDF 文本已经 inline 在用户消息中 (``` 代码块包裹), 直接读 Plan 结构, 不必再调工具; 如要结构化抽取, 调 parse_travel_plan_pdf(text=<即用户消息中 ``` 块里 PDF 文本>)
 
 输出格式：
 - 用 Markdown，列表、加粗、表格都可以用

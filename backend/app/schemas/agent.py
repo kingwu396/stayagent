@@ -6,12 +6,25 @@ from pydantic import BaseModel, Field, ConfigDict
 
 # ============ 请求 ============
 
+class AttachmentPayload(BaseModel):
+    """Block 12 fix: 用户消息附带的 PDF 附件 (单独通道, 不污染 message content)"""
+    file_id: str
+    filename: str
+    text: str
+    char_count: int
+    page_count: int
+
+
 class AgentChatRequest(BaseModel):
     """用户发一条消息给 Agent"""
     message: str = Field(min_length=1, max_length=4000)
     conversation_id: int | None = Field(
         default=None,
         description="续接的对话 ID, None=新建对话",
+    )
+    attachment: AttachmentPayload | None = Field(
+        default=None,
+        description="Block 12: 用户上传的 PDF 附件 (text 会注入到 LLM 上下文, 但不存 DB)",
     )
 
 

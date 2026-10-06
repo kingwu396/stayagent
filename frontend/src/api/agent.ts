@@ -10,11 +10,14 @@ import type {
   AgentStreamEvent,
   ConversationSummary,
   AgentRunDetail,
+  PdfAttachment,
 } from '@/types/agent'
 
 export interface ChatStreamParams {
   message: string
   conversation_id?: number | null
+  /** Block 12 fix: 用户消息附带的 PDF (单独通道, 不污染 content) */
+  attachment?: PdfAttachment | null
 }
 
 export const agentApi = {
@@ -46,6 +49,7 @@ export const agentApi = {
       body: JSON.stringify({
         message: params.message,
         conversation_id: params.conversation_id ?? null,
+        attachment: params.attachment ?? null,
       }),
       signal,
       credentials: 'include',
@@ -112,6 +116,7 @@ export const agentApi = {
     const res = await api.post('/agent/chat', {
       message: params.message,
       conversation_id: params.conversation_id ?? null,
+      attachment: params.attachment ?? null,
     })
     return res.data
   },

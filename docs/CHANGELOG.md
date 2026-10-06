@@ -1296,3 +1296,47 @@ run_started → step_started → step_completed → ... → final → done
 - cancel 是新增到 `agent_run_status_enum` 的值; 旧 DB 需要 `ALTER TABLE agent_runs MODIFY COLUMN status ENUM(...,'cancelled') NOT NULL DEFAULT 'running'`
 
 **提交**: (待用户说 "commit git")
+
+## 📅 2026-10-06 — Block 12: Agent Tools 9-12 + RAG (Travel Tips) + PDF 上传
+
+**目标**: 完成 Agent 全部 12 个 tool, 接入 RAG 旅行贴士知识库 + PDF 旅行计划解析
+
+**新增**:
+- backend: 新模型 `TravelTip` (id, title, content, category, destination, embedding JSON)
+- backend: 新服务 `app/services/rag/` — embedding (sentence-transformers all-MiniLM-L6-v2) + retriever (cosine 相似度)
+- backend: lifespan 加 embedding 模型预热 (避免首查 ~3s 延迟)
+- backend: 4 个新 tool — `list_my_trips` / `parse_travel_plan_pdf` / `recommend_from_plan` / `search_travel_tips`
+- backend: TOOL_DISPATCH 现在注册 12 个 tool
+- backend: 新 API `POST /api/uploads/pdf` (multipart, 10MB 上限, pdfplumber 抽文本)
+- backend: 新 schema `PdfUploadResponse`
+- backend: 新依赖 `pdfplumber` / `sentence-transformers` / `numpy` / `python-multipart`
+- backend: 新脚本 `scripts/seed_travel_tips.py` — 30 条知识库 (visa/transport/food/safety/culture 各 6 条), 幂等
+- frontend: 新类型 `PdfAttachment` (types/agent.ts)
+- frontend: 新 API `api/uploads.ts` (uploadPdf)
+- frontend: `AgentInput.tsx` 加 📎 上传按钮 + 附件 chip + 发送时把 text 拼到 message body
+
+**验证**:
+- [x] `python -m scripts.test_agent_block12` 通过 (8/8)
+  - Test 1: TOOL_DISPATCH 总数 = 12
+  - Test 2: list_my_trips 全路径 (无过滤 / status过滤 / INVALID_ARGS)
+  - Test 3: parse_travel_plan_pdf regex 抽到 cities + dates
+  - Test 4: recommend_from_plan 命中 Tokyo 房源
+  - Test 5: search_travel_tips RAG 检索 + category 过滤
+  - Test 6: POST /api/uploads/pdf 200 (含 1 页测试 PDF)
+  - Test 7: 无 token → 401
+  - Test 8: 非 PDF → 415
+- [x] `python -m scripts.seed_travel_tips` 幂等 (二次跑 skipped=30)
+- [x] RAG 检索质量: "日本签证" → top1 是 "日本签证基础申请流程" (score 0.578)
+- [x] `pnpm run build` 通过
+- [x] dev server smoke: /api/uploads/pdf 注册, 无 auth 返 401
+- [ ] 浏览器手测: 上传 PDF → 看 chip → 发送 → Agent 回复引用 PDF 内容
+- [ ] 浏览器手测: 问"东京签证" → search_travel_tips 命中
+
+**约定 / 假设**:
+- RAG 用本地 sentence-transformers all-MiniLM-L6-v2 (384 维, ~80MB, 国内镜像 hf-mirror.com)
+- `recommend_from_plan` 简化为: regex 抽 city → search_listings(city=...). q 不用整段 LIKE
+- `parse_travel_plan_pdf` 走 regex 抽取 (LLM 抽取需要 async 上下文, 留给后续 Block)
+- PDF 临时存 `/tmp/stayagent_uploads/{uuid}.pdf`, 不立即清理, 靠 OS 周期清理
+- embedding 模型首次启动会下载 (~80MB), 后续从 ~/.cache/huggingface 加载
+
+**提交**: (待用户说 "commit git")

@@ -8,9 +8,11 @@ from app.api.listings import router as listings_router
 from app.api.wishlists import router as wishlists_router
 from app.api.bookings import router as bookings_router
 from app.api.agent import router as agent_router
+from app.api.uploads import router as uploads_router
 from app.db.session import engine
 from app.db.base import Base
 from app.core import redis_client, llm_client
+from app.services import rag as rag_service
 
 import app.models  # noqa: F401
 
@@ -20,6 +22,8 @@ async def lifespan(app: FastAPI):
     # 启动
     Base.metadata.create_all(bind=engine)
     await redis_client.connect()
+    # Block 12: 预热 embedding 模型 (避免首次 RAG 查询延迟 ~3s)
+    await rag_service.warmup()
     yield
     # 关闭
     await llm_client.close()
@@ -50,6 +54,7 @@ app.include_router(listings_router, prefix="/api/listings", tags=["listings"])
 app.include_router(wishlists_router, prefix="/api/wishlists", tags=["wishlists"])
 app.include_router(bookings_router, prefix="/api/bookings", tags=["bookings"])
 app.include_router(agent_router, prefix="/api/agent", tags=["agent"])
+app.include_router(uploads_router, prefix="/api/uploads", tags=["uploads"])
 
 
 @app.get("/")
