@@ -72,6 +72,12 @@ export interface ContentDeltaEvent {
   delta: string
 }
 
+/** Block 17 v3: 当 LLM 在 stream 模式下先 emit 了英文 preamble 又决定调 tool,
+ * 后端发 content_discard 让前端把已渲染的 preamble 清掉. */
+export interface ContentDiscardEvent {
+  type: 'content_discard'
+}
+
 export interface ErrorEvent {
   type: 'error'
   message: string
@@ -91,6 +97,7 @@ export type AgentStreamEvent =
   | StepStartedEvent
   | StepCompletedEvent
   | ContentDeltaEvent
+  | ContentDiscardEvent
   | FinalEvent
   | ErrorEvent
   | PendingConfirmationEvent

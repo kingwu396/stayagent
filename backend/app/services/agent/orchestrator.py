@@ -16,6 +16,7 @@ Block 10 新增 stream_agent() (async generator) 用于 SSE 流式.
 - ToolError 转成 {"error": ..., "code": ...} 喂给 LLM, 让它自己处理
 - HITL (create_booking 触发 pending_confirmation) Block 9 不实现 (Block 11)
 """
+import asyncio
 import json
 import logging
 import time
@@ -395,8 +396,6 @@ async def _execute_step_stream(
     messages: list[dict],
     run: AgentRun,
     step_idx: int,
-    *,
-    emit_content_delta: bool = True,
 ) -> AsyncGenerator[dict, None]:
     """
     流式 LLM 调用. emit_content_delta=False 时把 LLM 的 content 累积起来,
@@ -424,6 +423,10 @@ async def _execute_step_stream(
             messages=messages,
             tools=ALL_TOOL_SCHEMAS,
         )
+    except asyncio.CancelledError:
+        # 客户端断开: 清理后退出, 不冒泡到外层
+        logger.info("Stream cancelled by client")
+        return
     except Exception as e:
         logger.exception("LLM stream init failed")
         yield {"type": "error", "message": f"{type(e).__name__}: {e}"}
@@ -436,10 +439,6 @@ async def _execute_step_stream(
     usage: dict = {}
 
     # 累积 LLM 完整响应
-    full_content = ""
-    full_tool_calls: list[dict] = []
-    finish_reason: str | None = None
-    usage: dict = {}
 
     # emit_content_delta=True 时逐 token yield (打字机效果, 用于 post-tool final)
     # emit_content_delta=False 时 buffer 不 yield, 用于 step_idx=0 第一次 LLM
@@ -448,10 +447,13 @@ async def _execute_step_stream(
         async for delta, fr in resp_iter:
             if delta:
                 full_content += delta
-                if emit_content_delta:
-                    yield {"type": "content_delta", "delta": delta}
+                # Block 17 v3: 始终 live emit content_delta (打字机效果)
+                yield {"type": "content_delta", "delta": delta}
             if fr:
                 finish_reason = fr
+    except asyncio.CancelledError:
+        logger.info("Stream cancelled mid-chunk")
+        return
     except Exception as e:
         logger.exception("LLM stream chunk failed")
         yield {"type": "error", "message": f"{type(e).__name__}: {e}"}
@@ -473,8 +475,9 @@ async def _execute_step_stream(
     # stream 模式下 LLM 经常先 emit "I'll check..." (英文套话), 再 emit finish_reason='tool_calls'.
     # 这是 preamble hallucination, 不是 final answer. fallback 到非流式 chat 让 _execute_step 走原路径.
     if finish_reason == "tool_calls":
-        # 流式模式拿到了 tool_calls, 但我们没解析 tool_call chunks (复杂),
-        # 退回到非流式 chat 让它走原 _execute_step() 路径
+        # 流式模式 LLM 在 emit preamble ("I'll check...") 后又决定调 tool.
+        # preamble 不是 final answer, 让前端丢弃这段 content (保留 steps).
+        yield {"type": "content_discard"}
         logger.info("Stream got finish_reason=tool_calls, fallback to non-stream _execute_step")
         events = await _execute_step(db, user, messages, run, step_idx)
         for evt in events:
@@ -482,12 +485,7 @@ async def _execute_step_stream(
         return
 
     if finish_reason == "stop" or (full_content != "" and not full_tool_calls and finish_reason is None):
-        # 纯文本 final answer
-        # - emit_content_delta=True: 已经实时 yield 了 content_delta, 不重复
-        # - emit_content_delta=False: 之前 stream 没 yield (DeepSeek preamble 风险), 现在 batch emit
-        if not emit_content_delta and full_content:
-            for ch in [full_content[i:i+4] for i in range(0, len(full_content), 4)]:
-                yield {"type": "content_delta", "delta": ch}
+        # 纯文本 final answer (content_delta 已在 live emit)
         yield {
             "type": "final",
             "content": full_content,
@@ -555,11 +553,17 @@ async def stream_agent(
     pending_event = None
     final_delta_buf: list[str] = []
     for step_idx in range(MAX_STEPS):
-        async for evt in _execute_step_stream(db, user, messages, run, step_idx, emit_content_delta=(step_idx > 0)):
+        async for evt in _execute_step_stream(db, user, messages, run, step_idx):
             if evt["type"] == "content_delta":
                 # Block 17: 累积 final content 的 token, 同时 yield 给前端 (打字机效果)
                 final_delta_buf.append(evt["delta"])
                 yield evt
+            elif evt["type"] == "content_discard":
+                # Block 17 v3: LLM 在 stream 里 emit 了英文 preamble 又决定调 tool.
+                # preamble 已传给前端 (打字机), 现在要丢弃. 清掉 buffer + 把事件透传给前端.
+                final_delta_buf = []
+                yield evt
+                continue
             elif evt["type"] == "final":
                 # 如果 streaming 路径已经累积了 tokens, 把它们填进 final.content
                 if final_delta_buf:

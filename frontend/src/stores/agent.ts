@@ -199,6 +199,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             status: 'streaming',
           }
         }
+        if (evt.type === 'content_discard') {
+          // Block 17 v3: LLM stream 里 emit 了英文 preamble 又决定调 tool,
+          // 后端让前端丢弃这一段 content (保留 steps)
+          return {
+            ...m,
+            content: '',
+            status: 'streaming',
+          }
+        }
         if (evt.type === 'step_started') {
           const newStep: AgentStep = {
             step_index: evt.step_index,
