@@ -43,6 +43,17 @@ export const HeroSearch = forwardRef<HTMLDivElement, HeroSearchProps>(function H
 
   const cityDisplay = state.city || '想去哪？'
   const dateRange = formatDateRange(state.checkIn, state.checkOut)
+
+  // 浮层按 panel 对齐：
+  // - location → 左侧对齐到「地点」段左边
+  // - dates    → 居中
+  // - guests   → 右侧对齐到「人数」段右边
+  const panelAlignClass =
+    activePanel === 'location'
+      ? 'left-0'
+      : activePanel === 'guests'
+        ? 'right-0'
+        : 'left-1/2 -translate-x-1/2'
   const guestsText = formatGuestsSummary(state.guests) || '添加人数'
 
   return (
@@ -108,7 +119,7 @@ export const HeroSearch = forwardRef<HTMLDivElement, HeroSearchProps>(function H
 
           {/* 展开态面板：紧凑浮层 */}
           {expanded && (
-            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-20 animate-expand-down pointer-events-auto">
+            <div className={`absolute ${panelAlignClass} top-full mt-2 z-20 animate-expand-down pointer-events-auto`}>
               <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[480px] overflow-y-auto">
                 {/* 移动端 tab */}
                 <div className="md:hidden flex border-b border-slate-200">

@@ -55,6 +55,17 @@ export function CompactTopbar({
   const dateDisplay = formatDateRange(state.checkIn, state.checkOut)
   const guestsDisplay = formatGuestsSummary(state.guests) || '添加人数'
 
+  // 浮层按 panel 对齐：
+  // - location → 左侧对齐到「地点」段左边
+  // - dates    → 居中
+  // - guests   → 右侧对齐到「人数」段右边
+  const panelAlignClass =
+    activePanel === 'location'
+      ? 'left-0'
+      : activePanel === 'guests'
+        ? 'right-0'
+        : 'left-1/2 -translate-x-1/2'
+
   return (
     <div
       ref={containerRef}
@@ -143,7 +154,7 @@ export function CompactTopbar({
 
           {/* 展开面板：浮动卡片，居中 */}
           {expanded && (
-            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-20 animate-expand-down pointer-events-auto">
+            <div className={`absolute ${panelAlignClass} top-full mt-2 z-20 animate-expand-down pointer-events-auto`}>
               <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[520px] overflow-y-auto">
                 {/* 移动端：tab 切换（卡片内顶部） */}
                 <div className="md:hidden flex border-b border-slate-200">
