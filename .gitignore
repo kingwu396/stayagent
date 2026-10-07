@@ -30,3 +30,6 @@ vite.config.d.ts
 
 # 用户个人面试准备文档 (不属于项目代码)
 /docs/agent-interview-prep.md
+
+# Redis 落盘文件（dev 期间 redis 在项目目录启动时意外生成）
+/dump.rdb
