@@ -33,3 +33,6 @@ vite.config.d.ts
 
 # Redis 落盘文件（dev 期间 redis 在项目目录启动时意外生成）
 /dump.rdb
+
+# ZCode 工作区元数据
+/.zcode/
