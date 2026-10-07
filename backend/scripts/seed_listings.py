@@ -30,74 +30,83 @@ import app.models  # noqa: F401  确保所有模型注册
 # ============ 数据池 ============
 
 # 通用 neighborhoods (新城市兜底)
-GENERIC_NBRS = ["Downtown", "Old Town", "Riverside", "Hills", "Harbor"]
+GENERIC_NBRS = ["市中心", "老城区", "滨河区", "山丘区", "港湾"]
 
 # 通用 city keywords (新城市兜底)
-GENERIC_KEYWORDS = ["local cafe", "metro access", "old town charm", "historic district", "central location"]
+GENERIC_KEYWORDS = ["本地咖啡馆", "近地铁", "老城韵味", "历史街区", "中心位置"]
 
 CITIES = [
     # 现有 10 城 (保留)
-    ("Tokyo", "Japan", 35.6762, 139.6503, ["Shibuya", "Shinjuku", "Asakusa", "Roppongi", "Ginza"]),
-    ("Paris", "France", 48.8566, 2.3522, ["Marais", "Montmartre", "Saint-Germain", "Latin Quarter", "Le Marais"]),
-    ("New York", "United States", 40.7128, -74.0060, ["SoHo", "Williamsburg", "Upper East Side", "Chelsea", "Harlem"]),
-    ("London", "United Kingdom", 51.5074, -0.1278, ["Shoreditch", "Notting Hill", "Camden", "South Bank", "Brixton"]),
-    ("Bangkok", "Thailand", 13.7563, 100.5018, ["Sukhumvit", "Silom", "Chinatown", "Ari", "Thonglor"]),
-    ("Bali", "Indonesia", -8.4095, 115.1889, ["Ubud", "Seminyak", "Canggu", "Sanur", "Nusa Dua"]),
-    ("Shanghai", "China", 31.2304, 121.4737, ["Xintiandi", "Jing'an", "French Concession", "Lujiazui", "Xuhui"]),
-    ("Seoul", "South Korea", 37.5665, 126.9780, ["Gangnam", "Hongdae", "Itaewon", "Myeongdong", "Bukchon"]),
-    ("Singapore", "Singapore", 1.3521, 103.8198, ["Tiong Bahru", "Chinatown", "Orchard", "Bugis", "Marina Bay"]),
-    ("Rome", "Italy", 41.9028, 12.4964, ["Trastevere", "Monti", "Prati", "Testaccio", "Centro Storico"]),
+    ("东京", "日本", 35.6762, 139.6503, ["涩谷", "新宿", "浅草", "六本木", "银座"]),
+    ("巴黎", "法国", 48.8566, 2.3522, ["玛黑区", "蒙马特", "圣日耳曼", "拉丁区", "玛黑区"]),
+    ("纽约", "美国", 40.7128, -74.0060, ["苏豪区", "威廉斯堡", "上东区", "切尔西", "哈莱姆"]),
+    ("伦敦", "英国", 51.5074, -0.1278, ["肖尔迪奇", "诺丁山", "卡姆登", "南岸", "布里克斯顿"]),
+    ("曼谷", "泰国", 13.7563, 100.5018, ["素坤逸", "是隆", "唐人街", "阿里", "通罗"]),
+    ("巴厘岛", "印度尼西亚", -8.4095, 115.1889, ["乌布", "水明漾", "仓古", "沙努尔", "努沙杜瓦"]),
+    ("上海", "中国", 31.2304, 121.4737, ["新天地", "静安", "法租界", "陆家嘴", "徐汇"]),
+    ("首尔", "韩国", 37.5665, 126.9780, ["江南", "弘大", "梨泰院", "明洞", "北村"]),
+    ("新加坡", "新加坡", 1.3521, 103.8198, ["中峇鲁", "牛车水", "乌节路", "武吉士", "滨海湾"]),
+    ("罗马", "意大利", 41.9028, 12.4964, ["特拉斯提弗列", "蒙蒂", "普拉蒂", "泰斯塔乔", "历史中心"]),
     # 新增 40 城 (Block 14)
     # 日本
-    ("Kyoto", "Japan", 35.0116, 135.7681, ["Gion", "Higashiyama", "Arashiyama", "Nakagyo"]),
-    ("Osaka", "Japan", 34.6937, 135.5023, ["Namba", "Umeda", "Tennoji", "Shinsekai"]),
+    ("京都", "日本", 35.0116, 135.7681, ["祇园", "东山", "岚山", "中京"]),
+    ("大阪", "日本", 34.6937, 135.5023, ["难波", "梅田", "天王寺", "新世界"]),
     # 中国/港台
-    ("Beijing", "China", 39.9042, 116.4074, ["Sanlitun", "Wangfujing", "Houhai", "Guomao"]),
-    ("Hong Kong", "Hong Kong", 22.3193, 114.1694, ["Central", "Tsim Sha Tsui", "Mong Kok", "Causeway Bay"]),
-    ("Taipei", "Taiwan", 25.0330, 121.5654, ["Ximen", "Daan", "Shida", "Songshan"]),
-    ("Chengdu", "China", 30.5728, 104.0668, ["Jinli", "Chunxi Road", "Kuanzhai Alley"]),
+    ("北京", "中国", 39.9042, 116.4074, ["三里屯", "王府井", "后海", "国贸"]),
+    ("香港", "中国香港", 22.3193, 114.1694, ["中环", "尖沙咀", "旺角", "铜锣湾"]),
+    ("台北", "中国台湾", 25.0330, 121.5654, ["西门町", "大安", "师大", "松山"]),
+    ("成都", "中国", 30.5728, 104.0668, ["锦里", "春熙路", "宽窄巷子"]),
     # 东南亚
-    ("Phuket", "Thailand", 7.8804, 98.3923, ["Patong", "Kata", "Karon", "Rawai"]),
-    ("Chiang Mai", "Thailand", 18.7883, 98.9853, ["Old City", "Nimmanhaemin", "Chang Phueak"]),
-    ("Hanoi", "Vietnam", 21.0285, 105.8542, ["Old Quarter", "Hoan Kiem", "French Quarter"]),
-    ("Ho Chi Minh", "Vietnam", 10.8231, 106.6297, ["District 1", "Bui Vien", "Saigon South"]),
-    ("Kuala Lumpur", "Malaysia", 3.1390, 101.6869, ["Bukit Bintang", "KLCC", "Chinatown"]),
-    ("Manila", "Philippines", 14.5995, 120.9842, ["Makati", "BGC", "Intramuros"]),
-    ("Jakarta", "Indonesia", -6.2088, 106.8456, ["Sudirman", "Kemang", "Old Town"]),
+    ("普吉岛", "泰国", 7.8804, 98.3923, ["芭东", "卡塔", "卡伦", "拉威"]),
+    ("清迈", "泰国", 18.7883, 98.9853, ["古城", "宁曼路", "昌普"]),
+    ("河内", "越南", 21.0285, 105.8542, ["老城区", "还剑湖", "法租界区"]),
+    ("胡志明市", "越南", 10.8231, 106.6297, ["第一区", "范五老街", "西贡南"]),
+    ("吉隆坡", "马来西亚", 3.1390, 101.6869, ["武吉免登", "双子塔", "茨厂街"]),
+    ("马尼拉", "菲律宾", 14.5995, 120.9842, ["马卡蒂", "博尼法西奥堡", "市中市"]),
+    ("雅加达", "印度尼西亚", -6.2088, 106.8456, ["苏迪曼", "克芒", "老城区"]),
     # 中东/南亚
-    ("Dubai", "UAE", 25.2048, 55.2708, ["Downtown Dubai", "Marina", "Palm Jumeirah", "Old Dubai"]),
-    ("Istanbul", "Turkey", 41.0082, 28.9784, ["Sultanahmet", "Beyoglu", "Kadikoy", "Besiktas"]),
-    ("Mumbai", "India", 19.0760, 72.8777, ["Colaba", "Bandra", "Juhu", "Powai"]),
-    ("Delhi", "India", 28.6139, 77.2090, ["Connaught Place", "Hauz Khas", "Karol Bagh"]),
+    ("迪拜", "阿联酋", 25.2048, 55.2708, ["迪拜市中心", "码头区", "朱美拉棕榈岛", "老迪拜"]),
+    ("伊斯坦布尔", "土耳其", 41.0082, 28.9784, ["苏丹阿赫迈特", "贝伊奥卢", "卡德柯伊", "贝西克塔斯"]),
+    ("孟买", "印度", 19.0760, 72.8777, ["科拉巴", "班德拉", "朱胡", "波瓦伊"]),
+    ("德里", "印度", 28.6139, 77.2090, ["康诺特广场", "豪兹卡斯", "卡罗尔巴格"]),
     # 欧洲
-    ("Barcelona", "Spain", 41.3851, 2.1734, ["Eixample", "Gracia", "Barceloneta", "Gothic Quarter"]),
-    ("Madrid", "Spain", 40.4168, -3.7038, ["Sol", "Malasana", "Chueca", "Salamanca"]),
-    ("Amsterdam", "Netherlands", 52.3676, 4.9041, ["Jordaan", "De Pijp", "Centrum", "Oud-West"]),
-    ("Berlin", "Germany", 52.5200, 13.4050, ["Mitte", "Kreuzberg", "Prenzlauer Berg", "Neukoelln"]),
-    ("Munich", "Germany", 48.1351, 11.5820, ["Altstadt", "Schwabing", "Glockenbachviertel"]),
-    ("Vienna", "Austria", 48.2082, 16.3738, ["Innere Stadt", "Leopoldstadt", "Neubau"]),
-    ("Prague", "Czech Republic", 50.0755, 14.4378, ["Old Town", "Lesser Town", "Vinohrady"]),
-    ("Lisbon", "Portugal", 38.7223, -9.1393, ["Alfama", "Bairro Alto", "Belem", "Príncipe Real"]),
-    ("Athens", "Greece", 37.9838, 23.7275, ["Plaka", "Monastiraki", "Koukaki", "Psyrri"]),
-    ("Florence", "Italy", 43.7696, 11.2558, ["Duomo", "Oltrarno", "Santa Croce"]),
-    ("Venice", "Italy", 45.4408, 12.3155, ["San Marco", "Cannaregio", "Dorsoduro"]),
-    ("Milan", "Italy", 45.4642, 9.1900, ["Brera", "Navigli", "Porta Nuova"]),
-    ("Zurich", "Switzerland", 47.3769, 8.5417, ["Altstadt", "Niederdorf", "Seefeld"]),
-    ("Geneva", "Switzerland", 46.2044, 6.1432, ["Old Town", "Paquis", "Eaux-Vives"]),
-    ("Edinburgh", "United Kingdom", 55.9533, -3.1883, ["Old Town", "New Town", "Leith"]),
+    ("巴塞罗那", "西班牙", 41.3851, 2.1734, ["扩展区", "格拉西亚", "巴塞罗内塔", "哥特区"]),
+    ("马德里", "西班牙", 40.4168, -3.7038, ["太阳门", "马拉萨尼亚", "丘埃卡", "萨拉曼卡"]),
+    ("阿姆斯特丹", "荷兰", 52.3676, 4.9041, ["约旦区", "德派普", "市中心", "老西区"]),
+    ("柏林", "德国", 52.5200, 13.4050, ["米特", "克罗伊茨贝格", "普伦茨劳贝格", "新科尔恩"]),
+    ("慕尼黑", "德国", 48.1351, 11.5820, ["老城", "施瓦宾", "格洛克肯巴赫区"]),
+    ("维也纳", "奥地利", 48.2082, 16.3738, ["内城", "利奥波德城", "新堡区"]),
+    ("布拉格", "捷克", 50.0755, 14.4378, ["老城", "小城", "维诺赫拉迪"]),
+    ("里斯本", "葡萄牙", 38.7223, -9.1393, ["阿尔法玛", "上城区", "贝伦", "王子区"]),
+    ("雅典", "希腊", 37.9838, 23.7275, ["普拉卡", "蒙纳斯提拉奇", "库卡基", "普西里"]),
+    ("佛罗伦萨", "意大利", 43.7696, 11.2558, ["大教堂", "奥尔特拉诺", "圣十字"]),
+    ("威尼斯", "意大利", 45.4408, 12.3155, ["圣马可", "卡纳雷吉欧", "多尔索杜罗"]),
+    ("米兰", "意大利", 45.4642, 9.1900, ["布雷拉", "纳维利", "新门"]),
+    ("苏黎世", "瑞士", 47.3769, 8.5417, ["老城", "尼德多夫", "塞费尔德"]),
+    ("日内瓦", "瑞士", 46.2044, 6.1432, ["老城", "帕奎斯", "活水区"]),
+    ("爱丁堡", "英国", 55.9533, -3.1883, ["老城", "新城", "利斯"]),
     # 大洋洲
-    ("Sydney", "Australia", -33.8688, 151.2093, ["CBD", "Surry Hills", "Bondi", "Newtown"]),
-    ("Melbourne", "Australia", -37.8136, 144.9631, ["CBD", "Fitzroy", "St Kilda", "Brunswick"]),
-    ("Auckland", "New Zealand", -36.8485, 174.7633, ["CBD", "Ponsonby", "Wynyard Quarter"]),
+    ("悉尼", "澳大利亚", -33.8688, 151.2093, ["市中心", "萨里山", "邦迪", "新镇"]),
+    ("墨尔本", "澳大利亚", -37.8136, 144.9631, ["市中心", "菲茨罗伊", "圣基尔达", "布伦瑞克"]),
+    ("奥克兰", "新西兰", -36.8485, 174.7633, ["市中心", "庞森比", "温亚德区"]),
     # 美洲
-    ("Vancouver", "Canada", 49.2827, -123.1207, ["Downtown", "Gastown", "Yaletown", "Kitsilano"]),
-    ("Toronto", "Canada", 43.6532, -79.3832, ["Downtown", "Queen West", "Distillery District", "Yorkville"]),
-    ("Mexico City", "Mexico", 19.4326, -99.1332, ["Centro", "Roma", "Condesa", "Coyoacan"]),
-    ("Buenos Aires", "Argentina", -34.6037, -58.3816, ["Palermo", "San Telmo", "Recoleta", "Belgrano"]),
-    ("Rio de Janeiro", "Brazil", -22.9068, -43.1729, ["Copacabana", "Ipanema", "Leblon", "Santa Teresa"]),
+    ("温哥华", "加拿大", 49.2827, -123.1207, ["市中心", "煤气镇", "耶鲁镇", "基斯兰奴"]),
+    ("多伦多", "加拿大", 43.6532, -79.3832, ["市中心", "皇后西街", "古酿酒厂区", "约克维尔"]),
+    ("墨西哥城", "墨西哥", 19.4326, -99.1332, ["中心区", "罗马区", "孔德萨", "科约阿坎"]),
+    ("布宜诺斯艾利斯", "阿根廷", -34.6037, -58.3816, ["巴勒莫", "圣特尔莫", "雷科莱塔", "贝尔格拉诺"]),
+    ("里约热内卢", "巴西", -22.9068, -43.1729, ["科帕卡巴纳", "伊帕内玛", "莱伯伦", "圣特雷莎"]),
 ]
 
 PROPERTY_TYPES = ["apartment", "house", "villa", "studio", "hotel"]
+
+# DB 存英文键（筛选依赖），生成标题/描述等展示文案时转中文
+PROPERTY_TYPE_CN = {
+    "apartment": "公寓",
+    "house": "民宿",
+    "villa": "别墅",
+    "studio": "开间",
+    "hotel": "酒店",
+}
 
 PRICE_RANGES = {
     "studio": (40, 120),
@@ -108,87 +117,85 @@ PRICE_RANGES = {
 }
 
 HOST_NAMES = [
-    "Akira", "Yuki", "Hiroshi", "Sakura",
-    "Pierre", "Marie", "Jean", "Sophie",
-    "Mike", "Sarah", "David", "Emma",
-    "Wei", "Lin", "Chen", "Ming",
-    "Min", "Ji", "Soo", "Hye",
-    "Luca", "Giulia", "Marco", "Elena",
-    "Anong", "Krit", "Made", "Putri",
+    "健一", "美雪", "博", "小樱",
+    "皮埃尔", "玛丽", "让", "索菲",
+    "麦克", "莎拉", "大卫", "艾玛",
+    "阿伟", "小林", "小晨", "阿明",
+    "敏俊", "智秀", "秀妍", "惠敏",
+    "卢卡", "朱丽娅", "马可", "艾莲娜",
+    "阿农", "克里特", "马德", "普特里",
     # Block 14 扩 名字池
-    "Sven", "Ingrid", "Lars", "Astrid",
-    "Carlos", "Sofia", "Diego", "Lucia",
-    "Andrei", "Olga", "Dmitri", "Natasha",
-    "Chen", "Liu", "Wang", "Zhang",
-    "Hassan", "Fatima", "Omar", "Layla",
-    "Raj", "Priya", "Arjun", "Anika",
+    "斯文", "英格丽德", "拉尔斯", "阿斯特丽",
+    "卡洛斯", "索菲娅", "迭戈", "露西亚",
+    "安德烈", "奥莉加", "德米特里", "娜塔莎",
+    "哈桑", "法蒂玛", "奥马尔", "莱拉",
+    "拉吉", "普里娅", "阿尔琼", "阿妮卡",
 ]
 
 TITLE_TEMPLATES = {
     "apartment": [
-        "Modern {type} in {neighborhood}",
-        "Cozy {type} near {neighborhood}",
-        "{type} with city view in {neighborhood}",
+        "{neighborhood}现代公寓",
+        "{neighborhood}温馨公寓",
+        "{neighborhood}城景公寓",
     ],
     "house": [
-        "Charming {type} in {neighborhood}",
-        "Family {type} in {neighborhood}",
-        "Spacious {type} with garden - {neighborhood}",
+        "{neighborhood}特色民居",
+        "{neighborhood}亲子民宿",
+        "{neighborhood}带花园宽敞民宿",
     ],
     "villa": [
-        "Luxury {type} in {neighborhood}",
-        "Private {type} with pool - {neighborhood}",
-        "Stunning {type} overlooking {neighborhood}",
+        "{neighborhood}奢华别墅",
+        "{neighborhood}私人泳池别墅",
+        "{neighborhood}观景别墅",
     ],
     "studio": [
-        "Compact {type} in {neighborhood}",
-        "Stylish {type} near {neighborhood}",
-        "Bright {type} in the heart of {neighborhood}",
+        "{neighborhood}精巧开间",
+        "{neighborhood}时尚工作室",
+        "{neighborhood}中心明亮开间",
     ],
     "hotel": [
-        "Boutique {type} in {neighborhood}",
-        "Modern {type} near {neighborhood}",
-        "Heritage {type} - {neighborhood}",
+        "{neighborhood}精品酒店",
+        "{neighborhood}现代酒店",
+        "{neighborhood}经典酒店",
     ],
 }
 
 DESC_SENTENCES = [
-    "Welcome to our lovely place, perfect for travelers looking to explore {city}.",
-    "Located in the heart of {neighborhood}, you'll be steps away from cafes, restaurants, and public transit.",
-    "The space features comfortable beds, a fully equipped kitchen, and high-speed WiFi.",
-    "Enjoy stunning views and authentic local vibes in this carefully curated {type}.",
-    "Walking distance to major attractions and easy access to metro stations.",
-    "Ideal for couples, families, or solo travelers seeking comfort and convenience.",
-    "Recently renovated with modern amenities while preserving local character.",
-    "Our favorite spot is the cozy corner with natural light - perfect for morning coffee.",
+    "欢迎来到我们温馨的住处，是探索{city}的理想基地。",
+    "坐落于{neighborhood}核心地段，步行即达咖啡馆、餐厅和地铁站。",
+    "房间配备舒适床品、设施齐全的厨房和高速无线网络。",
+    "在这间精心布置的{type}里，尽享迷人景致与地道本地风情。",
+    "步行可达主要景点，地铁出行十分便利。",
+    "无论是情侣、家庭还是独自出行，都能住得舒适安心。",
+    "近期全新装修，现代设施与本地韵味兼得。",
+    "最推荐的是洒满自然光的舒适角落——晨起喝杯咖啡再合适不过。",
 ]
 
 CITY_KEYWORDS = {
-    "Tokyo": ["near metro", "shibuya crossing", "traditional tatami"],
-    "Paris": ["walk to Eiffel Tower", "café culture", "Seine river view"],
-    "New York": ["central park", "subway access", "brooklyn vibe"],
-    "London": ["tube station", "pub culture", "hyde park"],
-    "Bangkok": ["BTS skytrain", "street food", "temple nearby"],
-    "Bali": ["rice paddy view", "beach club", "yoga studio"],
-    "Shanghai": ["bund view", "French concession", "metro line 2"],
-    "Seoul": ["Hongdae nightlife", "Gangnam style", "han river"],
-    "Singapore": ["hawker center", "marina bay", "MRT station"],
-    "Rome": ["colosseum walking", "trattoria", "vintage charm"],
+    "东京": ["近地铁", "涩谷十字路口", "传统榻榻米"],
+    "巴黎": ["步行到埃菲尔铁塔", "咖啡馆文化", "塞纳河景"],
+    "纽约": ["中央公园", "地铁直达", "布鲁克林风情"],
+    "伦敦": ["地铁站旁", "酒馆文化", "海德公园"],
+    "曼谷": ["BTS 天铁", "街头美食", "临近寺庙"],
+    "巴厘岛": ["梯田景观", "海滩俱乐部", "瑜伽馆"],
+    "上海": ["外滩景观", "法租界风情", "地铁 2 号线"],
+    "首尔": ["弘大夜生活", "江南时尚", "汉江畔"],
+    "新加坡": ["熟食中心", "滨海湾", "地铁站旁"],
+    "罗马": ["步行到斗兽场", "小餐馆", "复古韵味"],
     # Block 14 补充
-    "Kyoto": ["temple walk", "geisha district", "matcha cafe"],
-    "Osaka": ["takoyaki street", "dotonbori", "okonomiyaki"],
-    "Beijing": ["hutong walk", "forbidden city", "peking duck"],
-    "Hong Kong": ["star ferry", "dim sum", "night market"],
-    "Taipei": ["night market", "bubble tea", "hot spring nearby"],
-    "Dubai": ["burj khalifa view", "desert safari", "luxury shopping"],
-    "Istanbul": ["bosphorus cruise", "grand bazaar", "hammam"],
-    "Barcelona": ["sagrada familia", "tapas bar", "beach gatiga"],
-    "Amsterdam": ["canal cruise", "bike tour", "van gogh museum"],
-    "Berlin": ["wall memorial", "tech hub", "bratwurst"],
-    "Vienna": ["coffee house", "classical concert", "sachertorte"],
-    "Prague": ["old town square", "beer hall", "astronomical clock"],
-    "Sydney": ["opera house view", "bondi beach", "harbour bridge"],
-    "Tokyo": ["near metro", "shibuya crossing", "traditional tatami"],  # duplicate, kept for compat
+    "京都": ["寺庙漫步", "艺伎区", "抹茶咖啡"],
+    "大阪": ["章鱼烧小摊", "道顿堀", "大阪烧"],
+    "北京": ["胡同漫步", "故宫", "北京烤鸭"],
+    "香港": ["天星小轮", "粤式点心", "夜市"],
+    "台北": ["夜市", "珍珠奶茶", "临近温泉"],
+    "迪拜": ["哈利法塔景观", "沙漠冲沙", "奢侈品购物"],
+    "伊斯坦布尔": ["海峡游船", "大巴扎", "土耳其浴"],
+    "巴塞罗那": ["圣家堂", "Tapas 小馆", "海滩"],
+    "阿姆斯特丹": ["运河游船", "骑行游览", "梵高美术馆"],
+    "柏林": ["柏林墙遗址", "科技氛围", "德式香肠"],
+    "维也纳": ["咖啡馆", "古典音乐会", "萨赫蛋糕"],
+    "布拉格": ["老城广场", "啤酒馆", "天文钟"],
+    "悉尼": ["歌剧院景观", "邦迪海滩", "海港大桥"],
 }
 
 AMENITY_POOL = [
@@ -214,13 +221,16 @@ def random_listing(city: str, country: str, lat: float, lng: float,
     price = round(random.uniform(price_min, price_max), 2)
 
     title_tpl = random.choice(TITLE_TEMPLATES[prop_type])
-    title = title_tpl.format(type=prop_type.title(), neighborhood=neighborhood)
+    title = title_tpl.format(neighborhood=neighborhood)
 
     desc_parts = random.sample(DESC_SENTENCES, 3)
     keywords = CITY_KEYWORDS.get(city, GENERIC_KEYWORDS)
     if keywords and random.random() > 0.4:
-        desc_parts.append(f"Local highlight: {random.choice(keywords)}.")
-    description = " ".join(p.format(city=city, neighborhood=neighborhood, type=prop_type) for p in desc_parts)
+        desc_parts.append(f"本地亮点：{random.choice(keywords)}。")
+    description = " ".join(
+        p.format(city=city, neighborhood=neighborhood, type=PROPERTY_TYPE_CN[prop_type])
+        for p in desc_parts
+    )
 
     lat_off = Decimal(str(round(lat + random.uniform(-0.05, 0.05), 6)))
     lng_off = Decimal(str(round(lng + random.uniform(-0.05, 0.05), 6)))

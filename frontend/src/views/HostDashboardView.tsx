@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Eye, Home, DollarSign, TrendingUp, ExternalLink } from 'lucide-react'
 import { hostApi } from '@/api/host'
+import { propertyTypeLabel } from '@/lib/labels'
 import type { HostMeResponse, HostDashboardResponse, HostListingStat } from '@/types/host'
 
 function MiniBarChart({ items }: { items: HostListingStat[] }) {
@@ -223,7 +224,7 @@ export function HostDashboardView() {
                         <div className="min-w-0">
                           <div className="font-medium text-slate-900 line-clamp-1">{item.title}</div>
                           <div className="text-xs text-slate-500">
-                            ¥{item.price_per_night}/晚 · {item.property_type}
+                            ¥{item.price_per_night}/晚 · {propertyTypeLabel(item.property_type)}
                           </div>
                         </div>
                       </div>

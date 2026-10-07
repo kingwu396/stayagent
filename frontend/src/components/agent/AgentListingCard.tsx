@@ -8,6 +8,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Star } from 'lucide-react'
 import { useAgentStore } from '@/stores/agent'
+import { propertyTypeLabel } from '@/lib/labels'
 
 export interface AgentListingItem {
   id: number
@@ -65,7 +66,7 @@ export function AgentListingCard({ item }: { item: AgentListingItem }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-xs text-slate-500 line-clamp-1">
-            {item.property_type ? item.property_type.charAt(0).toUpperCase() + item.property_type.slice(1) : '房源'}
+            {item.property_type ? propertyTypeLabel(item.property_type) : '房源'}
             {item.city && <> · <span>{item.city}</span></>}
           </div>
           <div className="text-sm font-medium text-slate-900 line-clamp-1 mt-0.5">

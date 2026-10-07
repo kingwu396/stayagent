@@ -5,6 +5,7 @@ import { formatPrice, formatRating } from '@/lib/utils'
 import { useWishlistStore } from '@/stores/wishlist'
 import { useAuthStore } from '@/stores/auth'
 import { useWishlistPicker } from '@/components/WishlistPickerModal'
+import { propertyTypeLabel } from '@/lib/labels'
 import { useToast } from '@/hooks/useToast'
 
 const FALLBACK_IMAGE = 'https://picsum.photos/seed/placeholder/400/300'
@@ -65,8 +66,8 @@ export function ListingCard({ listing, highlighted }: ListingCardProps) {
         </button>
 
         {listing.property_type && (
-          <div className="absolute bottom-3 left-3 px-2.5 py-1 bg-white/90 backdrop-blur-sm rounded-md text-xs font-medium text-slate-700 capitalize">
-            {listing.property_type}
+          <div className="absolute bottom-3 left-3 px-2.5 py-1 bg-white/90 backdrop-blur-sm rounded-md text-xs font-medium text-slate-700">
+            {propertyTypeLabel(listing.property_type)}
           </div>
         )}
       </div>
