@@ -25,21 +25,31 @@ export interface ListListingsParams {
   max_bathrooms?: number
   amenities?: string[]   // 后端用逗号分隔 join
   q?: string
+  /** 按 id 批量查（最近浏览），后端按传入顺序返回 */
+  ids?: number[]
+  /** 排序：view_count = 浏览量降序（主页热门板块）；默认评分 */
+  sort?: 'view_count'
 }
 
 export const listingsApi = {
   async list(params: ListListingsParams = {}): Promise<ListingListResponse> {
-    // amenities/property_types 数组转逗号分隔字符串
-    const apiParams: Record<string, string | number | string[] | undefined> = { ...params }
-    if (params.amenities && params.amenities.length > 0) {
-      apiParams.amenities = params.amenities.join(',')
+    // 数组参数转逗号分隔字符串
+    const { ids, amenities, property_types, place_type, ...rest } = params
+    const apiParams: Record<string, string | number | string[] | undefined> = { ...rest }
+    if (amenities && amenities.length > 0) {
+      apiParams.amenities = amenities.join(',')
     }
-    if (params.property_types && params.property_types.length > 0) {
-      apiParams.property_types = params.property_types.join(',')
+    if (property_types && property_types.length > 0) {
+      apiParams.property_types = property_types.join(',')
+    }
+    if (ids && ids.length > 0) {
+      apiParams.ids = ids.join(',')
     }
     // 后端不需要 place_type='any'
-    if (apiParams.place_type === 'any' || !apiParams.place_type) {
+    if (place_type === 'any' || !place_type) {
       delete apiParams.place_type
+    } else {
+      apiParams.place_type = place_type
     }
     const res = await api.get<ListingListResponse>('/listings', { params: apiParams })
     return res.data

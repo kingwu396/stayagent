@@ -1,18 +1,23 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useWishlistStore } from '@/stores/wishlist'
 import { Link } from 'react-router-dom'
-import { Hotel } from 'lucide-react'
+import { Hotel, ChevronRight } from 'lucide-react'
 import { UserMenu } from '@/components/UserMenu'
 import { SearchPill, PillFrame } from '@/components/SearchPill'
 import { CategoryStrip } from '@/components/CategoryStrip'
+import { WelcomeBack } from '@/components/WelcomeBack'
+import { SectionCarousel, CarouselCard } from '@/components/SectionCarousel'
 import { motion } from 'framer-motion'
 import { ListingCard } from '@/components/ListingCard'
 import { ListingCardSkeleton } from '@/components/Skeleton'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
 import { listingsApi } from '@/api/listings'
+import { getViewedIds } from '@/lib/recent'
 import { EMPTY_SEARCH, type CompactSearchState } from '@/hooks/useCompactSearch'
 import type { ListingSummary, CityInfo } from '@/types/listing'
+
+const HOT_CITIES = ['东京', '曼谷', '巴厘岛', '巴黎']
 
 export function HomeView() {
   const [listings, setListings] = useState<ListingSummary[]>([])
@@ -24,6 +29,8 @@ export function HomeView() {
   const [cities, setCities] = useState<CityInfo[]>([])
   // Hero 大搜索栏与顶栏胶囊共享同一份搜索状态，切换时内容连续
   const [sharedSearch, setSharedSearch] = useState<CompactSearchState>(EMPTY_SEARCH)
+  const [recentItems, setRecentItems] = useState<ListingSummary[]>([])
+  const [hotItems, setHotItems] = useState<ListingSummary[]>([])
   const searchBarRef = useRef<HTMLDivElement>(null)
 
   // 搜索条槽位顶部贴住顶栏 → 飞到顶栏；回滚到其下方 → 飞回 Hero。
@@ -67,6 +74,27 @@ export function HomeView() {
     listingsApi.cities().then(setCities).catch(() => setCities([]))
   }, [])
 
+  // 最近浏览：localStorage ids → 批量取回（后端按传入顺序返回；已下架的自动消失）
+  useEffect(() => {
+    const ids = getViewedIds()
+    if (ids.length === 0) {
+      setRecentItems([])
+      return
+    }
+    listingsApi
+      .list({ ids, page_size: 20 })
+      .then((d) => setRecentItems(d.items))
+      .catch(() => setRecentItems([]))
+  }, [])
+
+  // 热门房源：按浏览量降序
+  useEffect(() => {
+    listingsApi
+      .list({ sort: 'view_count', page: 1, page_size: 12 })
+      .then((d) => setHotItems(d.items))
+      .catch(() => setHotItems([]))
+  }, [])
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ===== 顶栏（常驻）：logo + 搜索条槽位 + 用户菜单 ===== */}
@@ -105,8 +133,8 @@ export function HomeView() {
       </header>
 
       {/* ===== Hero 区：标题 + 大搜索条槽位 ===== */}
-      <section className="relative bg-gradient-to-br from-rose-50 via-white to-slate-50 border-b border-slate-200">
-        <div className="max-w-6xl mx-auto px-6 py-16 md:py-24 text-center">
+      <section className="relative bg-gradient-to-b from-brand-50/60 via-white to-white border-b border-slate-200">
+        <div className="max-w-6xl mx-auto px-6 py-14 md:py-20 text-center">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 mb-4 tracking-tight">
             找到你的<span className="text-brand-500">下一站</span>
           </h1>
@@ -136,9 +164,18 @@ export function HomeView() {
             )}
           </div>
 
-          {/* 热门标签提示 */}
-          <div className="mt-6 text-sm text-slate-500">
-            热门：<span className="text-slate-700">东京</span> · <span className="text-slate-700">曼谷</span> · <span className="text-slate-700">巴厘岛</span> · <span className="text-slate-700">巴黎</span>
+          {/* 热门城市 chip（点击直接带城市筛选进搜索页） */}
+          <div className="mt-6 flex items-center justify-center gap-2 flex-wrap">
+            <span className="text-sm text-slate-500">热门：</span>
+            {HOT_CITIES.map((c) => (
+              <Link
+                key={c}
+                to={`/search?city=${encodeURIComponent(c)}`}
+                className="px-3.5 py-1.5 rounded-full border border-slate-300 bg-white text-sm text-slate-700 hover:border-slate-900 hover:text-slate-900 hover:shadow-sm transition"
+              >
+                {c}
+              </Link>
+            ))}
           </div>
         </div>
       </section>
@@ -146,16 +183,50 @@ export function HomeView() {
       {/* ===== 分类条 ===== */}
       <CategoryStrip />
 
+      {/* ===== 个性化板块：欢迎回来 / 最近浏览 / 热门房源 ===== */}
+      <div className="space-y-10 pt-8">
+        <WelcomeBack />
+
+        {recentItems.length > 0 && (
+          <SectionCarousel title="最近浏览">
+            {recentItems.map((l) => (
+              <CarouselCard key={l.id}>
+                <ListingCard listing={l} />
+              </CarouselCard>
+            ))}
+          </SectionCarousel>
+        )}
+
+        {hotItems.length > 0 && (
+          <SectionCarousel title="热门房源">
+            {hotItems.map((l) => (
+              <CarouselCard key={l.id}>
+                <ListingCard listing={l} />
+              </CarouselCard>
+            ))}
+          </SectionCarousel>
+        )}
+      </div>
+
       {/* ===== 推荐房源 ===== */}
-      <main className="max-w-6xl mx-auto px-6 py-10">
-        <h2 className="text-2xl font-bold text-slate-900 mb-6">
-          推荐房源
-          {!isLoading && listings.length > 0 && (
-            <span className="text-sm font-normal text-slate-500 ml-2">
-              {listings.length} 处
-            </span>
-          )}
-        </h2>
+      <main className="max-w-6xl mx-auto px-6 pt-10 pb-4">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl md:text-[22px] font-semibold text-slate-900">
+            推荐房源
+            {!isLoading && listings.length > 0 && (
+              <span className="text-sm font-normal text-slate-500 ml-2">
+                {listings.length} 处
+              </span>
+            )}
+          </h2>
+          <Link
+            to="/search"
+            className="flex items-center gap-0.5 text-sm text-slate-500 hover:text-slate-900 transition"
+          >
+            查看全部
+            <ChevronRight className="w-4 h-4" />
+          </Link>
+        </div>
 
         {isLoading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -221,8 +292,9 @@ export function HomeView() {
               ]}
             />
           </div>
-          <div className="pt-6 border-t border-slate-100 text-center text-sm text-slate-500">
-            © 2026 StayAgent · AI Travel Agent Demo
+          <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-slate-500">
+            <span>© 2026 StayAgent · AI Travel Agent Demo</span>
+            <span>中文（简体） · ¥ CNY</span>
           </div>
         </div>
       </footer>

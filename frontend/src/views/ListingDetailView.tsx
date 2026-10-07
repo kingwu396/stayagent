@@ -13,6 +13,8 @@ import { MoreListingsCarousel } from '@/components/MoreListingsCarousel'
 import { ErrorState } from '@/components/ErrorState'
 import { Skeleton } from '@/components/Skeleton'
 import { listingsApi } from '@/api/listings'
+import { recordViewed } from '@/lib/recent'
+import { propertyTypeLabel } from '@/lib/labels'
 import type { ListingDetail } from '@/types/listing'
 
 /** 由 listing.id 派生"X 年出租经验" */
@@ -55,6 +57,8 @@ export function ListingDetailView() {
     try {
       const data = await listingsApi.getById(numId)
       setListing(data)
+      // 记录到 localStorage「最近浏览」（主页横滑板块用）
+      recordViewed(numId)
     } catch (err: any) {
       if (err.response?.status === 404) {
         setError('房源不存在')
@@ -138,8 +142,8 @@ export function ListingDetailView() {
                     {listing.city}, {listing.country}
                   </span>
                 </div>
-                <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-xs font-medium capitalize">
-                  {listing.property_type}
+                <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-xs font-medium">
+                  {propertyTypeLabel(listing.property_type)}
                 </span>
               </div>
             </div>

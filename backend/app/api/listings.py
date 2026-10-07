@@ -102,6 +102,12 @@ async def list_listings(
         default=None, description="便利设施（逗号分隔）"
     ),
     q: Optional[str] = Query(default=None, description="标题模糊搜索"),
+    ids: Optional[str] = Query(
+        default=None, description="按 id 批量查询（逗号分隔），按传入顺序返回（最近浏览用）"
+    ),
+    sort: Optional[str] = Query(
+        default=None, description="排序: view_count（浏览量降序）；默认评分+评论数"
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ):
@@ -174,13 +180,29 @@ async def list_listings(
             stmt = stmt.where(func.json_contains(Listing.amenities, json_arr) == 1)
             count_stmt = count_stmt.where(func.json_contains(Listing.amenities, json_arr) == 1)
 
-    # 排序：评分降序 + 评论数降序
-    stmt = stmt.order_by(Listing.rating.desc(), Listing.review_count.desc())
+    # 按 id 批量查询（最近浏览）：过滤后需在结果端恢复传入顺序
+    id_list: list[int] = []
+    if ids:
+        id_list = [int(x) for x in ids.split(",") if x.strip().isdigit()]
+        if id_list:
+            stmt = stmt.where(Listing.id.in_(id_list))
+            count_stmt = count_stmt.where(Listing.id.in_(id_list))
+
+    # 排序：默认评分+评论数降序；sort=view_count 按浏览量降序（主页热门板块）
+    if sort == "view_count":
+        stmt = stmt.order_by(Listing.view_count.desc(), Listing.rating.desc())
+    else:
+        stmt = stmt.order_by(Listing.rating.desc(), Listing.review_count.desc())
 
     # Block 14: count + 分页全部走 SQL (OFFSET/LIMIT)
     total = db.execute(count_stmt).scalar() or 0
     offset = (page - 1) * page_size
     paged = db.execute(stmt.offset(offset).limit(page_size)).scalars().all()
+
+    # ids 模式：恢复为调用方传入的顺序（而非 DB 返回顺序）
+    if id_list and paged:
+        order = {lid: i for i, lid in enumerate(id_list)}
+        paged.sort(key=lambda l: order.get(l.id, len(order)))
 
     return ListingListResponse(
         items=[_to_summary(l) for l in paged],
