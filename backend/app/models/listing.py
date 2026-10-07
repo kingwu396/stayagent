@@ -50,6 +50,11 @@ class Listing(Base):
     amenities: Mapped[list | None] = mapped_column(JSON, nullable=True)
     images: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
+    @property
+    def primary_image(self) -> str | None:
+        """首图。schema 的 from_attributes 序列化（如 wishlist items）依赖此属性"""
+        return (self.images or [None])[0] if self.images else None
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

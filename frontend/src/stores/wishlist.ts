@@ -21,6 +21,9 @@ interface WishlistState {
   /** toggle：已加→移除；未加→加到第一个 wishlist（无则自动建） */
   toggle: (listingId: number) => Promise<void>
 
+  /** 在指定 wishlist 里 toggle（心愿单选择弹窗用）：在内→移除，不在→添加 */
+  toggleIn: (wishlistId: number, listingId: number) => Promise<void>
+
   /** 当前是否已收藏 */
   has: (listingId: number) => boolean
 
@@ -134,6 +137,41 @@ export const useWishlistStore = create<WishlistState>()(
           } catch (err) {
             await get().fetchAll()
           }
+        }
+      },
+
+      async toggleIn(wishlistId, listingId) {
+        if (!useAuthStore.getState().token) return
+        const { lists } = get()
+        const target = lists.find((w) => w.id === wishlistId)
+        if (!target) return
+        const isIn = target.items.some((it) => it.listing_id === listingId)
+
+        // Optimistic
+        set({
+          lists: lists.map((w) =>
+            w.id === wishlistId
+              ? {
+                  ...w,
+                  items: isIn
+                    ? w.items.filter((it) => it.listing_id !== listingId)
+                    : [
+                        ...w.items,
+                        { id: Date.now(), wishlist_id: wishlistId, listing_id: listingId, added_at: new Date().toISOString(), listing: {} as any },
+                      ],
+                }
+              : w
+          ),
+        })
+        try {
+          if (isIn) {
+            await wishlistsApi.removeItem(wishlistId, listingId)
+          } else {
+            await wishlistsApi.addItem(wishlistId, { listing_id: listingId })
+          }
+          await get().fetchAll() // 拉真实数据回填（含 listing 摘要，弹窗缩略图用）
+        } catch (err) {
+          await get().fetchAll()
         }
       },
 

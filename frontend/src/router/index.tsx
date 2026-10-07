@@ -12,6 +12,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { PageTransition } from '@/components/PageTransition'
 import { AgentFab } from '@/components/AgentFab'
 import { AgentPanel } from '@/components/AgentPanel'
+import { WishlistPickerModal } from '@/components/WishlistPickerModal'
 
 /** Block 13 (F5): 路由过渡外层, 用 pathname 作 pageKey 触发 fade */
 function AnimatedLayout() {
@@ -28,6 +29,8 @@ function AnimatedLayout() {
           AgentPanel 是 fixed inset-0 不影响路由匹配. */}
       <AgentFab />
       <AgentPanel />
+      {/* 心愿单选择弹窗：ListingCard 红心触发，全局挂一次 */}
+      <WishlistPickerModal />
     </>
   )
 }

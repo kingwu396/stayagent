@@ -3,6 +3,8 @@ import { Heart, Star } from 'lucide-react'
 import type { ListingSummary } from '@/types/listing'
 import { formatPrice, formatRating } from '@/lib/utils'
 import { useWishlistStore } from '@/stores/wishlist'
+import { useAuthStore } from '@/stores/auth'
+import { useWishlistPicker } from '@/components/WishlistPickerModal'
 import { useToast } from '@/hooks/useToast'
 
 const FALLBACK_IMAGE = 'https://picsum.photos/seed/placeholder/400/300'
@@ -16,11 +18,18 @@ interface ListingCardProps {
 export function ListingCard({ listing, highlighted }: ListingCardProps) {
   const liked = useWishlistStore((s) => s.has(listing.id))
   const toggle = useWishlistStore((s) => s.toggle)
+  const openPicker = useWishlistPicker((s) => s.open)
   const toast = useToast()
 
   function toggleLike(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
+    // 登录态：打开「保存到心愿单」选择弹窗（保存/取消都在弹窗里做）
+    if (useAuthStore.getState().token) {
+      openPicker(listing)
+      return
+    }
+    // 匿名：保持原行为，直接 toggle localStorage 收藏
     const wasLiked = liked
     toggle(listing.id)
     // 真 Optimistic Update：UI 已经立刻变了，toast 给反馈
