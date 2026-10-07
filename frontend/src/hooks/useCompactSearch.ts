@@ -63,13 +63,27 @@ interface UseCompactSearchOptions {
   initial?: CompactSearchState
   /** Called when initial changes (URL → state sync) */
   syncFromInitial?: boolean
+  /** state 变化时回调（Hero ↔ 顶栏胶囊双端同步用） */
+  onChange?: (state: CompactSearchState) => void
 }
 
-export function useCompactSearch({ initial, syncFromInitial = true }: UseCompactSearchOptions = {}) {
+export function useCompactSearch({ initial, syncFromInitial = true, onChange }: UseCompactSearchOptions = {}) {
   const [state, setState] = useState<CompactSearchState>(initial ?? EMPTY_SEARCH)
   const [expanded, setExpanded] = useState(false)
   const [activePanel, setActivePanel] = useState<SearchPanel | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+
+  // onChange 走 ref，避免回调 identity 变化导致下游 effect 重跑
+  const onChangeRef = useRef(onChange)
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
+
+  // 任意 setState 路径（输入 / 面板选择 / initial 同步）都会经过这里，
+  // 统一向外报告最新 state；父组件存回同一引用时 React 会 bailout，不会成环
+  useEffect(() => {
+    onChangeRef.current?.(state)
+  }, [state])
 
   // 当 initial prop 变化时同步（URL 变 → state 变）
   useEffect(() => {
