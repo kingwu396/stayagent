@@ -13,6 +13,7 @@ import { ErrorState } from '@/components/ErrorState'
 import { FilterBar } from '@/components/FilterBar'
 import { FilterModal, EMPTY_FILTER } from '@/components/FilterModal'
 import { listingsApi } from '@/api/listings'
+import { recordSearch } from '@/lib/recent'
 import type {
   ListingSummary,
   CityInfo,
@@ -114,6 +115,18 @@ export function SearchView() {
 
   const search = useMemo(() => parseSearchFromURL(searchParams), [searchParams])
   const filter = useMemo(() => parseFilterFromURL(searchParams), [searchParams])
+
+  // 带 city 的搜索记入 localStorage「继续搜索」（主页欢迎回来板块用）
+  useEffect(() => {
+    if (search.city) {
+      recordSearch({
+        city: search.city,
+        checkIn: search.checkIn,
+        checkOut: search.checkOut,
+        guests: search.guests,
+      })
+    }
+  }, [search])
 
   const [items, setItems] = useState<ListingSummary[]>([])
   const [total, setTotal] = useState(0)
