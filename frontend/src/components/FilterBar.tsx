@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { SlidersHorizontal, MapPin, ChevronDown } from 'lucide-react'
+import { SlidersHorizontal, MapPin, ChevronDown, X } from 'lucide-react'
 import type { FilterState } from '@/types/listing'
 import type { CityInfo } from '@/types/listing'
+import { PROPERTY_TYPE_LABELS } from '@/lib/labels'
 import { useToast } from '@/hooks/useToast'
 
 interface FilterBarProps {
@@ -171,8 +172,22 @@ export function FilterBar({ value, cities, onOpenModal, onChange }: FilterBarPro
         {/* 竖分隔 */}
         <div className="w-px h-6 bg-slate-200 flex-shrink-0" />
 
-        {/* 9 个 quick chips（横滚） */}
+        {/* 已选房源类型 chips（从主页分类条跳转时可见，点 × 移除） */}
         <div className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-thin">
+          {value.property_types.map((t) => (
+            <button
+              key={`pt-${t}`}
+              type="button"
+              onClick={() =>
+                onChange({ property_types: value.property_types.filter((x) => x !== t) })
+              }
+              aria-label={`移除${PROPERTY_TYPE_LABELS[t] || t}筛选`}
+              className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 border border-slate-900 bg-slate-900 text-white rounded-full text-sm transition hover:bg-slate-700"
+            >
+              {PROPERTY_TYPE_LABELS[t] || t}
+              <X className="w-3.5 h-3.5" />
+            </button>
+          ))}
           {QUICK_CHIPS.map((chip) => {
             const active = isChipActive(chip, value)
             return (

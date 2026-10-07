@@ -1,5 +1,5 @@
-import { useNavigate } from 'react-router-dom'
-import { Building2, Home, Palmtree, Hotel, DoorOpen } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Building2, Home, Palmtree, Hotel, Sofa } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 interface Category {
@@ -13,33 +13,29 @@ const CATEGORIES: Category[] = [
   { type: 'house', label: '民居', icon: Home },
   { type: 'villa', label: '别墅', icon: Palmtree },
   { type: 'hotel', label: '酒店', icon: Hotel },
-  { type: 'studio', label: '工作室', icon: DoorOpen },
+  { type: 'studio', label: '工作室', icon: Sofa },
 ]
 
+/** 主页分类快捷筛选：Airbnb 胶囊 chip 样式，点击跳转搜索页并带上类型筛选 */
 export function CategoryStrip() {
-  const navigate = useNavigate()
-
-  function onClick(type: string) {
-    navigate(`/search?property_type=${type}`)
-  }
-
   return (
     <section className="border-b border-slate-200 bg-white">
-      <div className="max-w-6xl mx-auto px-6 py-6">
-        <div className="flex items-center justify-between gap-4 overflow-x-auto">
+      <div className="max-w-6xl mx-auto px-6 py-5">
+        <div className="flex items-center justify-start md:justify-center gap-3 overflow-x-auto">
           {CATEGORIES.map((cat) => {
             const Icon = cat.icon
             return (
-              <button
+              <Link
                 key={cat.type}
-                onClick={() => onClick(cat.type)}
-                className="flex flex-col items-center gap-2 px-6 py-3 rounded-xl hover:bg-slate-50 transition flex-shrink-0 min-w-[80px] group"
+                to={`/search?property_types=${cat.type}`}
+                aria-label={`筛选${cat.label}`}
+                className="flex items-center gap-2.5 px-5 py-3 rounded-full border border-slate-300 bg-white flex-shrink-0 hover:border-slate-900 hover:shadow-md active:scale-95 transition group"
               >
-                <Icon className="w-7 h-7 text-slate-600 group-hover:text-brand-500 transition" />
-                <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">
+                <Icon className="w-5 h-5 text-slate-700 group-hover:text-slate-900 transition" />
+                <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 whitespace-nowrap">
                   {cat.label}
                 </span>
-              </button>
+              </Link>
             )
           })}
         </div>
