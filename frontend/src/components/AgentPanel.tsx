@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { X, Trash2, Sparkles, Maximize2, Minimize2, Plus, History } from 'lucide-react'
+import { X, Sparkles, Maximize2, Minimize2, Plus, History } from 'lucide-react'
 import { useAgentStore, selectActiveMessages } from '@/stores/agent'
 import { AgentMessage } from './AgentMessage'
 import { AgentInput } from './AgentInput'
@@ -8,7 +8,7 @@ const S1 = String.fromCharCode(19996, 20140, 26377, 23460, 20844, 38388) + '?'
 const S2 = String.fromCharCode(24110, 25105, 25214, 32, 50, 32, 20010, 24052, 21033, 30340, 21344, 22618, 23545, 23545) + '?'
 const S3 = String.fromCharCode(26597, 30475, 25105, 30340, 24515, 24895, 21333)
 const SUGGESTIONS = [S1, S2, S3]
-function AgentHeader(props: { onMaximize: () => void; onMinimize: () => void; onClear: () => void; onClose: () => void; messagesCount: number; mode: 'floating' | 'fullscreen' }) {
+function AgentHeader(props: { onMaximize: () => void; onMinimize: () => void; onClose: () => void; mode: 'floating' | 'fullscreen' }) {
   return (
     <div className='flex items-center justify-between px-4 py-3 border-b border-slate-200 select-none'>
       <div className='flex items-center gap-2'>
@@ -21,11 +21,6 @@ function AgentHeader(props: { onMaximize: () => void; onMinimize: () => void; on
         </div>
       </div>
       <div className='flex items-center gap-1'>
-        {props.messagesCount > 0 && (
-          <button onClick={props.onClear} className='p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition' aria-label='清空对话' title='清空对话'>
-            <Trash2 className='w-4 h-4' />
-          </button>
-        )}
         {props.mode === 'floating' ? (
           <button onClick={props.onMaximize} className='p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition' aria-label='展张全屏' title='展张全屏'>
             <Maximize2 className='w-4 h-4' />
@@ -63,7 +58,6 @@ function EmptyState(props: { onSuggestion: (s: string) => void }) {
 
 function AgentPanelFloat() {
   const closePanel = useAgentStore(function(s) { return s.closePanel })
-  const clearHistory = useAgentStore(function(s) { return s.clearHistory })
   const messages = useAgentStore(selectActiveMessages)
   const sendMessage = useAgentStore(function(s) { return s.sendMessage })
   const toggleFullscreen = useAgentStore(function(s) { return s.toggleFullscreen })
@@ -122,7 +116,7 @@ function AgentPanelFloat() {
   return (
     <div ref={panelRef} style={panelStyle} className='w-[560px] max-w-[95vw] h-[700px] max-h-[80vh] rounded-2xl shadow-2xl bg-white flex flex-col overflow-hidden border border-slate-200'>
       <div onMouseDown={handleHeaderMouseDown} className='cursor-move'>
-        <AgentHeader onMaximize={toggleFullscreen} onMinimize={toggleFullscreen} onClose={closePanel} onClear={clearHistory} messagesCount={messages.length} mode='floating' />
+        <AgentHeader onMaximize={toggleFullscreen} onMinimize={toggleFullscreen} onClose={closePanel} mode='floating' />
       </div>
       <div ref={scrollRef} className='flex-1 overflow-y-auto overscroll-contain px-4 py-5 bg-slate-50/50'>
         {messages.length === 0 ? (
@@ -139,7 +133,6 @@ function AgentPanelFloat() {
 }
 function AgentPanelFullscreen() {
   const closePanel = useAgentStore(function(s) { return s.closePanel })
-  const clearHistory = useAgentStore(function(s) { return s.clearHistory })
   const startNewChat = useAgentStore(function(s) { return s.startNewChat })
   const messages = useAgentStore(selectActiveMessages)
   // Block 24: 移动端历史抽屉(侧栏 hidden md:flex, 手机从这里选会话)
@@ -196,7 +189,7 @@ function AgentPanelFullscreen() {
       >
         <div className='bg-white border-b border-slate-200 flex items-center justify-between pr-2'>
           <div className='flex-1 min-w-0'>
-            <AgentHeader onMaximize={toggleFullscreen} onMinimize={toggleFullscreen} onClose={closePanel} onClear={clearHistory} messagesCount={messages.length} mode='fullscreen' />
+            <AgentHeader onMaximize={toggleFullscreen} onMinimize={toggleFullscreen} onClose={closePanel} mode='fullscreen' />
           </div>
           {/* Block 23/24: 移动端无侧栏, 历史 + 新对话入口放 header */}
           <div className='md:hidden flex-shrink-0 flex items-center gap-1'>

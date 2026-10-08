@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { MapPin, CalendarDays, Users, Search } from 'lucide-react'
+import { MapPin, CalendarDays, Users, Search, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SearchPanel } from './SearchPanel'
 import {
@@ -108,37 +108,81 @@ export function SearchPill({
         onMobileOpen={() => toggle()}
       />
 
-      {/* 展开浮层 */}
+      {/* 展开浮层 —— 桌面端：锚定胶囊的下拉面板（双月日历） */}
       {expanded && (
-        <div className={`absolute ${panelAlignClass} top-full mt-2 z-20 animate-expand-down pointer-events-auto`}>
+        <div className={`hidden md:block absolute ${panelAlignClass} top-full mt-2 z-20 animate-expand-down pointer-events-auto`}>
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[520px] overflow-y-auto">
-            {/* 移动端：tab 切换（卡片内顶部） */}
-            <div className="md:hidden flex border-b border-slate-200">
-              {(['location', 'dates', 'guests'] as const).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => toggle(p)}
-                  className={`flex-1 py-3 text-sm font-medium transition ${
-                    activePanel === p
-                      ? 'text-slate-900 border-b-2 border-slate-900'
-                      : 'text-slate-500'
-                  }`}
-                >
-                  {p === 'location' ? '地点' : p === 'dates' ? '时间' : '人员'}
-                </button>
-              ))}
-            </div>
             <SearchPanel
               active={activePanel}
               state={state}
               setState={setState}
               recommended={recommended}
-              variant="single"
+              variant="double"
             />
           </div>
         </div>
       )}
+
+      {/* 展开浮层 —— Block 24 移动端：全屏选择页（单月日历， 完整宽度）。
+          必须 portal 到 body: 祖先 layoutId 容器带 transform, fixed 会退化成相对它定位 */}
+      {expanded &&
+        createPortal(
+          <div className="md:hidden fixed inset-0 z-50 bg-white flex flex-col animate-fade-in">
+            {/* 头部：关闭 + tab 切换 */}
+            <div className="flex items-center border-b border-slate-200 flex-shrink-0">
+              <button
+                type="button"
+                onClick={close}
+                aria-label="关闭搜索"
+                className="flex-shrink-0 w-12 h-12 flex items-center justify-center text-slate-500 hover:text-slate-900 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="flex-1 flex">
+                {(['location', 'dates', 'guests'] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => toggle(p)}
+                    className={`flex-1 py-3.5 text-sm font-medium transition ${
+                      activePanel === p
+                        ? 'text-slate-900 border-b-2 border-slate-900'
+                        : 'text-slate-500'
+                    }`}
+                  >
+                    {p === 'location' ? '地点' : p === 'dates' ? '时间' : '人员'}
+                  </button>
+                ))}
+              </div>
+              {/* 占位平衡左侧关闭钮, 让 tab 视觉居中 */}
+              <div className="w-12 flex-shrink-0" />
+            </div>
+
+            {/* 面板内容 */}
+            <div className="flex-1 overflow-y-auto">
+              <SearchPanel
+                active={activePanel}
+                state={state}
+                setState={setState}
+                recommended={recommended}
+                variant="single"
+              />
+            </div>
+
+            {/* 底部搜索按钮 */}
+            <div className="flex-shrink-0 border-t border-slate-200 p-4">
+              <button
+                type="button"
+                onClick={triggerSearch}
+                className="w-full flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 text-white font-medium py-3.5 rounded-xl transition"
+              >
+                <Search className="w-4 h-4" />
+                <span>搜索</span>
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* 背景暗幕：portal 到 body，脱离 transformed 祖先的 containing block。
           z-30 低于顶栏(z-40)/搜索容器(z-40)，点击暗幕由全局 mousedown 关闭逻辑兜底 */}

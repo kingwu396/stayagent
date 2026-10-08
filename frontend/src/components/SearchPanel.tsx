@@ -47,7 +47,7 @@ export function SearchPanel({
         <DatePickerPanel
           checkIn={state.checkIn}
           checkOut={state.checkOut}
-          variant="double"
+          variant={variant}
           onChange={(inDate, outDate) => setState((s) => ({ ...s, checkIn: inDate, checkOut: outDate }))}
         />
       )}

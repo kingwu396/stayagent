@@ -104,7 +104,7 @@ export function DatePickerPanel({ checkIn, checkOut, onChange, variant = 'double
   }
 
   return (
-    <div className="p-6 w-[700px] max-w-full max-h-[520px] overflow-y-auto">
+    <div className={`p-6 max-w-full max-h-[520px] overflow-y-auto ${variant === 'double' ? 'w-[700px]' : 'w-[360px]'}`}>
       {/* 模式切换 */}
       <div className="flex items-center justify-center mb-5">
         <div className="inline-flex bg-slate-100 rounded-full p-1 relative">
