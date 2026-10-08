@@ -93,8 +93,8 @@ export function SearchPill({
   return (
     <div
       ref={containerRef}
-      className={`relative mx-auto ${
-        size === 'lg' ? 'w-full' : expanded ? 'max-w-3xl' : 'max-w-2xl'
+      className={`relative mx-auto w-full ${
+        size === 'md' ? (expanded ? 'max-w-3xl' : 'max-w-2xl') : ''
       } ${expanded ? 'z-40' : ''} ${className}`}
     >
       <PillFrame
@@ -195,6 +195,14 @@ export function PillFrame({
   const guestsDisplay = formatGuestsSummary(state.guests) || '添加人数'
   const guestsEmpty =
     totalGuests(state.guests) === 0 && state.guests.infants === 0 && state.guests.pets === 0
+  // Block 24: 移动端紧凑胶囊摘要文案
+  const mobileSummary = [
+    state.city || '搜索房源',
+    (state.checkIn || state.checkOut) && dateDisplay !== '任何日期' ? dateDisplay : '',
+    !guestsEmpty ? guestsDisplay : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   if (size === 'lg') {
     return (
@@ -261,47 +269,29 @@ export function PillFrame({
           </button>
         </div>
 
-        {/* 移动端：竖排卡片（输入由展开面板承担） */}
-        <div className="md:hidden flex flex-col gap-1 bg-white border border-slate-200 rounded-2xl shadow-lg p-2">
-          <LgSegment
-            icon={<MapPin className="w-4 h-4" />}
-            label="想去哪？"
-            text={state.city || '搜索目的地'}
-            dim={!state.city}
-            active={activePanel === 'location'}
+        {/* Block 24: 移动端单行紧凑胶囊(输入由展开浮层承担, 同 Airbnb) */}
+        <div className="md:hidden w-full flex items-center gap-2 bg-white border border-slate-200 rounded-full shadow-lg pl-4 pr-1.5 py-1.5">
+          <button
+            type="button"
             onClick={() => onSegment?.('location')}
-          />
-          <LgSegment
-            icon={<CalendarDays className="w-4 h-4" />}
-            label="入住"
-            text={fmtDate(state.checkIn) || '任何日期'}
-            dim={!state.checkIn}
-            active={activePanel === 'dates'}
-            onClick={() => onSegment?.('dates')}
-          />
-          <LgSegment
-            icon={<CalendarDays className="w-4 h-4" />}
-            label="退房"
-            text={fmtDate(state.checkOut) || '任何日期'}
-            dim={!state.checkOut}
-            active={activePanel === 'dates'}
-            onClick={() => onSegment?.('dates')}
-          />
-          <LgSegment
-            icon={<Users className="w-4 h-4" />}
-            label="人数"
-            text={guestsDisplay}
-            dim={guestsEmpty}
-            active={activePanel === 'guests'}
-            onClick={() => onSegment?.('guests')}
-          />
+            className="flex items-center gap-2 flex-1 min-w-0 text-left"
+          >
+            <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
+            <span
+              className={`truncate text-sm ${
+                state.city ? 'text-slate-900 font-medium' : 'text-slate-500'
+              }`}
+            >
+              {mobileSummary}
+            </span>
+          </button>
           <button
             type="button"
             onClick={onSearch}
-            className="mt-1 flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 text-white font-medium px-6 py-3 rounded-xl transition"
+            aria-label="搜索"
+            className="flex-shrink-0 w-9 h-9 rounded-full bg-brand-500 hover:bg-brand-600 flex items-center justify-center transition"
           >
-            <Search className="w-4 h-4" />
-            <span>搜索</span>
+            <Search className="w-4 h-4 text-white" />
           </button>
         </div>
       </>

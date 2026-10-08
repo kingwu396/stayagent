@@ -105,7 +105,7 @@ export function HomeView() {
             <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
               <Hotel className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-bold text-slate-900">StayAgent</span>
+            <span className="hidden sm:inline text-lg font-bold text-slate-900">StayAgent</span>
           </Link>
 
           {/* 顶栏槽位：隐形 md 占位顶住高度；barPos='top' 时搜索条 morph 进来 */}

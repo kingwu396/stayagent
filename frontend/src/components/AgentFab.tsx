@@ -6,12 +6,24 @@ import { useAgentStore } from '@/stores/agent'
 export function AgentFab() {
   const isOpen = useAgentStore((s) => s.isOpen)
   const togglePanel = useAgentStore((s) => s.togglePanel)
+  const openPanel = useAgentStore((s) => s.openPanel)
+  const setMode = useAgentStore((s) => s.setMode)
   // Block 22: 任一会话在生成 → 绿点脉冲
   const isStreaming = useAgentStore((s) => s.streamingKeys.length > 0)
 
+  // Block 24: 移动端浮动窗空间不足, FAB 直接进全屏模式
+  function handleClick() {
+    if (window.innerWidth < 768) {
+      setMode('fullscreen')
+      openPanel()
+      return
+    }
+    togglePanel()
+  }
+
   return (
     <motion.button
-      onClick={togglePanel}
+      onClick={handleClick}
       whileHover={{ scale: 1.08 }}
       whileTap={{ scale: 0.92 }}
       transition={{ type: 'spring', stiffness: 400, damping: 20 }}

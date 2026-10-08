@@ -110,7 +110,7 @@ export function FilterBar({ value, cities, onOpenModal, onChange }: FilterBarPro
 
   return (
     <section className="bg-white border-b border-slate-200">
-      <div className="max-w-[1760px] mx-auto px-6 py-3 flex items-center gap-3">
+      <div className="max-w-[1760px] mx-auto px-4 md:px-6 py-3 flex items-center gap-2 md:gap-3 overflow-x-auto md:overflow-x-visible scrollbar-thin">
         {/* 筛选条件按钮 */}
         <button
           type="button"
@@ -173,7 +173,7 @@ export function FilterBar({ value, cities, onOpenModal, onChange }: FilterBarPro
         <div className="w-px h-6 bg-slate-200 flex-shrink-0" />
 
         {/* 已选房源类型 chips（从主页分类条跳转时可见，点 × 移除） */}
-        <div className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-thin">
+        <div className="contents md:flex md:flex-1 md:items-center md:gap-2 md:overflow-x-auto md:scrollbar-thin">
           {value.property_types.map((t) => (
             <button
               key={`pt-${t}`}

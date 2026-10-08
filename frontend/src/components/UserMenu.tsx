@@ -54,7 +54,7 @@ export function UserMenu() {
         <div className="w-8 h-8 bg-brand-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
           {user.username.charAt(0).toUpperCase()}
         </div>
-        <span className="text-sm font-medium text-slate-700">{user.username}</span>
+        <span className="hidden sm:inline text-sm font-medium text-slate-700">{user.username}</span>
       </button>
 
       {open && (

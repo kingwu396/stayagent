@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { X, Trash2, Sparkles, Maximize2, Minimize2, Plus } from 'lucide-react'
+import { X, Trash2, Sparkles, Maximize2, Minimize2, Plus, History } from 'lucide-react'
 import { useAgentStore, selectActiveMessages } from '@/stores/agent'
 import { AgentMessage } from './AgentMessage'
 import { AgentInput } from './AgentInput'
@@ -142,6 +142,8 @@ function AgentPanelFullscreen() {
   const clearHistory = useAgentStore(function(s) { return s.clearHistory })
   const startNewChat = useAgentStore(function(s) { return s.startNewChat })
   const messages = useAgentStore(selectActiveMessages)
+  // Block 24: 移动端历史抽屉(侧栏 hidden md:flex, 手机从这里选会话)
+  const [showHistory, setShowHistory] = useState(false)
   const sendMessage = useAgentStore(function(s) { return s.sendMessage })
   const toggleFullscreen = useAgentStore(function(s) { return s.toggleFullscreen })
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -165,6 +167,32 @@ function AgentPanelFullscreen() {
         </div>
         <AgentHistoryList />
       </aside>
+      {showHistory && (
+        <>
+          <div
+            className='md:hidden fixed inset-0 z-[90] bg-black/40 animate-fade-in'
+            onClick={function() { setShowHistory(false) }}
+          />
+          <aside className='md:hidden fixed inset-y-0 left-0 z-[91] w-[280px] max-w-[85vw] bg-white border-r border-slate-200 shadow-2xl flex flex-col animate-slide-in-left'>
+            <div className='px-4 py-3 border-b border-slate-200 flex items-center justify-between'>
+              <span className='font-semibold text-slate-900 text-sm'>历史对话</span>
+              <button
+                onClick={function() { setShowHistory(false) }}
+                className='p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition'
+                aria-label='关闭历史'
+              >
+                <X className='w-4 h-4' />
+              </button>
+            </div>
+            <div
+              className='flex-1 min-h-0'
+              onClickCapture={function() { setShowHistory(false) }}
+            >
+              <AgentHistoryList />
+            </div>
+          </aside>
+        </>
+      )}
       <main
         className='flex-1 grid bg-slate-50/30 min-w-0 overflow-hidden'
         style={{ gridTemplateRows: 'auto 1fr auto' }}
@@ -173,15 +201,25 @@ function AgentPanelFullscreen() {
           <div className='flex-1 min-w-0'>
             <AgentHeader onMaximize={toggleFullscreen} onMinimize={toggleFullscreen} onClose={closePanel} onClear={clearHistory} messagesCount={messages.length} mode='fullscreen' />
           </div>
-          {/* Block 23: 移动端无侧栏, 新对话入口放 header */}
-          <button
-            onClick={startNewChat}
-            className='md:hidden flex-shrink-0 w-9 h-9 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 flex items-center justify-center transition'
-            aria-label='新对话'
-            title='新对话'
-          >
-            <Plus className='w-5 h-5' />
-          </button>
+          {/* Block 23/24: 移动端无侧栏, 历史 + 新对话入口放 header */}
+          <div className='md:hidden flex-shrink-0 flex items-center gap-1'>
+            <button
+              onClick={function() { setShowHistory(true) }}
+              className='w-9 h-9 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 flex items-center justify-center transition'
+              aria-label='历史对话'
+              title='历史对话'
+            >
+              <History className='w-5 h-5' />
+            </button>
+            <button
+              onClick={startNewChat}
+              className='w-9 h-9 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 flex items-center justify-center transition'
+              aria-label='新对话'
+              title='新对话'
+            >
+              <Plus className='w-5 h-5' />
+            </button>
+          </div>
         </div>
         <div ref={scrollRef} className='overflow-y-auto overscroll-contain px-6 py-6 max-w-3xl w-full mx-auto'>
           {messages.length === 0 ? (
