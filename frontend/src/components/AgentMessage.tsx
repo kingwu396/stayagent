@@ -2,8 +2,10 @@ import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, LogIn } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import type { AgentChatMessage } from '@/types/agent'
+import { useAgentStore } from '@/stores/agent'
 import { AgentToolStep } from './AgentToolStep'
 import { AgentConfirmCard } from './AgentConfirmCard'
 
@@ -25,6 +27,8 @@ function renderMarkdown(text: string): string {
 }
 
 export function AgentMessage({ message }: AgentMessageProps) {
+  const navigate = useNavigate()
+  const closePanel = useAgentStore((s) => s.closePanel)
   // Block 17: 缓存 markdown 渲染结果, 避免每个 content_delta token 重新解析
   const renderedHtml = useMemo(
     () => renderMarkdown(message.content),
@@ -113,13 +117,59 @@ export function AgentMessage({ message }: AgentMessageProps) {
                 dangerouslySetInnerHTML={{ __html: renderedHtml }}
               />
             )}
+            {/* Block 22: 中断/超时 —— 明确告诉用户发生了什么, 不再凭空消失 */}
+            {message.status === 'cancelled' && (
+              <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1.5 text-xs text-slate-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                回复已中断
+                {message.content && <span className="text-slate-300">· 以上为已生成部分</span>}
+              </div>
+            )}
+            {message.status === 'timeout' && (
+              <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1.5 text-xs text-slate-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                回复超时
+              </div>
+            )}
           </div>
         ) : null}
 
-        {/* 错误 */}
-        {isFailed && message.error && (
+        {/* 错误(needLogin 时由引导卡片代替, 不再显示裸错误文案) */}
+        {isFailed && message.error && !message.needLogin && (
           <div className="text-xs text-red-500 px-1">
             {message.error}
+          </div>
+        )}
+        {/* Block 22: 未登录/登录过期 → 引导登录卡片(可点击跳转), 代替裸 401 */}
+        {isFailed && message.needLogin && (
+          <div className="mt-1 flex items-center gap-3 bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+            <div className="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center flex-shrink-0">
+              <LogIn className="w-[18px] h-[18px] text-brand-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-slate-900">
+                {message.error?.includes('过期') ? '登录已过期' : '需要登录'}
+              </div>
+              <div className="text-xs text-slate-500">
+                登录后 StayAgent 才能帮你搜房源、订房、管理心愿单
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                // Block 22: 先关面板再跳转 —— 若已在登录页打开面板,关面板本身就是可见反馈
+                closePanel()
+                navigate('/login')
+              }}
+              className="flex-shrink-0 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-xl transition"
+            >
+              去登录
+            </button>
+          </div>
+        )}
+        {/* cancelled 但没有任何内容(还没开始生成就断开): 单独一行提示 */}
+        {message.status === 'cancelled' && isEmpty && (
+          <div className="text-xs text-slate-400 px-1">
+            回复已中断, 未生成内容
           </div>
         )}
       </div>

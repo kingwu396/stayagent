@@ -46,7 +46,9 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-def _get_or_create_conversation(db, user: User, conversation_id: int | None) -> Conversation:
+def _get_or_create_conversation(
+    db, user: User, conversation_id: int | None, first_message: str | None = None
+) -> Conversation:
     """加载已有 conversation (校验归属), 否则新建"""
     if conversation_id is not None:
         conv = db.execute(
@@ -57,11 +59,30 @@ def _get_or_create_conversation(db, user: User, conversation_id: int | None) -> 
         ).scalar_one_or_none()
         if conv is not None:
             return conv
-    conv = Conversation(user_id=user.id, title=None)
+    # Block 22: 会话标题 = 首条用户消息前 24 字 (列表页立即可读)
+    title = first_message.strip().replace("\n", " ")[:24] if first_message else None
+    conv = Conversation(user_id=user.id, title=title)
     db.add(conv)
     db.commit()
     db.refresh(conv)
     return conv
+
+
+def _persist_cancelled(db, run: AgentRun, conv_id: int, partial_content: str) -> None:
+    """Block 22: 客户端断连 (切走/关页/断网) 时, 保留已生成的部分内容并明确标记 cancelled"""
+    if run.status != "running":
+        return  # pending_confirmation / 已完结的 run 不动
+    try:
+        run.status = "cancelled"
+        run.finished_at = _utcnow()
+        if partial_content:
+            run.final_content = partial_content
+            db.add(Message(conversation_id=conv_id, role="assistant", content=partial_content))
+        db.commit()
+        logger.info("Run %s persisted as cancelled with %d chars partial", run.id, len(partial_content))
+    except Exception:
+        logger.exception("Failed to persist cancelled run %s", run.id)
+        db.rollback()
 
 
 def _load_history(db, conversation_id: int, limit: int = HISTORY_LIMIT) -> list[dict]:
@@ -322,7 +343,7 @@ async def run_agent(
     Block 12: attachment 注入 LLM 上下文, 但 DB user_message 只存纯文字.
     """
     # 1. Conversation + user message (DB 只存纯文字)
-    conv = _get_or_create_conversation(db, user, conversation_id)
+    conv = _get_or_create_conversation(db, user, conversation_id, user_message)
     db.add(Message(conversation_id=conv.id, role="user", content=user_message))
     db.commit()
 
@@ -336,6 +357,8 @@ async def run_agent(
     db.add(run)
     db.commit()
     db.refresh(run)
+    conv.updated_at = _utcnow()
+    db.commit()
     logger.info(
         "AgentRun #%d started (conv=%d user=%d, has_attachment=%s)",
         run.id, conv.id, user.id, attachment is not None,
@@ -423,10 +446,6 @@ async def _execute_step_stream(
             messages=messages,
             tools=ALL_TOOL_SCHEMAS,
         )
-    except asyncio.CancelledError:
-        # 客户端断开: 清理后退出, 不冒泡到外层
-        logger.info("Stream cancelled by client")
-        return
     except Exception as e:
         logger.exception("LLM stream init failed")
         yield {"type": "error", "message": f"{type(e).__name__}: {e}"}
@@ -451,9 +470,6 @@ async def _execute_step_stream(
                 yield {"type": "content_delta", "delta": delta}
             if fr:
                 finish_reason = fr
-    except asyncio.CancelledError:
-        logger.info("Stream cancelled mid-chunk")
-        return
     except Exception as e:
         logger.exception("LLM stream chunk failed")
         yield {"type": "error", "message": f"{type(e).__name__}: {e}"}
@@ -522,7 +538,7 @@ async def stream_agent(
       - error: {type, message}
     """
     # 1. Conversation + user message
-    conv = _get_or_create_conversation(db, user, conversation_id)
+    conv = _get_or_create_conversation(db, user, conversation_id, user_message)
     db.add(Message(conversation_id=conv.id, role="user", content=user_message))
     db.commit()
 
@@ -536,6 +552,10 @@ async def stream_agent(
     db.add(run)
     db.commit()
     db.refresh(run)
+
+    # Block 22: 会话排序依赖 updated_at, 每条新 run 时前移
+    conv.updated_at = _utcnow()
+    db.commit()
 
     yield {
         "type": "run_started",
@@ -552,73 +572,88 @@ async def stream_agent(
     error_event = None
     pending_event = None
     final_delta_buf: list[str] = []
-    for step_idx in range(MAX_STEPS):
-        async for evt in _execute_step_stream(db, user, messages, run, step_idx):
-            if evt["type"] == "content_delta":
-                # Block 17: 累积 final content 的 token, 同时 yield 给前端 (打字机效果)
-                final_delta_buf.append(evt["delta"])
-                yield evt
-            elif evt["type"] == "content_discard":
-                # Block 17 v3: LLM 在 stream 里 emit 了英文 preamble 又决定调 tool.
-                # preamble 已传给前端 (打字机), 现在要丢弃. 清掉 buffer + 把事件透传给前端.
-                final_delta_buf = []
-                yield evt
-                continue
-            elif evt["type"] == "final":
-                # 如果 streaming 路径已经累积了 tokens, 把它们填进 final.content
-                if final_delta_buf:
-                    evt["content"] = "".join(final_delta_buf)
+    try:
+        for step_idx in range(MAX_STEPS):
+            async for evt in _execute_step_stream(db, user, messages, run, step_idx):
+                if evt["type"] == "content_delta":
+                    # Block 17: 累积 final content 的 token, 同时 yield 给前端 (打字机效果)
+                    final_delta_buf.append(evt["delta"])
+                    yield evt
+                elif evt["type"] == "content_discard":
+                    # Block 17 v3: LLM 在 stream 里 emit 了英文 preamble 又决定调 tool.
+                    # preamble 已传给前端 (打字机), 现在要丢弃. 清掉 buffer + 把事件透传给前端.
                     final_delta_buf = []
-                final_event = evt
-            elif evt["type"] == "error":
-                error_event = evt
-            elif evt["type"] == "pending_confirmation":
-                pending_event = evt
-            else:
-                # step_started / step_completed
-                yield evt
-        if final_event is not None or error_event is not None or pending_event is not None:
-            break
+                    yield evt
+                    continue
+                elif evt["type"] == "final":
+                    # 如果 streaming 路径已经累积了 tokens, 把它们填进 final.content
+                    if final_delta_buf:
+                        evt["content"] = "".join(final_delta_buf)
+                        final_delta_buf = []
+                    final_event = evt
+                elif evt["type"] == "error":
+                    error_event = evt
+                elif evt["type"] == "pending_confirmation":
+                    pending_event = evt
+                else:
+                    # step_started / step_completed
+                    yield evt
+            if final_event is not None or error_event is not None or pending_event is not None:
+                break
 
-    # 5. Final event
-    if pending_event is not None:
-        # HITL: 先 yield pending_confirmation, 再 yield final (status=pending_confirmation, content=None)
-        yield pending_event
+        # 5. Final event
+        if pending_event is not None:
+            # HITL: 先 yield pending_confirmation, 再 yield final (status=pending_confirmation, content=None)
+            yield pending_event
+            yield {
+                "type": "final",
+                "run_id": run.id,
+                "conversation_id": run.conversation_id,
+                "status": "pending_confirmation",
+                "content": None,
+                "prompt_tokens": run.prompt_tokens,
+                "completion_tokens": run.completion_tokens,
+            }
+            return
+
+        if error_event is not None:
+            run.status = "failed"
+            run.error = error_event["message"]
+            run.finished_at = _utcnow()
+            db.commit()
+            yield {"type": "error", "message": error_event["message"]}
+            return
+
+        if final_event is not None:
+            _persist_final(db, run, conv.id, final_event["content"], "completed")
+        else:
+            run.status = "timeout"
+            run.finished_at = _utcnow()
+            db.commit()
+
         yield {
             "type": "final",
             "run_id": run.id,
             "conversation_id": run.conversation_id,
-            "status": "pending_confirmation",
-            "content": None,
+            "status": run.status,
+            "content": run.final_content,
             "prompt_tokens": run.prompt_tokens,
             "completion_tokens": run.completion_tokens,
         }
-        return
-
-    if error_event is not None:
-        run.status = "failed"
-        run.error = error_event["message"]
-        run.finished_at = _utcnow()
-        db.commit()
-        yield {"type": "error", "message": error_event["message"]}
-        return
-
-    if final_event is not None:
-        _persist_final(db, run, conv.id, final_event["content"], "completed")
-    else:
-        run.status = "timeout"
-        run.finished_at = _utcnow()
-        db.commit()
-
-    yield {
-        "type": "final",
-        "run_id": run.id,
-        "conversation_id": run.conversation_id,
-        "status": run.status,
-        "content": run.final_content,
-        "prompt_tokens": run.prompt_tokens,
-        "completion_tokens": run.completion_tokens,
-    }
+    except (asyncio.CancelledError, GeneratorExit):
+        # Block 22: 客户端断连 (切走会话/关页面/断网) —— 保留已生成的部分内容
+        _persist_cancelled(db, run, conv.id, "".join(final_delta_buf))
+        raise
+    except Exception:
+        # 非断连异常也明确落库, 不留僵尸 running
+        try:
+            run.status = "failed"
+            run.error = run.error or "服务器内部异常"
+            run.finished_at = _utcnow()
+            db.commit()
+        except Exception:
+            db.rollback()
+        raise
 
 
 async def get_conversation_history(db, conversation_id: int, user: User) -> list[dict]:

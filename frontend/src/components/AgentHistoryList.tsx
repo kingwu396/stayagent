@@ -82,6 +82,8 @@ export function AgentHistoryList() {
   const conversations = useAgentStore((s) => s.conversations)
   const isLoadingHistory = useAgentStore((s) => s.isLoadingHistory)
   const conversationId = useAgentStore((s) => s.conversationId)
+  // Block 22: 正在生成回复的会话,列表项显示绿色「生成中」徽标
+  const streamingKeys = useAgentStore((s) => s.streamingKeys)
   const loadHistory = useAgentStore((s) => s.loadHistory)
   const loadConversation = useAgentStore((s) => s.loadConversation)
   const startNewChat = useAgentStore((s) => s.startNewChat)
@@ -141,7 +143,8 @@ export function AgentHistoryList() {
           <ul className="space-y-0.5 px-2">
             {conversations.map((c) => {
               const active = c.id === conversationId
-              const label = c.title || ('对话 #' + c.id)
+              const isGenerating = streamingKeys.includes(String(c.id))
+              const label = c.title || '新对话'
               return (
                 <li key={c.id} className="group relative">
                   <button
@@ -162,11 +165,20 @@ export function AgentHistoryList() {
                       {label}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
-                      <span>{formatRelativeTime(c.updated_at)}</span>
-                      {c.run_count > 0 && (
+                      {isGenerating ? (
+                        <span className="flex items-center gap-1 text-green-600 font-medium">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                          生成中
+                        </span>
+                      ) : (
                         <>
-                          <span>·</span>
-                          <span>{c.run_count} "条"</span>
+                          <span>{formatRelativeTime(c.updated_at)}</span>
+                          {c.run_count > 0 && (
+                            <>
+                              <span>·</span>
+                              <span>{c.run_count} "条"</span>
+                            </>
+                          )}
                         </>
                       )}
                     </div>

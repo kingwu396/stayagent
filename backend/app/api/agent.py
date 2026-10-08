@@ -9,6 +9,7 @@ Block 10+ 才接 SSE 流式 + AgentPanel UI.
 """
 import asyncio
 import logging
+from datetime import timedelta
 
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
@@ -17,6 +18,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.deps import CurrentUser, DBSession
 from app.models import Conversation, AgentRun, AgentStep, Message
+from app.services.agent.orchestrator import run_agent, _utcnow
 from app.schemas.agent import (
     AgentChatRequest,
     AgentChatResponse,
@@ -121,6 +123,18 @@ async def list_runs(
         .options(selectinload(AgentRun.steps))
         .order_by(AgentRun.started_at.asc())
     ).scalars().all()
+
+    # Block 22: 惰性清理僵尸 run —— running 超过 15 分钟视为服务器中断
+    # (正常流要么几秒内完结, 要么断连时已被 persist_cancelled 标记)
+    stale_cutoff = _utcnow() - timedelta(minutes=15)
+    stale_runs = [r for r in rows if r.status == "running" and r.started_at and r.started_at < stale_cutoff]
+    if stale_runs:
+        for r in stale_runs:
+            r.status = "failed"
+            r.error = "服务器中断"
+            r.finished_at = _utcnow()
+        db.commit()
+
     return [
         AgentRunResponse(
             id=r.id,

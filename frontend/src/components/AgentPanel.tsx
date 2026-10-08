@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { X, Trash2, Sparkles, Maximize2, Minimize2 } from 'lucide-react'
-import { useAgentStore } from '@/stores/agent'
+import { useAgentStore, selectActiveMessages } from '@/stores/agent'
 import { AgentMessage } from './AgentMessage'
 import { AgentInput } from './AgentInput'
 import { AgentHistoryList } from './AgentHistoryList'
@@ -64,7 +64,7 @@ function EmptyState(props: { onSuggestion: (s: string) => void }) {
 function AgentPanelFloat() {
   const closePanel = useAgentStore(function(s) { return s.closePanel })
   const clearHistory = useAgentStore(function(s) { return s.clearHistory })
-  const messages = useAgentStore(function(s) { return s.messages })
+  const messages = useAgentStore(selectActiveMessages)
   const sendMessage = useAgentStore(function(s) { return s.sendMessage })
   const toggleFullscreen = useAgentStore(function(s) { return s.toggleFullscreen })
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -140,7 +140,7 @@ function AgentPanelFloat() {
 function AgentPanelFullscreen() {
   const closePanel = useAgentStore(function(s) { return s.closePanel })
   const clearHistory = useAgentStore(function(s) { return s.clearHistory })
-  const messages = useAgentStore(function(s) { return s.messages })
+  const messages = useAgentStore(selectActiveMessages)
   const sendMessage = useAgentStore(function(s) { return s.sendMessage })
   const toggleFullscreen = useAgentStore(function(s) { return s.toggleFullscreen })
   const scrollRef = useRef<HTMLDivElement>(null)

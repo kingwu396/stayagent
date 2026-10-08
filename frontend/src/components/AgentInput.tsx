@@ -1,21 +1,27 @@
 import { useEffect, useRef, useState } from 'react'
 import { Send, Square, Sparkles, Paperclip, X, Loader2, FileText } from 'lucide-react'
-import { useAgentStore } from '@/stores/agent'
+import { useAgentStore, keyOf, type ConvKey } from '@/stores/agent'
 import { useToast } from '@/hooks/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { uploadsApi } from '@/api/uploads'
-import type { PdfAttachment } from '@/types/agent'
 
 export function AgentInput() {
-  const [text, setText] = useState('')
-  // Block 12: PDF 附件状态 (本地 state, 不上 store, 发送完即清)
-  const [attachment, setAttachment] = useState<PdfAttachment | null>(null)
+  const conversationId = useAgentStore((s) => s.conversationId)
+  const key: ConvKey = keyOf(conversationId)
+  // Block 22: 草稿存 store 按会话隔离, 切换会话/新建对话互不串扰
+  const draftText = useAgentStore((s) => s.drafts[key]?.text ?? '')
+  const draftAttachment = useAgentStore((s) => s.drafts[key]?.attachment ?? null)
+  const setDraft = useAgentStore((s) => s.setDraft)
+  const isStreaming = useAgentStore((s) => s.streamingKeys.includes(key))
+  const cancelStream = useAgentStore((s) => s.cancelStream)
+
+  // 本地镜像便于受控输入(setDraft 走 store)
+  const text = draftText
+  const attachment = draftAttachment
   const [uploading, setUploading] = useState(false)
   const taRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const sendMessage = useAgentStore((s) => s.sendMessage)
-  const isStreaming = useAgentStore((s) => s.isStreaming)
-  const cancelStream = useAgentStore((s) => s.cancelStream)
   const token = useAuthStore((s) => s.token)
   const toast = useToast()
 
@@ -36,11 +42,15 @@ export function AgentInput() {
       window.location.href = '/login'
       return
     }
+    // Block 22: 本会话正在生成时提示,且不清空草稿(修复旧版"被拒也清空"的 bug)
+    if (isStreaming) {
+      toast.info('当前会话正在生成回复,请稍候…')
+      return
+    }
     // Block 12 fix: 不再把 PDF text 拼到 message 里, 走单独 attachment 字段.
     // 用户消息气泡只显示打的文字 (attachment 元数据单独渲染 chip).
     sendMessage(text.trim(), attachment)
-    setText('')
-    setAttachment(null)
+    setDraft(key, { text: '', attachment: null })
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -70,7 +80,7 @@ export function AgentInput() {
     setUploading(true)
     try {
       const att = await uploadsApi.uploadPdf(file)
-      setAttachment(att)
+      setDraft(key, { attachment: att })
       toast.success(`已解析 ${att.filename} (${att.page_count} 页, ${att.char_count} 字)`)
     } catch (err: any) {
       const msg = err?.response?.data?.detail || err.message || '上传失败'
@@ -93,7 +103,7 @@ export function AgentInput() {
             </span>
           </div>
           <button
-            onClick={() => setAttachment(null)}
+            onClick={() => setDraft(key, { attachment: null })}
             className="flex-shrink-0 text-slate-400 hover:text-slate-700 transition"
             aria-label="移除附件"
           >
@@ -131,7 +141,7 @@ export function AgentInput() {
           ref={taRef}
           rows={1}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => setDraft(key, { text: e.target.value })}
           onKeyDown={handleKeyDown}
           placeholder={attachment ? '补充点问题, 或直接发送...' : '问点什么, 比如东京便宜公寓...'}
           className="flex-1 resize-none bg-transparent outline-none text-sm leading-6 placeholder:text-slate-400 max-h-32"
@@ -139,7 +149,7 @@ export function AgentInput() {
         />
         {isStreaming ? (
           <button
-            onClick={cancelStream}
+            onClick={() => cancelStream(key)}
             className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-700 hover:bg-slate-800 text-white flex items-center justify-center transition"
             aria-label="停止"
           >

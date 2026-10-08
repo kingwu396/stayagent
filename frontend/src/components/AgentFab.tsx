@@ -6,7 +6,8 @@ import { useAgentStore } from '@/stores/agent'
 export function AgentFab() {
   const isOpen = useAgentStore((s) => s.isOpen)
   const togglePanel = useAgentStore((s) => s.togglePanel)
-  const isStreaming = useAgentStore((s) => s.isStreaming)
+  // Block 22: 任一会话在生成 → 绿点脉冲
+  const isStreaming = useAgentStore((s) => s.streamingKeys.length > 0)
 
   return (
     <motion.button
