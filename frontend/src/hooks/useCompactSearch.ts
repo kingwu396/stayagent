@@ -105,7 +105,10 @@ export function useCompactSearch({ initial, syncFromInitial = true, onChange }: 
     if (!expanded) return
     function onDown(e: MouseEvent) {
       if (!containerRef.current) return
-      if (!containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      // Block 24: 移动端全屏选择页 portal 在 body 下, 不算「外部」
+      if (target instanceof Element && target.closest('[data-search-sheet]')) return
+      if (!containerRef.current.contains(target)) {
         close()
       }
     }

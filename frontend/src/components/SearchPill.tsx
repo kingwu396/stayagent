@@ -127,7 +127,7 @@ export function SearchPill({
           必须 portal 到 body: 祖先 layoutId 容器带 transform, fixed 会退化成相对它定位 */}
       {expanded &&
         createPortal(
-          <div className="md:hidden fixed inset-0 z-50 bg-white flex flex-col animate-fade-in">
+          <div data-search-sheet className="md:hidden fixed inset-0 z-50 bg-white flex flex-col animate-fade-in">
             {/* 头部：关闭 + tab 切换 */}
             <div className="flex items-center border-b border-slate-200 flex-shrink-0">
               <button

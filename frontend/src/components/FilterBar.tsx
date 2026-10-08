@@ -173,6 +173,7 @@ export function FilterBar({ value, cities, onOpenModal, onChange }: FilterBarPro
 
         {/* 竖分隔 */}
         <div className="w-px h-6 bg-slate-200 flex-shrink-0" />
+        </div>
 
         {/* 已选房源类型 chips（从主页分类条跳转时可见，点 × 移除） */}
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin md:flex-1">
@@ -207,7 +208,6 @@ export function FilterBar({ value, cities, onOpenModal, onChange }: FilterBarPro
               </button>
             )
           })}
-        </div>
         </div>
       </div>
     </section>
