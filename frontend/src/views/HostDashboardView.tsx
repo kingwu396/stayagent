@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom'
 import { Eye, Home, DollarSign, TrendingUp, ExternalLink } from 'lucide-react'
 import { hostApi } from '@/api/host'
 import { propertyTypeLabel } from '@/lib/labels'
+import { ErrorState } from '@/components/ErrorState'
 import type { HostMeResponse, HostDashboardResponse, HostListingStat } from '@/types/host'
 
 function MiniBarChart({ items }: { items: HostListingStat[] }) {
@@ -64,20 +65,22 @@ export function HostDashboardView() {
     error: string | null
   }>({ loading: true, info: null, dashboard: null, error: null })
 
-  useEffect(() => {
-    let mounted = true
+  // Block 23: 抽出 load 供错误重试
+  function load() {
+    setState((s) => ({ ...s, loading: true, error: null }))
     Promise.all([hostApi.getMe(), hostApi.getListings()])
       .then(([info, dashboard]) => {
-        if (mounted) setState({ loading: false, info, dashboard, error: null })
+        setState({ loading: false, info, dashboard, error: null })
       })
       .catch((err: any) => {
         console.error('[HostDashboard] load failed', err?.response?.status, err?.message)
-        if (mounted) {
-          const msg = err?.response?.data?.detail || err?.message || '后台加载失败'
-          setState({ loading: false, info: null, dashboard: null, error: msg })
-        }
+        const msg = err?.response?.data?.detail || err?.message || '后台加载失败'
+        setState({ loading: false, info: null, dashboard: null, error: msg })
       })
-    return () => { mounted = false }
+  }
+
+  useEffect(() => {
+    load()
   }, [])
 
   const { loading, info, dashboard, error } = state
@@ -94,14 +97,19 @@ export function HostDashboardView() {
   if (error) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg">
-          {error}
-        </div>
+        <ErrorState description={error} onRetry={load} />
       </div>
     )
   }
 
-  if (!info || !dashboard) return null
+  // 加载已完成但数据缺失 → 明确错误态, 不再白屏
+  if (!info || !dashboard) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <ErrorState description="数据加载异常" onRetry={load} />
+      </div>
+    )
+  }
 
   const kpis = [
     {

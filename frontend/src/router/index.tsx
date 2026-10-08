@@ -1,6 +1,7 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import { Outlet, ScrollRestoration, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import { HomeView } from '@/views/HomeView'
+import { NotFoundView } from '@/views/NotFoundView'
 import { ListingDetailView } from '@/views/ListingDetailView'
 import { WishlistView } from '@/views/WishlistView'
 import { HostDashboardView } from '@/views/HostDashboardView'
@@ -19,6 +20,8 @@ function AnimatedLayout() {
   const location = useLocation()
   return (
     <>
+      {/* Block 23: 路由前进回顶 / 后退恢复原滚动位置 */}
+      <ScrollRestoration />
       <AnimatePresence mode="wait">
         <PageTransition pageKey={location.pathname}>
           <Outlet />
@@ -70,7 +73,7 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-      { path: '*', element: <Navigate to="/" replace /> },
+      { path: '*', element: <NotFoundView /> },
     ],
   },
 ])

@@ -209,7 +209,7 @@ function BookingRow({ booking: b, on取消, canceling }: BookingRowProps) {
           {/* Price + status */}
           <div className="flex items-baseline justify-between border-t border-slate-100 pt-3">
             <span className="text-sm text-stone-600">
-              {formatMoney(b.total)} <span className="text-xs text-stone-400">total</span>
+              {formatMoney(b.total)} <span className="text-xs text-stone-400">合计</span>
             </span>
             <span className="text-xs text-stone-500">
               {statusText(b)}
@@ -223,7 +223,7 @@ function BookingRow({ booking: b, on取消, canceling }: BookingRowProps) {
                 to={`/listings/${b.listing_id}`}
                 className="text-xs text-stone-500 hover:text-ink underline-offset-4 hover:underline"
               >
-                View listing
+                查看房源
               </Link>
               <button
                 onClick={on取消}
@@ -241,11 +241,12 @@ function BookingRow({ booking: b, on取消, canceling }: BookingRowProps) {
 }
 
 function statusText(b: Booking): string {
+  const d = new Date(b.created_at).toLocaleDateString('zh-CN')
   const map: Record<string, string> = {
-    confirmed: `Confirmed · Booked ${new Date(b.created_at).toLocaleDateString('en-CA')}`,
-    cancelled: `取消led · ${new Date(b.created_at).toLocaleDateString('en-CA')}`,
-    completed: `Completed · ${new Date(b.created_at).toLocaleDateString('en-CA')}`,
-    pending: `Pending · ${new Date(b.created_at).toLocaleDateString('en-CA')}`,
+    confirmed: `已确认 · ${d} 预订`,
+    cancelled: `已取消 · ${d} 预订`,
+    completed: `已完成 · ${d} 入住`,
+    pending: `待确认 · ${d} 预订`,
   }
   return map[b.status] || b.status
 }

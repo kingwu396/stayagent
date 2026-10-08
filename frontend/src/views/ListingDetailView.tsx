@@ -108,7 +108,7 @@ export function ListingDetailView() {
             <ErrorState
               title={error === '房源不存在' ? '找不到这个房源' : '加载失败'}
               description={error === '房源不存在' ? '该房源可能已被删除或链接有误。' : error}
-              onRetry={() => listing && fetchListing(listing.id)}
+              onRetry={() => fetchListing(parseInt(id!, 10))}
             />
             {!listing && (
               <div className="text-center mt-4">

@@ -249,7 +249,7 @@ export function BookingWidget({ listing }: BookingWidgetProps) {
       <button
         onClick={onBook}
         disabled={isSubmitting || nights < 1 || guestsOverLimit}
-        className="w-full mt-5 bg-brand-500 hover:bg-brand-600 disabled:from-stone-300 disabled:to-stone-300 text-white font-bold py-2.5 rounded-xl transition shadow-md disabled:cursor-not-allowed"
+        className="w-full mt-5 bg-brand-500 hover:bg-brand-600 disabled:bg-slate-300 text-white font-bold py-2.5 rounded-xl transition shadow-md disabled:cursor-not-allowed"
       >
         {isSubmitting ? '预订中…' : buttonText}
       </button>

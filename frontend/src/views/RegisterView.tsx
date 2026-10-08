@@ -1,5 +1,6 @@
 import { useState, FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 
 export function RegisterView() {
@@ -32,39 +33,51 @@ export function RegisterView() {
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">邮箱</label>
+            <label htmlFor="reg-email" className="block text-sm font-medium text-slate-700 mb-1">邮箱</label>
             <input
+              id="reg-email"
               type="email"
               required
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value)
+                if (error) clearError()
+              }}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
               placeholder="alice@example.com"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">用户名</label>
+            <label htmlFor="reg-username" className="block text-sm font-medium text-slate-700 mb-1">用户名</label>
             <input
+              id="reg-username"
               type="text"
               required
               minLength={3}
               maxLength={50}
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => {
+                setUsername(e.target.value)
+                if (error) clearError()
+              }}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
               placeholder="3-50 字符，字母数字下划线"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">密码</label>
+            <label htmlFor="reg-password" className="block text-sm font-medium text-slate-700 mb-1">密码</label>
             <input
+              id="reg-password"
               type="password"
               required
               minLength={8}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value)
+                if (error) clearError()
+              }}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
               placeholder="至少 8 位"
             />
@@ -79,8 +92,9 @@ export function RegisterView() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-brand-500 hover:bg-brand-600 disabled:bg-slate-300 text-white font-medium py-2.5 rounded-lg transition"
+            className="w-full flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 disabled:bg-slate-300 text-white font-medium py-2.5 rounded-lg transition"
           >
+            {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
             {isLoading ? '注册中...' : '注册并登录'}
           </button>
         </form>

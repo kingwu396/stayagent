@@ -1,5 +1,6 @@
 import { useState, FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 
 export function LoginView() {
@@ -8,6 +9,8 @@ export function LoginView() {
   const isLoading = useAuthStore((s) => s.isLoading)
   const error = useAuthStore((s) => s.error)
   const clearError = useAuthStore((s) => s.clearError)
+  // Block 23: 未登录被拦截时携带的来源路径, 登录后回原页
+  const from = (useLocation().state as any)?.from as string | undefined
 
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
@@ -17,7 +20,7 @@ export function LoginView() {
     clearError()
     try {
       await login(account, password)
-      navigate('/')
+      navigate(from || '/')
     } catch {
       // 错误已经在 store 里
     }
@@ -31,26 +34,34 @@ export function LoginView() {
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">邮箱或用户名</label>
+            <label htmlFor="login-account" className="block text-sm font-medium text-slate-700 mb-1">邮箱或用户名</label>
             <input
+              id="login-account"
               type="text"
               required
               minLength={3}
               value={account}
-              onChange={(e) => setAccount(e.target.value)}
+              onChange={(e) => {
+                setAccount(e.target.value)
+                if (error) clearError()
+              }}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
               placeholder="alice 或 alice@test.com"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">密码</label>
+            <label htmlFor="login-password" className="block text-sm font-medium text-slate-700 mb-1">密码</label>
             <input
+              id="login-password"
               type="password"
               required
               minLength={8}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value)
+                if (error) clearError()
+              }}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
               placeholder="至少 8 位"
             />
@@ -65,8 +76,9 @@ export function LoginView() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-brand-500 hover:bg-brand-600 disabled:bg-slate-300 text-white font-medium py-2.5 rounded-lg transition"
+            className="w-full flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 disabled:bg-slate-300 text-white font-medium py-2.5 rounded-lg transition"
           >
+            {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
             {isLoading ? '登录中...' : '登录'}
           </button>
         </form>
