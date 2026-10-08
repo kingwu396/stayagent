@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useWishlistStore } from '@/stores/wishlist'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Hotel, Star, Users, Bed, Bath, ArrowLeft, MapPin } from 'lucide-react'
@@ -33,6 +33,8 @@ export function ListingDetailView() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [listing, setListing] = useState<ListingDetail | null>(null)
+  // Block 23: 移动端吸底栏「预订」滚动定位用
+  const bookingCardRef = useRef<HTMLDivElement>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -108,7 +110,7 @@ export function ListingDetailView() {
             <ErrorState
               title={error === '房源不存在' ? '找不到这个房源' : '加载失败'}
               description={error === '房源不存在' ? '该房源可能已被删除或链接有误。' : error}
-              onRetry={() => fetchListing(parseInt(id!, 10))}
+              onRetry={() => { const n = parseInt(id ?? '', 10); if (!Number.isNaN(n)) fetchListing(n) }}
             />
             {!listing && (
               <div className="text-center mt-4">
@@ -269,7 +271,7 @@ export function ListingDetailView() {
               </div>
 
               {/* 右 1 列：粘性预订卡 */}
-              <aside className="lg:col-span-1">
+              <aside ref={bookingCardRef} className="lg:col-span-1">
                 <BookingWidget listing={listing} />
               </aside>
             </div>
@@ -279,6 +281,31 @@ export function ListingDetailView() {
           </div>
         )}
       </main>
+
+      {/* Block 23: 移动端吸底预订栏 (<lg), 避免预订入口沉在长页底部 */}
+      {listing && (
+        <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] pl-4 pr-[76px] py-3 flex items-center gap-4">
+          <div className="flex-1 min-w-0">
+            <span className="text-lg font-bold text-slate-900">
+              ¥{Math.round(Number(listing.price_per_night))}
+            </span>
+            <span className="text-sm text-slate-500"> /晚</span>
+            <div className="text-xs text-slate-500 truncate">
+              ★ {listing.rating} ({listing.review_count} 条评价)
+            </div>
+          </div>
+          <button
+            onClick={() =>
+              bookingCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }
+            className="flex-shrink-0 px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold rounded-xl transition shadow-md"
+          >
+            预订
+          </button>
+        </div>
+      )}
+      {/* 吸底栏占位, 防止内容被遮 */}
+      <div className="lg:hidden h-[72px]" aria-hidden="true" />
     </div>
   )
 }

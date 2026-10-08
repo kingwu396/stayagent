@@ -7,6 +7,7 @@ import { ErrorState } from '@/components/ErrorState'
 import { EmptyState } from '@/components/EmptyState'
 import { bookingsApi } from '@/api/bookings'
 import { useToast } from '@/hooks/useToast'
+import { ConfirmModal } from '@/components/ConfirmModal'
 import type { Booking } from '@/types/booking'
 
 function formatDate(iso: string): { day: string; month: string; year: string } {
@@ -28,7 +29,9 @@ export function TripsView() {
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [canceling, set取消ing] = useState<number | null>(null)
+  const [canceling, setCanceling] = useState<number | null>(null)
+  // Block 23: 待确认取消的预订(替代原生 confirm)
+  const [pendingCancel, setPendingCancel] = useState<Booking | null>(null)
   const toast = useToast()
 
   async function load() {
@@ -49,17 +52,19 @@ export function TripsView() {
     load()
   }, [])
 
-  async function on取消(b: Booking) {
-    if (!confirm(`确认取消「${b.listing.title}」的预订？`)) return
-    set取消ing(b.id)
+  async function onConfirmCancel() {
+    if (!pendingCancel || canceling !== null) return
+    const b = pendingCancel
+    setCanceling(b.id)
     try {
       await bookingsApi.cancel(b.id)
       toast.info('预订已取消')
+      setPendingCancel(null)
       await load()
     } catch (err: any) {
       toast.error(err.response?.data?.detail || '取消失败')
     } finally {
-      set取消ing(null)
+      setCanceling(null)
     }
   }
 
@@ -130,13 +135,33 @@ export function TripsView() {
               <BookingRow
                 key={b.id}
                 booking={b}
-                on取消={() => on取消(b)}
+                on取消={() => setPendingCancel(b)}
                 canceling={canceling === b.id}
               />
             ))}
           </div>
         )}
       </main>
+
+      {/* Block 23: 取消确认弹窗(替代原生 confirm) */}
+      <ConfirmModal
+        open={pendingCancel !== null}
+        title="取消预订？"
+        description={
+          pendingCancel ? (
+            <>
+              确认取消「<span className="font-medium">{pendingCancel.listing.title}</span>
+              」的预订？此操作不可撤销。
+            </>
+          ) : (
+            ''
+          )
+        }
+        confirmText="确认取消"
+        loading={canceling !== null}
+        onConfirm={onConfirmCancel}
+        onCancel={() => setPendingCancel(null)}
+      />
     </div>
   )
 }

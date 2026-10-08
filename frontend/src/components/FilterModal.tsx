@@ -232,12 +232,12 @@ export function FilterModal({
     : orderedAmenities.slice(0, 6)
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-start justify-center pt-12 px-4 pb-12">
+    <div className="fixed inset-0 z-[60] flex items-start justify-center pt-12 px-4 pb-12 bg-black/30 animate-fade-in">
       {/* 背景 */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       {/* dialog */}
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-pop-in-center">
         {/* header */}
         <div className="flex items-center justify-center px-6 py-4 border-b border-slate-200 relative">
           <h2 className="text-lg font-semibold text-slate-900">筛选条件</h2>

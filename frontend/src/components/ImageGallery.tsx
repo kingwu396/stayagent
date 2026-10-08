@@ -6,6 +6,14 @@ interface ImageGalleryProps {
   title: string
 }
 
+/** Block 23: 图片加载失败 → picsum 兜底(与全站策略一致) */
+const imgFallback = (e: React.SyntheticEvent<HTMLImageElement>) => {
+  const el = e.currentTarget
+  if (el.dataset.fallback) return
+  el.dataset.fallback = '1'
+  el.src = `https://picsum.photos/seed/fallback-${Math.floor(Math.random() * 9999)}/800/600`
+}
+
 export function ImageGallery({ images, title }: ImageGalleryProps) {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null)
 
@@ -18,6 +26,14 @@ export function ImageGallery({ images, title }: ImageGalleryProps) {
     () => setLightboxIdx((i) => (i === null ? null : Math.max(0, i - 1))),
     []
   )
+
+  // Block 23: Lightbox 打开时锁背景滚动
+  useEffect(() => {
+    if (lightboxIdx === null) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [lightboxIdx])
 
   // Lightbox 键盘
   useEffect(() => {
@@ -52,7 +68,7 @@ export function ImageGallery({ images, title }: ImageGalleryProps) {
           onClick={() => setLightboxIdx(0)}
           className="col-span-2 row-span-2 relative bg-slate-100 group"
         >
-          <img src={main} alt={title} className="w-full h-full object-cover group-hover:brightness-95 transition" />
+          <img src={main} alt={title} onError={imgFallback} className="w-full h-full object-cover group-hover:brightness-95 transition" />
         </button>
         {thumbs.map((src, i) => (
           <button
@@ -60,7 +76,7 @@ export function ImageGallery({ images, title }: ImageGalleryProps) {
             onClick={() => setLightboxIdx(i + 1)}
             className="relative bg-slate-100 group overflow-hidden"
           >
-            <img src={src} alt={`${title} ${i + 2}`} className="w-full h-full object-cover group-hover:brightness-95 transition" />
+            <img src={src} alt={`${title} ${i + 2}`} onError={imgFallback} className="w-full h-full object-cover group-hover:brightness-95 transition" />
             {hasMore && i === 3 && (
               <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white font-medium">
                 +{images.length - 5} 张
@@ -78,14 +94,14 @@ export function ImageGallery({ images, title }: ImageGalleryProps) {
             onClick={() => setLightboxIdx(i)}
             className="flex-shrink-0 w-full snap-center"
           >
-            <img src={src} alt={`${title} ${i + 1}`} className="w-full h-72 object-cover rounded-xl" />
+            <img src={src} alt={`${title} ${i + 1}`} onError={imgFallback} className="w-full h-72 object-cover rounded-xl" />
           </button>
         ))}
       </div>
 
       {/* Lightbox */}
       {lightboxIdx !== null && (
-        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 animate-fade-in">
           {/* 顶栏 */}
           <div className="absolute top-4 right-4 flex items-center gap-4">
             <span className="text-white text-sm">
@@ -102,6 +118,7 @@ export function ImageGallery({ images, title }: ImageGalleryProps) {
 
           {/* 主体图 */}
           <img
+            onError={imgFallback}
             src={images[lightboxIdx]}
             alt={`${title} ${lightboxIdx + 1}`}
             className="max-w-full max-h-[85vh] object-contain"

@@ -8,6 +8,7 @@ import { ErrorState } from '@/components/ErrorState'
 import { useWishlistStore } from '@/stores/wishlist'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/hooks/useToast'
+import { ConfirmModal } from '@/components/ConfirmModal'
 import type { Wishlist } from '@/types/wishlist'
 
 export function WishlistView() {
@@ -28,6 +29,8 @@ export function WishlistView() {
   const [showNewCollection, setShowNewCollection] = useState(false)
   const [newName, setNewName] = useState('')
   const [confirmDelete, setConfirmDelete] = useState<Wishlist | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [migrationInfo, setMigrationInfo] = useState<string | null>(null)
 
   useEffect(() => {
@@ -51,7 +54,8 @@ export function WishlistView() {
 
   async function onCreate() {
     const name = newName.trim()
-    if (!name) return
+    if (!name || creating) return
+    setCreating(true)
     // 前端防重名，避免无意义请求
     if (lists.some((w) => w.name === name)) {
       toast.warning(`已存在同名清单「${name}」`)
@@ -66,13 +70,19 @@ export function WishlistView() {
       const err = useWishlistStore.getState().error
       toast.error(err || '创建失败')
     }
+    setCreating(false)
   }
 
   async function onConfirmDelete() {
-    if (!confirmDelete) return
-    await deleteWishlist(confirmDelete.id)
-    toast.info(`已删除「${confirmDelete.name}」`)
-    setConfirmDelete(null)
+    if (!confirmDelete || deleting) return
+    setDeleting(true)
+    try {
+      await deleteWishlist(confirmDelete.id)
+      toast.info(`已删除「${confirmDelete.name}」`)
+      setConfirmDelete(null)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -198,7 +208,7 @@ export function WishlistView() {
                       <ListingCard listing={item.listing} />
                       <button
                         onClick={() => removeListing(wl.id, item.listing_id)}
-                        className="absolute top-2 right-12 w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-50 transition shadow-sm"
+                        className="absolute top-2 right-12 w-7 h-7 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:md:opacity-100 hover:bg-red-50 transition shadow-sm"
                         aria-label="从清单移除"
                       >
                         <X className="w-3.5 h-3.5 text-stone-600" />
@@ -230,10 +240,10 @@ export function WishlistView() {
                 />
                 <button
                   onClick={onCreate}
-                  disabled={!newName.trim()}
+                  disabled={!newName.trim() || creating}
                   className="px-4 py-2 bg-ink text-white text-sm font-medium rounded-md hover:bg-stone-700 disabled:bg-stone-300 transition"
                 >
-                  创建
+                  {creating ? '创建中…' : '创建'}
                 </button>
                 <button
                   onClick={() => { setShowNewCollection(false); setNewName('') }}
@@ -255,32 +265,25 @@ export function WishlistView() {
         )}
       </main>
 
-      {/* Delete confirm modal */}
-      {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmDelete(null)} />
-          <div className="relative bg-white rounded-md shadow-2xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-ink mb-2">删除清单？</h3>
-            <p className="text-sm text-stone-600 mb-6">
-              「<span className="font-medium">{confirmDelete.name}</span>」及其中的 {confirmDelete.items.length} 个房源将被永久删除。
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setConfirmDelete(null)}
-                className="px-4 py-2 text-sm text-stone-700 hover:bg-slate-100 rounded-md transition"
-              >
-                取消
-              </button>
-              <button
-                onClick={onConfirmDelete}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition"
-              >
-                确认删除
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Delete confirm modal (Block 23: 通用 ConfirmModal, Esc/滚动锁/动画/pending) */}
+      <ConfirmModal
+        open={confirmDelete !== null}
+        title="删除清单？"
+        description={
+          confirmDelete ? (
+            <>
+              「<span className="font-medium">{confirmDelete.name}</span>
+              」及其中的 {confirmDelete.items.length} 个房源将被永久删除。
+            </>
+          ) : (
+            ''
+          )
+        }
+        confirmText="确认删除"
+        loading={deleting}
+        onConfirm={onConfirmDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }

@@ -29,8 +29,9 @@ export function HomeView() {
   const [cities, setCities] = useState<CityInfo[]>([])
   // Hero 大搜索栏与顶栏胶囊共享同一份搜索状态，切换时内容连续
   const [sharedSearch, setSharedSearch] = useState<CompactSearchState>(EMPTY_SEARCH)
-  const [recentItems, setRecentItems] = useState<ListingSummary[]>([])
-  const [hotItems, setHotItems] = useState<ListingSummary[]>([])
+  // Block 23: null = 加载中, [] = 加载完无数据 (骨架消除完成时跳变)
+  const [recentItems, setRecentItems] = useState<ListingSummary[] | null>(null)
+  const [hotItems, setHotItems] = useState<ListingSummary[] | null>(null)
   const searchBarRef = useRef<HTMLDivElement>(null)
 
   // 搜索条槽位顶部贴住顶栏 → 飞到顶栏；回滚到其下方 → 飞回 Hero。
@@ -187,7 +188,8 @@ export function HomeView() {
       <div className="space-y-10 pt-8">
         <WelcomeBack />
 
-        {recentItems.length > 0 && (
+        {recentItems === null && <SectionSkeleton title="最近浏览" />}
+        {recentItems !== null && recentItems.length > 0 && (
           <SectionCarousel title="最近浏览">
             {recentItems.map((l) => (
               <CarouselCard key={l.id}>
@@ -197,7 +199,8 @@ export function HomeView() {
           </SectionCarousel>
         )}
 
-        {hotItems.length > 0 && (
+        {hotItems === null && <SectionSkeleton title="热门房源" />}
+        {hotItems !== null && hotItems.length > 0 && (
           <SectionCarousel title="热门房源">
             {hotItems.map((l) => (
               <CarouselCard key={l.id}>
@@ -327,5 +330,21 @@ function FooterColumn({ title, links }: { title: string; links: FooterLink[] }) 
         ))}
       </ul>
     </div>
+  )
+}
+
+/** Block 23: 横滑板块加载骨架(标题 + 一排卡片占位) */
+function SectionSkeleton({ title }: { title: string }) {
+  return (
+    <section className="max-w-6xl mx-auto px-6">
+      <h2 className="text-xl md:text-[22px] font-semibold text-slate-900 mb-4">{title}</h2>
+      <div className="flex gap-4 overflow-hidden">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="w-[200px] md:w-[240px] flex-shrink-0">
+            <ListingCardSkeleton />
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }

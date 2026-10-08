@@ -29,7 +29,7 @@ export function ToastContainer() {
   const remove = useToastStore((s) => s.remove)
 
   return (
-    <div className="fixed top-4 right-4 z-[100] space-y-2 max-w-sm pointer-events-none">
+    <div className="fixed top-4 right-4 z-[100] space-y-2 max-w-[calc(100vw-2rem)] sm:max-w-sm pointer-events-none">
       <AnimatePresence initial={false}>
         {toasts.map((t) => {
           const Icon = ICONS[t.type]

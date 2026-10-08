@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { X, Trash2, Sparkles, Maximize2, Minimize2 } from 'lucide-react'
+import { X, Trash2, Sparkles, Maximize2, Minimize2, Plus } from 'lucide-react'
 import { useAgentStore, selectActiveMessages } from '@/stores/agent'
 import { AgentMessage } from './AgentMessage'
 import { AgentInput } from './AgentInput'
@@ -140,6 +140,7 @@ function AgentPanelFloat() {
 function AgentPanelFullscreen() {
   const closePanel = useAgentStore(function(s) { return s.closePanel })
   const clearHistory = useAgentStore(function(s) { return s.clearHistory })
+  const startNewChat = useAgentStore(function(s) { return s.startNewChat })
   const messages = useAgentStore(selectActiveMessages)
   const sendMessage = useAgentStore(function(s) { return s.sendMessage })
   const toggleFullscreen = useAgentStore(function(s) { return s.toggleFullscreen })
@@ -150,7 +151,7 @@ function AgentPanelFullscreen() {
 
   return (
     <div className='fixed inset-0 z-[80] bg-white flex'>
-      <aside className='w-[240px] flex-shrink-0 border-r border-slate-200 bg-slate-50 flex flex-col'>
+      <aside className='hidden md:flex w-[240px] flex-shrink-0 border-r border-slate-200 bg-slate-50 flex-col'>
         <div className='px-4 py-3 border-b border-slate-200 flex items-center justify-between'>
           <div className='flex items-center gap-2'>
             <div className='w-7 h-7 rounded-full bg-brand-500 flex items-center justify-center'>
@@ -168,8 +169,19 @@ function AgentPanelFullscreen() {
         className='flex-1 grid bg-slate-50/30 min-w-0 overflow-hidden'
         style={{ gridTemplateRows: 'auto 1fr auto' }}
       >
-        <div className='bg-white border-b border-slate-200'>
-          <AgentHeader onMaximize={toggleFullscreen} onMinimize={toggleFullscreen} onClose={closePanel} onClear={clearHistory} messagesCount={messages.length} mode='fullscreen' />
+        <div className='bg-white border-b border-slate-200 flex items-center justify-between pr-2'>
+          <div className='flex-1 min-w-0'>
+            <AgentHeader onMaximize={toggleFullscreen} onMinimize={toggleFullscreen} onClose={closePanel} onClear={clearHistory} messagesCount={messages.length} mode='fullscreen' />
+          </div>
+          {/* Block 23: 移动端无侧栏, 新对话入口放 header */}
+          <button
+            onClick={startNewChat}
+            className='md:hidden flex-shrink-0 w-9 h-9 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 flex items-center justify-center transition'
+            aria-label='新对话'
+            title='新对话'
+          >
+            <Plus className='w-5 h-5' />
+          </button>
         </div>
         <div ref={scrollRef} className='overflow-y-auto overscroll-contain px-6 py-6 max-w-3xl w-full mx-auto'>
           {messages.length === 0 ? (

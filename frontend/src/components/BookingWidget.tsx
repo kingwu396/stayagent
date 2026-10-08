@@ -81,6 +81,16 @@ export function BookingWidget({ listing }: BookingWidgetProps) {
   const guestsOverLimit = guestsCount > maxGuests
 
   // 点击外部关闭面板
+  // Block 23: Esc 关闭日期/人数弹层
+  useEffect(() => {
+    if (!openPanel) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpenPanel(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [openPanel])
+
   useEffect(() => {
     if (!openPanel) return
     function onDocClick(e: MouseEvent) {
