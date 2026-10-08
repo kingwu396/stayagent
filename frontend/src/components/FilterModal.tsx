@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import type { FilterState, FilterOptions, PlaceType, AmenityCount } from '@/types/listing'
 import { Histogram } from './Histogram'
+import { PriceRangeSlider } from './PriceRangeSlider'
 import { CounterRow } from './CounterRow'
 import { useToast } from '@/hooks/useToast'
 
@@ -302,15 +303,36 @@ export function FilterModal({
           {/* 价格范围 */}
           <Section title="价格范围" subtitle="月租价格（包含所有费用）">
             {options && options.price_buckets.length > 0 ? (
-              <Histogram
-                buckets={options.price_buckets}
-                highlightMin={draft.min_price || null}
-                highlightMax={draft.max_price || null}
-              />
+              <>
+                <Histogram
+                  buckets={options.price_buckets}
+                  highlightMin={draft.min_price || null}
+                  highlightMax={draft.max_price || null}
+                />
+                {/* Block 25: Airbnb 式双头滑杆(与下方填入式输入双向同步) */}
+                <PriceRangeSlider
+                  className="mt-2"
+                  min={Number(options.min_price || 0)}
+                  max={Number(
+                    options.max_price ||
+                      options.price_buckets[options.price_buckets.length - 1]?.max ||
+                      1000
+                  )}
+                  valueMin={draft.min_price ? Number(draft.min_price) : null}
+                  valueMax={draft.max_price ? Number(draft.max_price) : null}
+                  onChange={(mn, mx) =>
+                    setDraft((d) => ({
+                      ...d,
+                      min_price: mn === null ? '' : String(mn),
+                      max_price: mx === null ? '' : String(mx),
+                    }))
+                  }
+                />
+              </>
             ) : (
               <div className="h-12 flex items-center justify-center text-xs text-slate-400">暂无数据</div>
             )}
-            <div className="grid grid-cols-2 gap-3 mt-4">
+            <div className="grid grid-cols-2 gap-3 mt-2">
               <PriceInput
                 label="最低"
                 value={draft.min_price}
