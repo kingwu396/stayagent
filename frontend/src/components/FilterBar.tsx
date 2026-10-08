@@ -24,7 +24,8 @@ const QUICK_CHIPS: QuickChip[] = [
   {
     key: 'entire',
     label: '整套房屋',
-    apply: () => ({ place_type: 'entire' }),
+    // Block 25: 可切换 —— 再点一次取消(回到「任何类型」)
+    apply: (s) => ({ place_type: s.place_type === 'entire' ? 'any' : 'entire' }),
   },
   {
     key: 'washer',
