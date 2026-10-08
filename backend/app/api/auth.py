@@ -148,8 +148,11 @@ async def refresh(
 
     redis = await get_redis()
 
-    # 白名单校验
-    stored_user_id = await redis.get(f"refresh:{old_jti}")
+    # 白名单校验 + 一次性消费（原子 GETDEL，Redis 6.2+）:
+    # 并发两个请求带同一 refresh cookie 时（如双标签页同时静默续期），
+    # 只有第一个 getdel 能拿到值，第二个拿到 None → 401。
+    # 保证 rotation 的"一个 refresh token 只能换一次"是原子语义，而不是 check-then-delete 竞态。
+    stored_user_id = await redis.getdel(f"refresh:{old_jti}")
     if stored_user_id is None:
         raise HTTPException(status_code=401, detail="refresh token 已撤销，请重新登录")
 
@@ -165,8 +168,7 @@ async def refresh(
     if not user:
         raise HTTPException(status_code=401, detail="用户不存在")
 
-    # Rotation：删旧 → 签新
-    await redis.delete(f"refresh:{old_jti}")
+    # Rotation：旧 token 已被 getdel 原子消费，直接签发新 token 对
     new_access, _na_jti, access_exp = create_access_token(user.id)
     new_refresh, new_refresh_jti, refresh_exp = create_refresh_token(user.id)
     await redis.set(f"refresh:{new_refresh_jti}", str(user.id), ex=refresh_exp)

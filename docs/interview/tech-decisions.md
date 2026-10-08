@@ -211,6 +211,33 @@ function renderResult(toolName, result) {
 
 ---
 
+### Q8 Token Rotation 竞态：怎么保证一个 refresh token 只换一次？
+
+**问题场景**：用户开两个标签页，access token 同时到期 → 两个页面各自发起 refresh，带的是**同一个** refresh cookie。后端原实现是 `GET 白名单校验 → 业务逻辑 → DELETE 旧 token`——GET 和 DELETE 两步不原子：两个请求都 GET 到值、都通过校验、各领一对新 token，"rotation 一次性"被打破（一个 refresh token 换出两套会话）。
+
+**为什么前端 single-flight 不够**：`refreshInFlight` Promise 去重只在**单个标签页的 JS 运行时内**有效，两个标签页是两个独立运行时，各飞各的。防线必须建在后端。
+
+**解法**（两层纵深）：
+```python
+# 后端 auth.py: check-then-delete → 原子 GETDEL (Redis 6.2+)
+stored_user_id = await redis.getdel(f"refresh:{old_jti}")
+if stored_user_id is None:          # 已被并发请求消费 → 疑似重放
+    raise HTTPException(401, "refresh token 已撤销，请重新登录")
+
+# 前端 client.ts (已有): 单标签页内多个 401 合并成一次 refresh
+let refreshInFlight: Promise<string | null> | null = null
+```
+
+**验证**：起临时 Redis，asyncio 两个协程并发 `getdel` 同一 key → 结果 `['42', None]`，恰好一个换到、白名单无残留。
+
+**面试要点**：
+- 本质是 check-then-act 竞态，解法是让"校验+消费"变成单条原子命令（和扣库存用 `DECR` 一个道理）
+- 前端去重是 UX 优化（减少无谓请求），正确性兜底必须在服务端
+- fail-closed 取舍：getdel 消费后如果后续签发失败，用户被迫重新登录——牺牲极少见的可用性，换"绝不多发会话"的安全性
+- 顺带讲双标签页 401 重放：`_retried` 标记防单请求无限重试 + SKIP_REFRESH_URLS 防 refresh 循环
+
+---
+
 ## 2. RAG（Block 12）
 
 ### Q2.1 为什么用 sentence-transformers 本地 embedding，不用云 API？

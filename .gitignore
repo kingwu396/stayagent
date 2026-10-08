@@ -34,5 +34,9 @@ vite.config.d.ts
 # Redis 落盘文件（dev 期间 redis 在项目目录启动时意外生成）
 /dump.rdb
 
+# 服务器部署凭据 (向导生成, 含服务器 IP / SSH 用户) + 向导脚本 (仅本地使用)
+/scripts/deploy.env
+/scripts/deploy_wizard.sh
+
 # ZCode 工作区元数据
 /.zcode/
