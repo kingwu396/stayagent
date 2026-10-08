@@ -19,6 +19,14 @@ interface AuthState {
   clearError: () => void
 }
 
+// Block 24: client 拦截器续期失败时广播 —— 清干净登录态, 停掉后续必败请求
+if (typeof window !== 'undefined') {
+  window.addEventListener('stayagent:auth-expired', () => {
+    clearToken()
+    useAuthStore.setState({ token: null, user: null })
+  })
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({

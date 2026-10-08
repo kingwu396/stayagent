@@ -23,9 +23,32 @@ export const api = axios.create({
   withCredentials: true,  // ⭐ 让 cookie 自动随请求发送
 })
 
-// 请求拦截器：自动加 access token
-api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = getToken()
+// Block 24: 解析 JWT exp(本地判断是否过期, 30s 容差)
+export function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return payload.exp * 1000 < Date.now() + 30_000
+  } catch {
+    return false  // 非 JWT 格式, 交由服务端判断
+  }
+}
+
+// 请求拦截器：自动加 access token;token 已过期时先静默续期,
+// 避免把注定 401 的请求打到业务端点上(消除控制台红色报错刷屏)
+api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
+  let token = getToken()
+  if (token && isTokenExpired(token)) {
+    const fresh = await refreshAccessToken()
+    if (!fresh) {
+      // 续期失败(cookie 也失效) → 通知 auth store 清理, 并拒发这条必败请求(不产生 401)
+      clearToken()
+      window.dispatchEvent(new CustomEvent('stayagent:auth-expired'))
+      const err = new Error('登录已过期') as Error & { handled?: boolean }
+      err.handled = true
+      return Promise.reject(err)
+    }
+    token = fresh
+  }
   if (token) {
     config.headers.set('Authorization', `Bearer ${token}`)
   }

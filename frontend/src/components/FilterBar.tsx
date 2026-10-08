@@ -133,11 +133,11 @@ export function FilterBar({ value, cities, onOpenModal, onChange }: FilterBarPro
             }`}
           >
             <MapPin className="w-4 h-4" />
-            <span>{value.city || '位置区域'}</span>
+            <span className="max-w-[7rem] md:max-w-[10rem] truncate">{value.city || '位置区域'}</span>
             <ChevronDown className="w-4 h-4" />
           </button>
           {cityOpen && (
-            <div className="absolute left-0 top-full mt-2 z-30 bg-white rounded-xl shadow-2xl border border-slate-200 max-h-80 overflow-y-auto min-w-[260px]">
+            <div className="absolute left-0 top-full mt-2 z-30 bg-white rounded-xl shadow-2xl border border-slate-200 max-h-80 overflow-y-auto w-[228px] md:w-[260px]">
               <button
                 type="button"
                 onClick={() => {
