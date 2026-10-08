@@ -44,7 +44,7 @@ async function doRefresh(): Promise<string | null> {
   // POST /api/auth/refresh，cookie 自动带
   try {
     const res = await axios.post(
-      '/api/auth/refresh',
+      '/auth/refresh',
       {},
       { baseURL: '/api', withCredentials: true }
     )
