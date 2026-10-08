@@ -30,7 +30,7 @@ search_listings = {
         "parameters": {
             "type": "object",
             "properties": {
-                "city": {"type": "string", "description": "城市名称, 如 Tokyo、Paris"},
+                "city": {"type": "string", "description": "城市中文名, 必须使用系统提示里列出的可用城市(如 \"东京\"、\"巴黎\"), 不要用英文名"},
                 "property_type": {
                     "type": "string",
                     "enum": ["studio", "apartment", "house", "villa", "hotel"],

@@ -69,23 +69,36 @@ def search_listings(
 ) -> dict:
     """根据条件搜索房源, 返回摘要列表。"""
     limit = min(max(limit, 1), 20)
-    stmt = select(Listing)
-    if city:
-        stmt = stmt.where(Listing.city == city)
-    if property_type:
-        if property_type not in ("studio", "apartment", "house", "villa", "hotel"):
-            raise ToolError(f"不支持的房源类型: {property_type}", code="INVALID_ARGS")
-        stmt = stmt.where(Listing.property_type == property_type)
-    if min_price is not None:
-        stmt = stmt.where(Listing.price_per_night >= Decimal(str(min_price)))
-    if max_price is not None:
-        stmt = stmt.where(Listing.price_per_night <= Decimal(str(max_price)))
-    if min_guests:
-        stmt = stmt.where(Listing.max_guests >= min_guests)
-    if q:
-        stmt = stmt.where(Listing.title.like(f"%{q}%"))
-    stmt = stmt.order_by(Listing.rating.desc(), Listing.review_count.desc()).limit(limit)
-    rows = db.execute(stmt).scalars().all()
+    city = city.strip() if city else None
+    if property_type and property_type not in ("studio", "apartment", "house", "villa", "hotel"):
+        raise ToolError(f"不支持的房源类型: {property_type}", code="INVALID_ARGS")
+
+    # Block 25: 过滤条件构建器(city 可替换, 支持精确→LIKE 兜底)
+    def build(city_filter: str | None, fuzzy: bool = False) -> select:
+        stmt = select(Listing)
+        if city_filter:
+            stmt = stmt.where(Listing.city.like(f"%{city_filter}%") if fuzzy else Listing.city == city_filter)
+        if property_type:
+            stmt = stmt.where(Listing.property_type == property_type)
+        if min_price is not None:
+            stmt = stmt.where(Listing.price_per_night >= Decimal(str(min_price)))
+        if max_price is not None:
+            stmt = stmt.where(Listing.price_per_night <= Decimal(str(max_price)))
+        if min_guests:
+            stmt = stmt.where(Listing.max_guests >= min_guests)
+        if q:
+            stmt = stmt.where(Listing.title.like(f"%{q}%"))
+        return stmt.order_by(Listing.rating.desc(), Listing.review_count.desc()).limit(limit)
+
+    rows = db.execute(build(city)).scalars().all()
+
+    # 兜底: 精确匹配 0 结果且给了城市 → LIKE 模糊重试一次
+    # (LLM 可能给出「东京都」等变体; 数据库里是中文标准名)
+    if city and not rows:
+        rows = db.execute(build(city, fuzzy=True)).scalars().all()
+        if rows:
+            logger.info("search_listings: city=%s 精确 0 结果, LIKE 兜底命中 %d", city, len(rows))
+
     items = [_listing_to_dict(r) for r in rows]
     logger.info("search_listings: city=%s type=%s -> %d results", city, property_type, len(items))
     return {"count": len(items), "items": items}

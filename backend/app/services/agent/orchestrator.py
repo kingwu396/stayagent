@@ -126,13 +126,31 @@ def _augment_user_message_with_attachment(user_message: str, attachment: Attachm
         f"```\n{attachment.text}\n```"
     )
 
+def _city_hint(db) -> str:
+    """Block 25: 数据库城市均为中文名, 动态注入列表 —— 否则 LLM 会用英文名调用
+    search_listings(city="Tokyo"), 汉化后精确匹配恒为 0 结果"""
+    try:
+        cities = db.execute(select(Listing.city).distinct().order_by(Listing.city)).scalars().all()
+    except Exception:
+        return ""
+    if not cities:
+        return ""
+    return (
+        "\n\n[数据提示] 数据库中的房源城市均为中文名。可用城市: "
+        + "、".join(cities)
+        + "。调用 search_listings 时 city 参数必须使用上述中文名"
+        + "(例如用户说 Tokyo, 应传 \"东京\")。"
+    )
+
+
 def _build_messages(db, user: User, run_message: str, conversation_id: int) -> list[dict]:
     """拼装 messages: system + 历史 (不含刚 insert 的 user) + 当前 user"""
     history = _load_history(db, conversation_id)
     if history and history[-1].get("role") == "user" and history[-1].get("content") == run_message:
         history = history[:-1]
+    system = SYSTEM_PROMPT + _city_hint(db)
     return (
-        [{"role": "system", "content": SYSTEM_PROMPT}]
+        [{"role": "system", "content": system}]
         + history
         + [{"role": "user", "content": run_message}]
     )
