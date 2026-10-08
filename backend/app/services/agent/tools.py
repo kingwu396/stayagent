@@ -70,6 +70,13 @@ def search_listings(
     """根据条件搜索房源, 返回摘要列表。"""
     limit = min(max(limit, 1), 20)
     city = city.strip() if city else None
+    # Block 25: property_type 接受中文别名(LLM 在中文语境下可能输出「别墅」等)
+    _TYPE_ALIASES = {
+        "公寓": "apartment", "民居": "house", "民宿": "house", "别墅": "villa",
+        "酒店": "hotel", "工作室": "studio", "开间": "studio",
+    }
+    if property_type:
+        property_type = _TYPE_ALIASES.get(property_type.strip(), property_type.strip().lower())
     if property_type and property_type not in ("studio", "apartment", "house", "villa", "hotel"):
         raise ToolError(f"不支持的房源类型: {property_type}", code="INVALID_ARGS")
 
@@ -92,12 +99,19 @@ def search_listings(
 
     rows = db.execute(build(city)).scalars().all()
 
-    # 兜底: 精确匹配 0 结果且给了城市 → LIKE 模糊重试一次
-    # (LLM 可能给出「东京都」等变体; 数据库里是中文标准名)
+    # 兜底(三层): 精确匹配 0 结果且给了城市 →
+    #   1) LIKE 模糊; 2) distinct 城市名与入参互为子串(「东京都」↔「东京」);
     if city and not rows:
         rows = db.execute(build(city, fuzzy=True)).scalars().all()
-        if rows:
-            logger.info("search_listings: city=%s 精确 0 结果, LIKE 兜底命中 %d", city, len(rows))
+        if not rows:
+            all_cities = db.execute(select(Listing.city).distinct()).scalars().all()
+            matched = next(
+                (c for c in all_cities if c in city or city in c),
+                None,
+            )
+            if matched:
+                rows = db.execute(build(matched)).scalars().all()
+                logger.info("search_listings: city=%s 兜底匹配到城市「%s」-> %d", city, matched, len(rows))
 
     items = [_listing_to_dict(r) for r in rows]
     logger.info("search_listings: city=%s type=%s -> %d results", city, property_type, len(items))
@@ -505,13 +519,17 @@ def list_my_trips(
 # 简易日期/城市正则 (LLM 抽取失败时的兜底)
 _RE_ISO_DATE = re.compile(r"\b20\d{2}-\d{2}-\d{2}\b")
 # 已知常见城市名 (其它城市 LLM 应能识别)
-_KNOWN_CITIES = {
-    "Tokyo", "Kyoto", "Osaka", "Paris", "London", "New York", "Los Angeles",
-    "Barcelona", "Rome", "Milan", "Berlin", "Amsterdam", "Bangkok", "Singapore",
-    "Seoul", "Sydney", "Melbourne", "Dubai", "Istanbul", "Cairo", "Bali",
-    "Busan", "Hong Kong", "Taipei", "Shanghai", "Beijing", "Hanoi", "Ho Chi Minh",
-    "Jakarta", "Manila", "Kuala Lumpur", "Phuket", "Chiang Mai",
-}
+# Block 25: 汉化后数据库城市为中文名, regex 兜底列表同步改为中文;
+# 用子串判断而非  词界( 在中文字符间不成立)
+_KNOWN_CITIES = (
+    "东京", "京都", "大阪", "巴黎", "伦敦", "纽约", "巴塞罗那", "罗马",
+    "米兰", "柏林", "阿姆斯特丹", "曼谷", "新加坡", "首尔", "悉尼",
+    "墨尔本", "迪拜", "伊斯坦布尔", "巴厘岛", "釜山", "香港", "台北",
+    "上海", "北京", "河内", "胡志明市", "雅加达", "马尼拉", "吉隆坡",
+    "普吉岛", "清迈", "成都", "慕尼黑", "维也纳", "布拉格", "里斯本",
+    "雅典", "佛罗伦萨", "威尼斯", "苏黎世", "日内瓦", "爱丁堡",
+    "温哥华", "多伦多", "墨西哥城", "里约热内卢", "布宜诺斯艾利斯",
+)
 
 
 def _regex_parse_plan(text: str) -> dict:
@@ -519,7 +537,7 @@ def _regex_parse_plan(text: str) -> dict:
     dates = list(dict.fromkeys(_RE_ISO_DATE.findall(text)))[:10]
     cities = []
     for city in _KNOWN_CITIES:
-        if re.search(rf"\b{re.escape(city)}\b", text, re.IGNORECASE):
+        if city in text:
             cities.append(city)
         if len(cities) >= 5:
             break
@@ -535,7 +553,7 @@ def _regex_parse_plan(text: str) -> dict:
 
 # LLM 结构化抽取 prompt: 字段与 regex 版完全同构, 下游 (AgentPlanCard / recommend_from_plan) 无感知
 _LLM_EXTRACT_PROMPT = """你是旅行计划结构化助手。从旅行计划文本中抽取信息，只输出一个 JSON 对象，不要输出任何解释或 markdown 代码块。字段定义:
-- "cities": 目的地城市数组（按文中出现顺序，最多 5 个，用文中原始写法，中英文均可）
+- "cities": 目的地城市数组（按文中出现顺序，最多 5 个；一律用简体中文标准名，如 "东京"、"巴黎" —— 文中是英文地名时必须翻译成中文，不要保留英文）
 - "duration_days": 行程天数（整数；无法判断为 null）
 - "guests_estimate": 出行人数（整数；"带爸妈"=3 人、"一家三口"=3 人；无法判断为 null）
 - "budget_estimate": 住宿预算（数字，每晚或总额按文义；无法判断为 null）
@@ -731,6 +749,14 @@ def search_travel_tips(
     if not query or not query.strip():
         raise ToolError("query 不能为空", code="INVALID_ARGS")
     top_k = min(max(top_k, 1), 10)
+
+    # Block 25: category 数据库为英文键, 接受中文别名(LLM 中文语境可能传「签证」)
+    _TIP_CATEGORY_ALIASES = {
+        "签证": "visa", "交通": "transport", "美食": "food",
+        "安全": "safety", "文化": "culture",
+    }
+    if category:
+        category = _TIP_CATEGORY_ALIASES.get(category.strip(), category.strip().lower())
 
     try:
         tips = retrieve_tips(db=db, query=query, top_k=top_k, category=category)

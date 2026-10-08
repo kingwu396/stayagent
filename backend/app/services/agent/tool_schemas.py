@@ -34,7 +34,7 @@ search_listings = {
                 "property_type": {
                     "type": "string",
                     "enum": ["studio", "apartment", "house", "villa", "hotel"],
-                    "description": "房源类型",
+                    "description": "房源类型英文键: villa/apartment/house/hotel/studio (中文如别墅/公寓也可识别)",
                 },
                 "min_price": {"type": "number", "description": "每晚最低价格 (¥)"},
                 "max_price": {"type": "number", "description": "每晚最高价格 (¥)"},
