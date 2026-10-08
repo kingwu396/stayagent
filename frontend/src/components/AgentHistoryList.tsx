@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Plus, MessageSquare, Trash2, AlertTriangle } from 'lucide-react'
 import { useAgentStore } from '@/stores/agent'
 import { useToast } from '@/hooks/useToast'
@@ -78,7 +78,12 @@ function DeleteConfirmModal({
   )
 }
 
-export function AgentHistoryList() {
+interface AgentHistoryListProps {
+  /** Block 24: 移动端抽屉用 —— 选中/新建会话后回调(关抽屉)。桌面侧栏不传, 行为不变 */
+  onPick?: () => void
+}
+
+export function AgentHistoryList({ onPick }: AgentHistoryListProps = {}) {
   const conversations = useAgentStore((s) => s.conversations)
   const isLoadingHistory = useAgentStore((s) => s.isLoadingHistory)
   const conversationId = useAgentStore((s) => s.conversationId)
@@ -93,6 +98,17 @@ export function AgentHistoryList() {
   // 待删除的对话 (二次确认)
   const [pendingDelete, setPendingDelete] = useState<{ id: number; title: string } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Block 24: 统一选择入口。touchend 兜底 + click 可能双触发, 500ms 内同会话去重
+  const lastPickRef = useRef<{ id: number; ts: number }>({ id: 0, ts: 0 })
+  const touchStartY = useRef(0)
+  function pick(id: number) {
+    const now = Date.now()
+    if (lastPickRef.current.id === id && now - lastPickRef.current.ts < 500) return
+    lastPickRef.current = { id, ts: now }
+    loadConversation(id)
+    onPick?.()
+  }
 
   useEffect(() => { loadHistory() }, [loadHistory])
 
@@ -116,7 +132,10 @@ export function AgentHistoryList() {
     <div className="flex flex-col h-full">
       <div className="px-3 pt-3 pb-2 border-b border-slate-200">
         <button
-          onClick={startNewChat}
+          onClick={() => {
+            startNewChat()
+            onPick?.()
+          }}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-lg transition"
         >
           <Plus className="w-4 h-4" />
@@ -148,7 +167,14 @@ export function AgentHistoryList() {
               return (
                 <li key={c.id} className="group relative">
                   <button
-                    onClick={() => loadConversation(c.id)}
+                    onClick={() => pick(c.id)}
+                    onTouchStart={(e) => {
+                      touchStartY.current = e.touches[0]?.clientY ?? 0
+                    }}
+                    onTouchEnd={(e) => {
+                      const dy = Math.abs((e.changedTouches[0]?.clientY ?? 0) - touchStartY.current)
+                      if (dy < 10) pick(c.id)
+                    }}
                     className={
                       'w-full text-left px-3 py-2.5 rounded-lg transition pr-9 ' +
                       (active

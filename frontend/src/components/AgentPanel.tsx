@@ -184,11 +184,8 @@ function AgentPanelFullscreen() {
                 <X className='w-4 h-4' />
               </button>
             </div>
-            <div
-              className='flex-1 min-h-0'
-              onClickCapture={function() { setShowHistory(false) }}
-            >
-              <AgentHistoryList />
+            <div className='flex-1 min-h-0'>
+              <AgentHistoryList onPick={function() { setShowHistory(false) }} />
             </div>
           </aside>
         </>
