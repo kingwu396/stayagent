@@ -5,6 +5,8 @@
 - 抛 ToolError(message, code) 表示业务错误, orchestrator 转成结构化错误给 LLM
 - 返回 dict 让 LLM 看到结构化数据
 - 同步函数 (直接读 DB), orchestrator 直接调用无需 await
+- 例外: parse_travel_plan_pdf / recommend_from_plan 是 async (内部要调 LLM 抽取),
+  orchestrator 派发点用 iscoroutine 兼容两种
 """
 import json
 import logging
@@ -19,6 +21,8 @@ from app.models import (
     User, Listing, Wishlist, WishlistItem, Booking, Message,
 )
 from app.services.rag import retrieve_tips
+from app.core.llm_client import get_llm_client
+from app.services.agent.retry import retry_on_llm_error
 
 logger = logging.getLogger(__name__)
 
@@ -485,7 +489,7 @@ def list_my_trips(
 
 # ============ Tool 10: parse_travel_plan_pdf ============
 
-# 简易日期/城市正则 (兜底用, LLM 抽取失败时)
+# 简易日期/城市正则 (LLM 抽取失败时的兜底)
 _RE_ISO_DATE = re.compile(r"\b20\d{2}-\d{2}-\d{2}\b")
 # 已知常见城市名 (其它城市 LLM 应能识别)
 _KNOWN_CITIES = {
@@ -516,39 +520,130 @@ def _regex_parse_plan(text: str) -> dict:
     }
 
 
-def parse_travel_plan_pdf(
+# LLM 结构化抽取 prompt: 字段与 regex 版完全同构, 下游 (AgentPlanCard / recommend_from_plan) 无感知
+_LLM_EXTRACT_PROMPT = """你是旅行计划结构化助手。从旅行计划文本中抽取信息，只输出一个 JSON 对象，不要输出任何解释或 markdown 代码块。字段定义:
+- "cities": 目的地城市数组（按文中出现顺序，最多 5 个，用文中原始写法，中英文均可）
+- "duration_days": 行程天数（整数；无法判断为 null）
+- "guests_estimate": 出行人数（整数；"带爸妈"=3 人、"一家三口"=3 人；无法判断为 null）
+- "budget_estimate": 住宿预算（数字，每晚或总额按文义；无法判断为 null）
+- "dates": 文中出现的具体日期（ISO 格式 YYYY-MM-DD 字符串数组，最多 10 个；无具体日期为空数组）
+- "themes": 旅行主题标签数组（最多 5 个，如 ["亲子", "海岛", "购物"]；无则空数组）
+
+旅行计划文本:
+---
+{plan_text}
+---
+"""
+
+
+def _extract_json_object(text: str) -> Any:
+    """从 LLM 回复中剥出 JSON 对象 (容忍 ``` 围栏 / 前后废话)"""
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-zA-Z]*\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        raise ValueError("回复中不含 JSON 对象")
+    return json.loads(text[start:end + 1])
+
+
+def _str_list(v: Any, cap: int) -> list[str] | None:
+    """校验 LLM 输出的数组字段: 非法返回 None, 合法裁剪到 cap"""
+    if not isinstance(v, list):
+        return None
+    return [str(x).strip() for x in v if str(x).strip()][:cap]
+
+
+def _int_or_none(v: Any) -> int | None:
+    if isinstance(v, bool) or v is None:
+        return None
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _num_or_none(v: Any) -> int | float | None:
+    """预算字段: 允许小数, 整数则收敛为 int"""
+    if isinstance(v, bool) or v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return int(f) if f.is_integer() else round(f, 2)
+
+
+def _coerce_llm_plan(data: Any) -> dict | None:
+    """校验并裁剪 LLM 输出到与 regex 版同构的 schema; 不合格返回 None"""
+    if not isinstance(data, dict):
+        return None
+    cities = _str_list(data.get("cities"), 5)
+    themes = _str_list(data.get("themes"), 5)
+    dates = _str_list(data.get("dates"), 10)
+    if not cities:
+        return None  # 城市是核心字段, 抽不到视为整体失败
+    duration = _int_or_none(data.get("duration_days"))
+    if duration is None and len(dates or []) >= 2:
+        duration = len(dates) - 1
+    return {
+        "cities": cities,
+        "dates": dates or [],
+        "duration_days": duration,
+        "themes": themes or [],
+        "guests_estimate": _int_or_none(data.get("guests_estimate")),
+        "budget_estimate": _num_or_none(data.get("budget_estimate")),
+    }
+
+
+async def _llm_parse_plan(plan_text: str) -> dict | None:
+    """LLM 结构化抽取. 任何失败返回 None, 由调用方降级 regex (单点 try 保证绝不向上抛)."""
+    try:
+        resp = await retry_on_llm_error(get_llm_client().chat)(
+            messages=[
+                {"role": "system", "content": "你只输出 JSON，不输出任何其他文字。"},
+                {"role": "user", "content": _LLM_EXTRACT_PROMPT.format(plan_text=plan_text[:6000])},
+            ],
+            temperature=0.0,
+            max_tokens=500,
+        )
+        data = _extract_json_object(resp["choices"][0]["message"]["content"] or "")
+        return _coerce_llm_plan(data)
+    except Exception as e:  # noqa: BLE001 - 兜底路径, 任何异常都降级 regex
+        logger.warning("LLM plan 抽取失败, 降级 regex: %s: %s", type(e).__name__, e)
+        return None
+
+
+async def parse_travel_plan_pdf(
     user: User, db,
     plan_text: str,
     **_kwargs,
 ) -> dict:
-    """从已抽取的 PDF 文本中解析结构化字段. 优先 LLM, 失败降级 regex."""
+    """从已抽取的 PDF 文本中解析结构化字段. LLM 优先, 失败降级 regex."""
     if not plan_text or not plan_text.strip():
         raise ToolError("plan_text 不能为空", code="INVALID_ARGS")
 
-    fallback = _regex_parse_plan(plan_text)
+    parsed = await _llm_parse_plan(plan_text)
+    if parsed is not None:
+        return {
+            "status": "ok",
+            "method": "llm",
+            "parsed": parsed,
+            "raw_excerpt": plan_text[:500],
+        }
     return {
         "status": "ok",
         "method": "regex",
-        "parsed": fallback,
+        "parsed": _regex_parse_plan(plan_text),
         "raw_excerpt": plan_text[:500],
-        "note": "regex 抽取 (LLM 增强留给后续 Block)",
+        "note": "LLM 抽取失败, 已降级 regex 兜底",
     }
-
-
-def _parse_travel_plan_pdf_sync_placeholder(  # noqa
-    user: User, db, plan_text: str, parsed: dict,
-) -> dict:
-    """保留占位避免 orphan import (实际用不上)"""
-    fallback = _regex_parse_plan(plan_text)
-    return {
-        "status": "ok", "method": "llm" if parsed else "regex",
-        "parsed": parsed or fallback, "raw_excerpt": plan_text[:500],
-}
 
 
 # ============ Tool 11: recommend_from_plan ============
 
-def recommend_from_plan(
+async def recommend_from_plan(
     user: User, db,
     plan_text: str,
     max_results: int = 5,
@@ -556,16 +651,21 @@ def recommend_from_plan(
 ) -> dict:
     """
     根据 PDF 文本推荐房源. 流程:
-    1. 抽结构化 (LLM 优先, regex 兜底)
-    2. 取首个城市 + text 前缀作为 query, 调 search_listings
+    1. 结构化抽取 (LLM 优先, regex 兜底)
+    2. 取首个城市调 search_listings
     3. 返回房源 + 抽取的 plan summary
     """
     if not plan_text or not plan_text.strip():
         raise ToolError("plan_text 不能为空", code="INVALID_ARGS")
 
-    # 1. 先 regex 兜底拿城市 (LLM 那条路要走 async, 暂用 regex 给 search_listings 用)
-    fallback = _regex_parse_plan(plan_text)
-    city = fallback["cities"][0] if fallback["cities"] else None
+    # 1. 结构化抽取: LLM 优先 (能懂"带爸妈"=3人 / 任意城市), 失败降级 regex
+    parsed = await _llm_parse_plan(plan_text)
+    if parsed is not None:
+        method = "llm"
+    else:
+        parsed = _regex_parse_plan(plan_text)
+        method = "regex"
+    city = parsed["cities"][0] if parsed["cities"] else None
 
     # 2. 提取关键词 (从 themes 或 plan_text 第一个名词) 作为 q
     # 但 LIKE 模糊匹配不靠谱, 有 city 时直接用 city 过滤, q 留空
@@ -591,15 +691,17 @@ def recommend_from_plan(
 
     return {
         "plan_summary": {
-            "cities": fallback["cities"],
-            "dates": fallback["dates"],
-            "themes": fallback["themes"],
-            "duration_days": fallback["duration_days"],
-            "method": "regex",  # async LLM 抽取放后续 Block
+            "cities": parsed["cities"],
+            "dates": parsed["dates"],
+            "themes": parsed["themes"],
+            "duration_days": parsed["duration_days"],
+            "guests_estimate": parsed["guests_estimate"],
+            "budget_estimate": parsed["budget_estimate"],
+            "method": method,
         },
         "recommendations": search_result.get("items", []),
         "sources": "search_listings",
-        "note": "parsing 走 regex 兜底; recommend 走 search_listings",
+        "note": "parsing LLM 优先 regex 兜底; recommend 走 search_listings",
     }
 
 

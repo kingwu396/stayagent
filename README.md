@@ -7,7 +7,9 @@
 
 ---
 
-## 📍 项目板块（25 项全部完成 ✅）
+## 📍 项目板块
+
+> 完整迭代日志见 [docs/CHANGELOG.md](docs/CHANGELOG.md)
 
 | Block | 内容 | 加分项覆盖 |
 |---|---|---|
@@ -22,6 +24,13 @@
 | 11.5 | create_booking (HITL) + 拖动 + 全屏微调 | A9 |
 | **12** | **Tools 9-12 + RAG (Travel Tips) + PDF 上传** | **A3, A6, A7** |
 | **13** | **F5 动画 + F8 Generative UI + 演示文档** | **F5, F8** |
+| 14 | 房源扩容 1000 条 + DB 端过滤/分页 | B8 |
+| 15 | 房东后台 (Host Dashboard) + view 计数 | F2 |
+| 16 | 房源详情页 Airbnb 风重做 (预订卡/评价/地图) | F2 |
+| 17 | Agent 流式打字机 + content_discard 修复 | A2 |
+| 18 | 搜索浮层按 panel 对齐 | F2 |
+| 19 | 搜索条统一 + Hero↔顶栏 layoutId morph | F5 |
+| 19.5 | PDF 结构化抽取升级: LLM 优先 + regex 兜底 | A6 |
 
 ---
 
@@ -103,7 +112,27 @@ make install            # uv sync + pnpm install
 
 ### 配置环境
 
-编辑 `backend/.env`，填入 MySQL 密码和 DeepSeek API key。
+```bash
+cp backend/.env.example backend/.env          # 然后编辑填值
+cp frontend/.env.example frontend/.env.local  # 前端无必填项
+```
+
+**后端环境变量**（`backend/.env`）：
+
+| 变量 | 必填 | 说明 |
+|---|---|---|
+| `MYSQL_USER` / `MYSQL_PASSWORD` | ✅ | MySQL 账号（本地默认 root） |
+| `MYSQL_HOST` / `MYSQL_PORT` / `MYSQL_DB` | - | 默认 `127.0.0.1:3306` / `stayagent` |
+| `DEEPSEEK_API_KEY` | ✅ | [platform.deepseek.com](https://platform.deepseek.com/api_keys) 申请 |
+| `DEEPSEEK_BASE_URL` | - | 默认 `https://api.deepseek.com` |
+| `JWT_SECRET` | ✅ | Token 签名密钥，生产环境务必换强随机值 |
+| `REDIS_URL` | - | 默认 `redis://localhost:6379/0`（认证 token 黑白名单依赖） |
+| `COOKIE_SECURE` | - | 生产 HTTPS 环境设 `true` |
+| `HF_ENDPOINT` | - | 可选 `https://hf-mirror.com`，国内加速首次下载 RAG embedding 模型 |
+
+> Redis 未启动时后端可软启动，但登录/认证相关 API 会 503 — 先 `make redis`。
+
+前端开发期由 Vite proxy 把 `/api` 转发到 `http://127.0.0.1:8000`（见 `vite.config.ts`），无需配置后端地址。
 
 ### Seed 演示数据
 
@@ -146,6 +175,22 @@ pnpm run build
 
 ---
 
+## 🐛 开发踩坑记录（真实问题 → 解法）
+
+完整日志见 [docs/CHANGELOG.md](docs/CHANGELOG.md)，逐条面试口径见 [docs/interview/tech-decisions.md](docs/interview/tech-decisions.md)。精选：
+
+| # | 坑 | 解法 |
+|---|---|---|
+| 1 | npm/pip 装依赖慢、环境易污染 | 全量迁移 pnpm + uv，速度快 10-100× |
+| 2 | AMap 瓦片灰屏连修 3 次（securityJsCode / WebGL / 真浏览器复现） | 第 3 次仍不稳定后果断换 Leaflet + OSM：功能等价、0 配置 |
+| 3 | Tool schema 写 `file_path`、实现要 `plan_text`，LLM 按 schema 调 → TypeError | schema / 实现 / prompt 三处对齐，并加单测断言 properties |
+| 4 | 流式输出时 LLM 先吐 preamble 再调工具，客套话混进聊天气泡 | 自定义 SSE 事件 `content_discard`：后端 buffer 与前端 content 同一事件清零 |
+| 5 | amenities 筛选先分页后过滤，每页条数不稳定 | 改为全量候选 → Python 端 AND 过滤 → 再分页 |
+| 6 | Redis 未启动后端直接起不来 | 软启动：连接失败仅告警，认证 API 降级 503 |
+| 7 | PDF 结构化抽取 regex 只认固定写法（"带爸妈"=3 人抓不到） | 升级 LLM 结构化抽取优先 + regex 兜底，输出字段同构、无感降级 |
+
+---
+
 ## 🔑 关键技术决策
 
 | 决策 | 替代方案 | 为何选这个 |
@@ -158,6 +203,7 @@ pnpm run build
 | **MySQL** + SQLAlchemy 2.0 | Postgres / MongoDB | 项目 ORM 基础 |
 | **Redis 黑名单** | JWT-only | 即时撤销 access token，无需等过期 |
 | **PDF inline 注入** | file_id 引用 | LLM 直接读，避免幻觉参数 |
+| **PDF 抽取 LLM 优先 + regex 兜底** | 纯 regex | 自由文本（"带爸妈"=3 人 / 任意城市）也能结构化，LLM 失败自动降级 |
 
 ---
 

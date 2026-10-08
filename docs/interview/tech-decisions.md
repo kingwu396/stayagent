@@ -144,24 +144,33 @@ parse_travel_plan_pdf = {
 - 单测覆盖：直接调函数 + 检查 schema 的 properties
 - prompt 也要同步澄清（"plan_text 是文本不是文件路径"）
 
-### Q6 为什么 `parse_travel_plan_pdf` 走 regex，不走 LLM 抽取？
+### Q6 为什么 `parse_travel_plan_pdf` 升级为 LLM 抽取优先、regex 兜底？（v2 演进）
 
-**选**：纯 regex 抽取 ISO 日期 + 已知城市名
+**v1（早期）**：纯 regex 抽 ISO 日期 + 已知城市名。当时的选择理由：LLM 抽 ~2s + token 费、demo PDF 是手写测试文档（英语 + ISO 日期），regex 100% 覆盖。
+
+**为什么 v1 撑不住真实场景**：
+- regex 只匹配固定写法："带爸妈去"（3 人）、"两个人"（汉字数字）、"一家三口" 全部抓瞎
+- `_KNOWN_CITIES` 是写死的白名单，用户写"清迈""札幌"就漏
+- 考核要求"Agent 必须真正理解需求"，regex 是伪理解，面试被追问就露馅
+
+**v2（现在）**：LLM 结构化抽取优先 + regex 兜底的双层设计
 ```python
-_RE_ISO_DATE = re.compile(r"\b20\d{2}-\d{2}-\d{2}\b")
-_KNOWN_CITIES = {"Tokyo", "Paris", "New York", ...}
-def _regex_parse_plan(text):
-    dates = list(dict.fromkeys(_RE_ISO_DATE.findall(text)))[:10]
-    cities = [c for c in _KNOWN_CITIES if re.search(rf"\b{c}\b", text, re.IGNORECASE)]
-    return {"cities": cities, "dates": dates, ...}
+async def _llm_parse_plan(text) -> dict | None:
+    # DeepSeek + 强约束 prompt: 只输出 JSON, 字段与 regex 版完全一致
+    # 解析: 剥 ``` 围栏 → json.loads → 字段类型校验 → 截断
+    # 任何异常 return None → 调用方降级 regex
+
+def parse_travel_plan_pdf(...)   # async: LLM 优先, 失败降级 regex, 返回 method 字段
+def recommend_from_plan(...)     # async: 先抽结构化, 再用 cities[0] 调 search_listings
 ```
 
-**为什么不调 LLM 抽**：
-- LLM 抽 ~2s + token 费
-- 已知城市 + ISO 日期 regex 100% 覆盖 demo 场景
-- demo 用的 PDF 是手写的测试文档（用英语 + ISO 日期）
+**工程细节（面试加分点）**：
+- LLM 输出字段与 regex 版**完全同构**（cities/dates/duration_days/themes/guests_estimate/budget_estimate），下游 AgentPlanCard 和 recommend_from_plan 无感知
+- orchestrator 的 tool 派发点加 `if asyncio.iscoroutine(result): result = await result`，**同步工具零改动**，只有两个 PDF 工具变 async
+- LLM 调用套 `retry_on_llm_error`（与主链路同一套重试），单次失败不暴露给用户
+- 返回 `method: "llm" | "regex"`，前端/日志可观测降级
 
-**未来升级**：要支持任意城市/自由文本，可以加 LLM 抽取作为增强层（regex 兜底）
+**权衡**：每次多 ~2s + 少量 token 费；换来自由文本理解能力。兜底保证 LLM 挂了/超时功能不挂，只是变"笨"。
 
 ### Q7 F8 Generative UI：为什么 agent tool 结果渲染成卡片，不是 JSON？
 
@@ -592,7 +601,37 @@ function renderResult(toolName, result) {
 
 ---
 
-## 6. 一句话总结（开场/收尾用）
+## 6. 流式（Block 17）：content_discard 事件
+
+### Q6.1 流式 + Tool Calling 的固有矛盾（最有含金量的踩坑）
+
+**Bug 现象**：打字机效果"坏掉"——聊天气泡里出现 LLM 的英文/中文客套话 + 正经答案混在一起。
+
+**根因**：SSE 流式下 token 逐个转发给前端，但后端**一开始不知道**模型最终是"直接回答"还是"先调工具"。DeepSeek 有时先吐 preamble（"好的，我来帮您查一下~"）再决定调 tool，流结束 `finish_reason == "tool_calls"` 才暴露。此时 preamble 已经打进前端聊天气泡，而它根本不是最终答案。
+
+**SSE 事件时间线**：
+```
+step_started      →  前端显示"正在思考"
+content_delta ×N  →  打字机打出 "好的，我来帮您查一下~"   ← 其实是 preamble
+content_discard   →  前端把已打的内容清空（保留 steps）    ← 逻辑撤回
+step/tool 事件    →  展示工具调用卡片
+content_delta ×N  →  重新打字机，这次是真正的最终回答
+```
+
+**解法**（后端 [orchestrator.py] / 前端 [stores/agent.ts] 配合）：
+- 后端：流结束后发现 `finish_reason == "tool_calls"` 且已发出过 content_delta → yield 自定义事件 `{"type": "content_discard"}`，同时清掉服务端 `final_delta_buf`，再 fallback 到非流式 `_execute_step`
+- 前端：收到 `content_discard` → `content: ''`（清空已渲染文本，思考步骤保留）
+
+**类比**：助理嘴里先念叨"好嘞我看看哈"然后转身去翻文件。念叨是实时直播出去的，收不回来，只能广播"刚那句不算"。流式没有原生"撤回"，所以自己发明一个逻辑撤回事件让前端配合清屏。
+
+**面试要点**：
+- streaming 和 tool calling 叠加才有这个 bug，教程不会讲——踩过才懂
+- 通用思路：流式协议里"已发送 ≠ 已确认"，要为"事后才知道语义"的场景设计补偿事件（类似 HTTP/2 的 RST_STREAM 思想）
+- 双端状态一致性：后端 buffer 和前端 content 必须同一事件清零，否则下次 delta 接在旧内容后
+
+---
+
+## 7. 一句话总结（开场/收尾用）
 
 > "我们手写了一个 ~400 行的 ReAct 循环，每个 tool 都有独立的 schema/implementation/test 闭环，  
 >  RAG 用本地 sentence-transformers + 全表 cosine similarity（不引向量 DB），  

@@ -198,14 +198,15 @@ def test_3_parse_plan(db, user: User) -> bool:
         "then Kyoto on 2026-11-03 for temples and food. "
         "Budget around 1500 USD, 2 people."
     )
-    r = parse_travel_plan_pdf(user=user, db=db, plan_text=text)
+    import asyncio
+    r = asyncio.run(parse_travel_plan_pdf(user=user, db=db, plan_text=text))
     print(f"  parsed: {r['parsed']}")
     parsed = r["parsed"]
     assert "Tokyo" in parsed["cities"] or "Kyoto" in parsed["cities"], \
         f"expected Tokyo/Kyoto, got {parsed['cities']}"
     assert "2026-11-01" in parsed["dates"], f"expected ISO date, got {parsed['dates']}"
     assert r["raw_excerpt"][:100] == text[:100]
-    print(f"  method={r['method']} (regex fallback 正常)")
+    print(f"  method={r['method']} (llm 优先, 失败 regex 兜底)")
     print("  ✓ parse_travel_plan_pdf 抽到 cities/dates")
     return True
 
@@ -213,7 +214,8 @@ def test_3_parse_plan(db, user: User) -> bool:
 def test_4_recommend_from_plan(db, user: User) -> bool:
     print("\n[Test 4] Tool 11: recommend_from_plan")
     text = "Going to Tokyo from 2026-11-01 to 2026-11-05. Love sushi and temples."
-    r = recommend_from_plan(user=user, db=db, plan_text=text, max_results=3)
+    import asyncio
+    r = asyncio.run(recommend_from_plan(user=user, db=db, plan_text=text, max_results=3))
     print(f"  plan_summary: {r['plan_summary']}")
     print(f"  recommendations: {len(r['recommendations'])} listings")
     assert r["sources"] == "search_listings"
@@ -379,10 +381,11 @@ def test_9_attachment_in_db(db, user: User, token: str) -> bool:
 def test_10_parse_travel_with_text(db, user: User) -> bool:
     """Test 10: parse_travel_plan_pdf 用 plan_text (不是 file_path) 调时, 工具正确返回"""
     print("\n[Test 10] parse_travel_plan_pdf schema 修复验证")
-    result = parse_travel_plan_pdf(
+    import asyncio
+    result = asyncio.run(parse_travel_plan_pdf(
         user=user, db=db,
         plan_text="Going to Tokyo from 2026-11-01 to 2026-11-05. Love sushi.",
-    )
+    ))
     parsed = result["parsed"]
     print(f"  method={result['method']}, cities={parsed['cities']}, dates={parsed['dates']}")
     assert "Tokyo" in parsed["cities"]

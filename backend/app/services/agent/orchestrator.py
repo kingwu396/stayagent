@@ -291,6 +291,9 @@ async def _execute_step(
                 result = {"error": f"未知 tool: {name}", "code": "UNKNOWN_TOOL"}
             else:
                 result = tool_fn(user=user, db=db, **args)
+                # PDF 抽取类工具是 async (内部调 LLM), 其余工具同步
+                if asyncio.iscoroutine(result):
+                    result = await result
         except ToolError as e:
             logger.warning("Tool %s 业务错误: %s", name, e)
             result = {"error": str(e), "code": e.code}
