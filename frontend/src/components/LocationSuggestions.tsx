@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react'
+import { getRecentSearches } from '@/lib/recent'
+import { formatDateRange, formatGuestsSummary } from '@/hooks/useCompactSearch'
 import { Search, MapPin, Mountain, Building2, Umbrella, Waves, Palmtree, Castle } from 'lucide-react'
 
 export interface LocationSuggestion {
@@ -19,20 +21,6 @@ interface LocationSuggestionsProps {
   recommended?: { city: string; country: string; count: number }[]
   focused: boolean
 }
-
-// 假数据：最近搜索（实际项目中可放 localStorage）
-const RECENT_SEARCHES: LocationSuggestion[] = [
-  { city: 'Kuala Lumpur City Centre', country: 'Malaysia', region: 'Kuala Lumpur, 城市', icon: 'building', tone: 'emerald', meta: '10月3日至11月18日 · 3位客人' },
-  { city: 'Bangkok', country: 'Thailand', region: 'Bangkok, 城市', icon: 'temple', tone: 'emerald', meta: '10月11日至11月10日 · 1位客人' },
-  { city: 'Kuala Lumpur', country: 'Malaysia', region: 'Kuala Lumpur, 城市', icon: 'umbrella', tone: 'amber', meta: '10月3日至11月18日 · 3位客人' },
-]
-
-// 假数据：推荐目的地（兜底）
-const FALLBACK_RECOMMENDED: LocationSuggestion[] = [
-  { city: 'George Town', country: 'Malaysia', region: 'George Town, 城市', icon: 'castle', tone: 'rose', note: '精美建筑' },
-  { city: 'Chiang Mai', country: 'Thailand', region: 'Chiang Mai, 城市', icon: 'temple', tone: 'slate', note: 'Because you searched for Chiang Mai' },
-  { city: 'Kota Kinabalu', country: 'Malaysia', region: 'Kota Kinabalu, 海滩', icon: 'palmtree', tone: 'rose', note: '适合家庭' },
-]
 
 interface IconMeta {
   Icon: React.ComponentType<{ className?: string }>
@@ -75,16 +63,41 @@ export function LocationSuggestions({
     }
   }, [focused])
 
-  // 推荐数据
-  const recommendedList: LocationSuggestion[] = recommended && recommended.length > 0
-    ? recommended.slice(0, 6).map((c) => ({
-        city: c.city,
-        country: c.country,
-        region: `${c.city}, ${c.country}`,
-        icon: iconForCity(c.city),
-        tone: toneForCity(c.city),
-      }))
-    : FALLBACK_RECOMMENDED
+  // Block 25: 最近搜索 = 真实 localStorage 记录(非写死假数据);
+  // 汉化后旧英文记录与当前城市列表对不上, 自动过滤隐藏
+  const cityKnown = (city: string) =>
+    !recommended?.length || recommended.some((c) => c.city === city)
+  const recentList: LocationSuggestion[] =
+    value.trim() === ''
+      ? getRecentSearches()
+          .filter((s) => cityKnown(s.city))
+          .slice(0, 3)
+          .map((s) => {
+            const dates = formatDateRange(s.checkIn, s.checkOut)
+            const guests = formatGuestsSummary(s.guests)
+            const meta = [dates !== '任何日期' ? dates : '', guests].filter(Boolean).join(' · ')
+            return {
+              city: s.city,
+              country: recommended?.find((c) => c.city === s.city)?.country || '',
+              region: s.city,
+              icon: iconForCity(s.city),
+              tone: toneForCity(s.city),
+              meta: meta || undefined,
+            }
+          })
+      : []
+
+  // 推荐数据(来自 cities API, 中文)
+  const recommendedList: LocationSuggestion[] =
+    recommended && recommended.length > 0
+      ? recommended.slice(0, 6).map((c) => ({
+          city: c.city,
+          country: c.country,
+          region: `${c.city}, ${c.country}`,
+          icon: iconForCity(c.city),
+          tone: toneForCity(c.city),
+        }))
+      : []
 
   // 过滤推荐
   const filtered = value.trim()
@@ -106,12 +119,12 @@ export function LocationSuggestions({
         />
       </div>
 
-      {/* 最近搜索 */}
-      {value.trim() === '' && RECENT_SEARCHES.length > 0 && (
+      {/* 最近搜索(Block 25: 真实记录, 旧英文城市自动过滤) */}
+      {value.trim() === '' && recentList.length > 0 && (
         <div className="mb-5">
           <h3 className="text-sm font-semibold text-slate-900 mb-3">最近搜索</h3>
           <div className="space-y-1">
-            {RECENT_SEARCHES.map((s) => (
+            {recentList.map((s) => (
               <SuggestionRow
                 key={s.city}
                 suggestion={s}
@@ -188,21 +201,16 @@ function SuggestionRow({
 }
 
 function toneForCity(city: string): LocationSuggestion['tone'] {
-  const c = city.toLowerCase()
-  if (c.includes('penang') || c.includes('george')) return 'rose'
-  if (c.includes('bangkok') || c.includes('kuala')) return 'emerald'
-  if (c.includes('tokyo') || c.includes('shanghai') || c.includes('paris')) return 'amber'
-  if (c.includes('bali') || c.includes('beach')) return 'sky'
+  if (/巴厘岛|普吉|苏梅|海滩|海岛/.test(city)) return 'sky'
+  if (/曼谷|清迈|京都/.test(city)) return 'emerald'
+  if (/东京|巴黎|上海|纽约|伦敦|香港/.test(city)) return 'amber'
   return 'slate'
 }
 
 function iconForCity(city: string): LocationSuggestion['icon'] {
-  const c = city.toLowerCase()
-  if (c.includes('beach') || c.includes('bali')) return 'waves'
-  if (c.includes('penang') || c.includes('george')) return 'castle'
-  if (c.includes('mountain')) return 'mountain'
-  if (c.includes('paris') || c.includes('tokyo') || c.includes('shanghai')) return 'building'
-  if (c.includes('bangkok')) return 'temple'
-  if (c.includes('kuala')) return 'building'
+  if (/巴厘岛|普吉|海滩/.test(city)) return 'waves'
+  if (/曼谷|清迈|京都/.test(city)) return 'temple'
+  if (/北京|西安|京都/.test(city)) return 'castle'
+  if (/东京|巴黎|上海|纽约|伦敦|香港|新加坡/.test(city)) return 'building'
   return 'generic'
 }
