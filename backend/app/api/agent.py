@@ -332,12 +332,12 @@ def _format_booking_confirmed(result: dict) -> str:
     total = result.get("total", 0)
     booking_id = result.get("booking_id", "?")
     return (
-        f"✅ 已下单, **#{booking_id}**\n\n"
+        f"🧾 订单已创建, **#{booking_id}**(待支付)\n\n"
         f"- 房源: {listing_title}\n"
         f"- 入住: {check_in} → {check_out} ({nights} 晚)\n"
         f"- 人数: {guests} 位\n"
-        f"- **合计: ¥{total}**\n\n"
-        f"可在 `/trips` 查看行程, 祝入住愉快!"
+        f"- **应付: ¥{total}**\n\n"
+        f"请在 **15 分钟内** 到 [行程页](/trips) 完成支付, 超时订单自动取消。支付成功祝入住愉快!"
     )
 
 

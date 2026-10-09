@@ -7,6 +7,7 @@ from app.api.auth import router as auth_router
 from app.api.listings import router as listings_router
 from app.api.wishlists import router as wishlists_router
 from app.api.bookings import router as bookings_router
+from app.api.payments import router as payments_router
 from app.api.agent import router as agent_router
 from app.api.uploads import router as uploads_router
 from app.api.host import router as host_router
@@ -53,6 +54,7 @@ app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(listings_router, prefix="/api/listings", tags=["listings"])
 app.include_router(wishlists_router, prefix="/api/wishlists", tags=["wishlists"])
 app.include_router(bookings_router, prefix="/api/bookings", tags=["bookings"])
+app.include_router(payments_router, prefix="/api/payments", tags=["payments"])
 app.include_router(agent_router, prefix="/api/agent", tags=["agent"])
 app.include_router(uploads_router, prefix="/api/uploads", tags=["uploads"])
 app.include_router(host_router, prefix="/api/host", tags=["host"])

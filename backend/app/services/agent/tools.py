@@ -444,7 +444,7 @@ def create_booking(
         cleaning_fee=totals["cleaning_fee"],
         service_fee=totals["service_fee"],
         total=totals["total"],
-        status="confirmed",
+        status="pending",
     )
     db.add(booking)
     db.commit()
@@ -456,7 +456,7 @@ def create_booking(
     )
 
     return {
-        "status": "confirmed",
+        "status": "pending",
         "booking_id": booking.id,
         "listing_id": listing_id,
         "listing_title": listing.title,

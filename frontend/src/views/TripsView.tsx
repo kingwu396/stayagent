@@ -244,6 +244,14 @@ function BookingRow({ booking: b, on取消, canceling }: BookingRowProps) {
           {/* Actions */}
           {!is取消led && (
             <div className="flex items-center justify-end gap-2 mt-3">
+              {b.status === 'pending' && (
+                <Link
+                  to={`/payment/${b.id}`}
+                  className="px-3 py-1.5 text-xs bg-brand-500 hover:bg-brand-600 text-white rounded transition"
+                >
+                  去支付
+                </Link>
+              )}
               <Link
                 to={`/listings/${b.listing_id}`}
                 className="text-xs text-stone-500 hover:text-ink underline-offset-4 hover:underline"
@@ -271,7 +279,7 @@ function statusText(b: Booking): string {
     confirmed: `已确认 · ${d} 预订`,
     cancelled: `已取消 · ${d} 预订`,
     completed: `已完成 · ${d} 入住`,
-    pending: `待确认 · ${d} 预订`,
+    pending: `待支付 · ${d} 创建`,
   }
   return map[b.status] || b.status
 }

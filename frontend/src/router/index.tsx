@@ -5,6 +5,7 @@ import { NotFoundView } from '@/views/NotFoundView'
 import { ListingDetailView } from '@/views/ListingDetailView'
 import { WishlistView } from '@/views/WishlistView'
 import { HostDashboardView } from '@/views/HostDashboardView'
+import { PaymentView } from '@/views/PaymentView'
 import { TripsView } from '@/views/TripsView'
 import { SearchView } from '@/views/SearchView'
 import { LoginView } from '@/views/LoginView'
@@ -57,6 +58,7 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+      { path: '/payment/:id', element: <ProtectedRoute><PaymentView /></ProtectedRoute> },
       {
         path: '/trips',
         element: (

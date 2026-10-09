@@ -6,6 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.deps import CurrentUser, DBSession
+from app.api.payments import expire_stale_payments
+from app.models import Payment
 from app.models import Booking, Listing
 from app.schemas.booking import (
     BookingCreate, BookingResponse, BookingListResponse,
@@ -41,7 +43,8 @@ def _calc_nights(check_in: date, check_out: date) -> int:
 
 @router.get("", response_model=BookingListResponse)
 async def list_bookings(current_user: CurrentUser, db: DBSession):
-    """当前用户所有预订（含 listing）"""
+    """当前用户全部预订(先惰性过期未支付订单)"""
+    expire_stale_payments(db)
     stmt = (
         select(Booking)
         .where(Booking.user_id == current_user.id)
@@ -82,7 +85,7 @@ async def create_booking(payload: BookingCreate, current_user: CurrentUser, db: 
         cleaning_fee=cleaning,
         service_fee=service,
         total=total,
-        status="confirmed",
+        status="pending",
     )
     db.add(booking)
     db.commit()
@@ -113,8 +116,18 @@ async def cancel_booking(booking_id: int, current_user: CurrentUser, db: DBSessi
     ).scalar_one_or_none()
     if not b:
         raise HTTPException(status_code=404, detail="预订不存在")
-    if b.status != "confirmed":
+    # Block 26: pending(待支付)与 confirmed 均可取消
+    if b.status not in ("confirmed", "pending"):
         raise HTTPException(status_code=400, detail=f"当前状态 {b.status} 不可取消")
+    # 待支付订单取消时, 连带作废其支付单
+    if b.status == "pending":
+        payment = db.execute(
+            select(Payment).where(
+                Payment.booking_id == b.id, Payment.status == "pending"
+            )
+        ).scalar_one_or_none()
+        if payment:
+            payment.status = "failed"
     b.status = "cancelled"
     db.commit()
     db.refresh(b)
