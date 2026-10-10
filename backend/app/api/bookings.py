@@ -9,7 +9,7 @@ from app.deps import CurrentUser, DBSession
 from app.api.payments import expire_stale_payments
 from app.models import Payment
 from app.models import Booking, Listing
-from app.services.booking_rules import find_conflict
+from app.services.booking_rules import find_conflict, validate_booking_request, BookingRuleError
 from app.schemas.booking import (
     BookingCreate, BookingResponse, BookingListResponse,
 )
@@ -67,19 +67,11 @@ async def create_booking(payload: BookingCreate, current_user: CurrentUser, db: 
 
     nights = _calc_nights(payload.check_in, payload.check_out)
 
-    if payload.guests > listing.max_guests:
-        raise HTTPException(status_code=400, detail=f"该房源最多接待 {listing.max_guests} 位客人")
-
-    # Block 27: 日期冲突校验 (pending/confirmed 订单占位, 首尾相接不算冲突)
-    conflict = find_conflict(db, payload.listing_id, payload.check_in, payload.check_out)
-    if conflict:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"该日期已被预订 (订单 #{conflict.id}, {conflict.check_in} ~ {conflict.check_out}), "
-                "请更换日期"
-            ),
-        )
+    # Block 29: 统一校验 (日期合法/不能订过去日期/人数/冲突), 与 agent tool 同一套规则
+    try:
+        validate_booking_request(db, payload.listing_id, payload.check_in, payload.check_out, payload.guests)
+    except BookingRuleError as e:
+        raise HTTPException(status_code=e.http_status, detail=e.message)
 
     price = Decimal(str(listing.price_per_night))
     cleaning = Decimal(str(listing.cleaning_fee or 0))

@@ -89,5 +89,7 @@ class AgentRunResponse(BaseModel):
     started_at: datetime
     finished_at: datetime | None
     steps: list[AgentStepResponse] = []
+    # Block 29: HITL 待确认的 tool_call (前端历史加载用它重建确认卡片)
+    pending_tool_call: dict | None = None
 
     model_config = ConfigDict(from_attributes=True)

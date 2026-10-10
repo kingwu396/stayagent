@@ -464,8 +464,7 @@ def test_4_conflict_check():
             assert resp.status_code == 201, f"全部 cancelled 后应可订, got {resp.status_code}"
             print("  ✓ cancelled 订单不占日期")
 
-            # Block 28: 超时作废 → cancel_reason=expired
-            # 建新单 + 支付单, 把支付单 created_at 回拨 16 分钟, 触发惰性过期
+            # Block 28: 超时作废 → cancel_reason=expired            # 建新单 + 支付单, 把支付单 created_at 回拨 16 分钟, 触发惰性过期
             resp = client.post(
                 "/api/bookings",
                 json={"listing_id": lid, "check_in": "2027-05-01", "check_out": "2027-05-02", "guests": 1},
@@ -495,6 +494,48 @@ def test_4_conflict_check():
                 assert b3.cancel_reason == "expired", f"应记 expired, got {b3.cancel_reason}"
                 assert p3.status == "failed"
             print("  ✓ 超时未支付自动作废, cancel_reason=expired")
+
+            # Block 29: 过去日期不能预订 (用户输错日期, 如今天 10-10 却说"10月1号到2号")
+            resp = client.post(
+                "/api/bookings",
+                json={"listing_id": lid, "check_in": "2026-10-01", "check_out": "2026-10-02", "guests": 2},
+                headers=auth(guest_token),
+            )
+            assert resp.status_code == 400, f"过去日期应 400, got {resp.status_code}"
+            assert "不能早于今天" in resp.json()["detail"]
+            print("  ✓ 过去日期下单 400 (API 路径)")
+
+            # agent tool 路径同样拒绝过去日期
+            from app.services.agent.tools import create_booking as tool_create_booking2, ToolError
+            db.commit()  # 结束挂起快照事务, 让 tool 看到上面 API 提交的数据
+            try:
+                tool_create_booking2(
+                    guest, db, listing_id=lid,
+                    check_in="2026-10-01", check_out="2026-10-02", guests=2,
+                )
+                assert False, "agent 工具过去日期应抛 ToolError"
+            except ToolError as e:
+                assert e.code == "INVALID_ARGS" and "不能早于今天" in str(e), f"got: {e.code} {e}"
+                print(f"  ✓ agent 工具过去日期 → ToolError(INVALID_ARGS): {e}")
+
+            # 统一校验函数各分支
+            from app.services.booking_rules import validate_booking_request, BookingRuleError
+            ok_cases = [
+                # (listing_id, check_in, check_out, guests, expected_code)
+                (lid, date(2027, 6, 1), date(2027, 6, 1), 2, "INVALID_ARGS"),       # 同日
+                (lid, date(2027, 6, 1), date(2027, 6, 3), 99, "INVALID_ARGS"),      # 人数越界
+                (lid, date(2027, 6, 1), date(2027, 6, 3), 5, "INVALID_ARGS"),       # 超 max_guests=4
+                (999999, date(2027, 6, 1), date(2027, 6, 3), 2, "NOT_FOUND"),       # 房源不存在
+            ]
+            for li, ci, co, g, code in ok_cases:
+                try:
+                    validate_booking_request(db, li, ci, co, g)
+                    assert False, f"应抛 {code}"
+                except BookingRuleError as e:
+                    assert e.code == code, f"expected {code}, got {e.code}: {e}"
+            # 合法请求通过 (2027-05-01 已被上面过期单占? 该单已 cancelled 不占位)
+            validate_booking_request(db, lid, date(2027, 5, 1), date(2027, 5, 3), 2)
+            print("  ✓ validate_booking_request 各分支 (同日/人数/超额/不存在/通过)")
         finally:
             full_cleanup(db, host, guest)
     return True

@@ -239,6 +239,13 @@ async def confirm_run(
             run.error = f"{e.code}: {e}"
             from datetime import datetime, timezone
             run.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            # Block 29 fix: 失败原因也要写进对话历史 —— 否则用户接着说"那帮我正常预订"时,
+            # LLM 看不到失败上下文, 会答非所问甚至不再调工具
+            db.add(Message(
+                conversation_id=run.conversation_id,
+                role="assistant",
+                content=f"❌ 下单失败: {e}。请根据失败原因调整(如更换日期或房源)后再试。",
+            ))
             db.commit()
             db.refresh(run)
             return _run_to_response(run)
@@ -354,6 +361,7 @@ def _run_to_response(run: AgentRun) -> AgentRunResponse:
         started_at=run.started_at,
         finished_at=run.finished_at,
         steps=[_step_to_response(s) for s in (run.steps or [])],
+        pending_tool_call=run.pending_tool_call,
     )
 
 

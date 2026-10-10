@@ -124,6 +124,8 @@ export interface AgentRunDetail {
   steps: AgentStep[]
   started_at: string
   finished_at: string | null
+  /** Block 29: HITL 待确认的 tool_call (历史加载重建确认卡用) */
+  pending_tool_call?: { tool_name: string; tool_args: Record<string, unknown> } | null
 }
 
 // ============ Block 12: PDF 附件 ============

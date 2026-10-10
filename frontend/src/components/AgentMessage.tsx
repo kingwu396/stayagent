@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
-import { Sparkles, LogIn } from 'lucide-react'
+import { Sparkles, LogIn, CheckCircle2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { AgentChatMessage } from '@/types/agent'
 import { useAgentStore } from '@/stores/agent'
@@ -69,6 +69,17 @@ export function AgentMessage({ message }: AgentMessageProps) {
   const lastStep = message.steps && message.steps.length > 0
     ? message.steps[message.steps.length - 1]
     : null
+
+  // Block 29: 本条消息若成功创建过订单 (create_booking 的 tool_result), 提取 booking_id 供「去支付」
+  const bookingId = useMemo(() => {
+    if (message.status !== 'completed') return null
+    for (const s of message.steps ?? []) {
+      if (s.tool_name !== 'create_booking' || s.tool_result == null) continue
+      const result = s.tool_result as { booking_id?: unknown }
+      if (result.booking_id != null) return Number(result.booking_id)
+    }
+    return null
+  }, [message.status, message.steps])
   let statusText: string | null = null
   if (isStreaming && !message.content) {
     if (!lastStep) {
@@ -104,6 +115,29 @@ export function AgentMessage({ message }: AgentMessageProps) {
         {/* Block 11.5: HITL 确认卡片 */}
         {message.pendingConfirmation && message.status === 'pending_confirmation' && (
           <AgentConfirmCard pending={message.pendingConfirmation} />
+        )}
+
+        {/* Block 29: 下单成功 → 「去支付」快捷入口
+            (确认卡片确认后会被移除, 改在消息下方渲染; 历史消息同样生效, 已支付/已失效由支付页兜底) */}
+        {message.status === 'completed' && bookingId && (
+          <div className="flex items-center gap-2 bg-white border border-emerald-200 rounded-2xl px-4 py-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            </div>
+            <div className="flex-1 min-w-0 text-sm text-slate-700">
+              订单 <span className="font-medium">#{bookingId}</span> 已创建
+              <span className="text-xs text-slate-400 ml-1">15 分钟内完成支付</span>
+            </div>
+            <button
+              onClick={() => {
+                closePanel()
+                navigate(`/payment/${bookingId}`)
+              }}
+              className="flex-shrink-0 px-4 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-xl transition"
+            >
+              去支付
+            </button>
+          </div>
         )}
 
         {/* 最终内容 / 思考状态 pill */}

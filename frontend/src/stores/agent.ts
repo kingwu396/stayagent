@@ -99,6 +99,11 @@ function applyEventToMessages(
 ): AgentChatMessage[] {
   return messages.map((m) => {
     if (m.id !== msgId) return m
+    if (evt.type === 'run_started') {
+      // Block 29 fix: 占位消息必须在此绑定 runId —— confirmRun 靠它匹配消息,
+      // 缺失会导致确认成功后消息不被更新, 确认卡永远转圈 (后端其实已下单)
+      return { ...m, runId: evt.run_id, conversationId: evt.conversation_id }
+    }
     if (evt.type === 'content_delta') {
       // Block 17: 累积 LLM 输出的 token (打字机效果)
       return { ...m, content: (m.content || '') + (evt.delta || ''), status: 'streaming' }
@@ -144,6 +149,8 @@ function applyEventToMessages(
     if (evt.type === 'pending_confirmation') {
       return {
         ...m,
+        // 防御: 即使 run_started 分支漏了, 这里也把 runId 补上
+        runId: m.runId ?? evt.run_id,
         status: 'pending_confirmation',
         pendingConfirmation: {
           run_id: evt.run_id,
@@ -278,6 +285,23 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             runId: run.id,
             conversationId: convId,
           })
+        } else if (run.status === 'pending_confirmation' && run.pending_tool_call) {
+          // Block 29 fix: 刷新/换窗口后重建 HITL 确认卡片 (此前 pending run 落进 else 分支显示"生成失败")
+          messages.push({
+            id: run.id + '-a-' + i,
+            role: 'assistant',
+            content: '',
+            steps: run.steps || [],
+            status: 'pending_confirmation',
+            runId: run.id,
+            conversationId: convId,
+            pendingConfirmation: {
+              run_id: run.id,
+              step_index: (run.steps?.length ?? 1) - 1,
+              tool_name: run.pending_tool_call.tool_name,
+              tool_args: run.pending_tool_call.tool_args,
+            },
+          })
         } else {
           // failed / timeout 且没有任何内容
           messages.push({
@@ -354,6 +378,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     } catch (err: any) {
       console.error('confirmRun failed', err)
       set({ error: err.message || String(err) })
+      // Block 29 fix: rethrow 让确认卡片感知失败, 重置 loading —— 否则卡片永远转圈
+      throw err
     }
   },
 

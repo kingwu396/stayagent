@@ -20,7 +20,7 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import AsyncGenerator
 
 from sqlalchemy import select
@@ -30,6 +30,7 @@ from app.models import User, Conversation, Message, AgentRun, AgentStep
 from app.services.agent.prompts import SYSTEM_PROMPT
 from app.services.agent.tool_schemas import ALL_TOOL_SCHEMAS
 from app.services.agent.retry import retry_on_llm_error
+from app.services.booking_rules import validate_booking_request, BookingRuleError
 from app.services.agent.tools import TOOL_DISPATCH, ToolError
 from app.schemas.agent import AttachmentPayload
 
@@ -167,6 +168,29 @@ def _persist_final(db, run: AgentRun, conv_id: int, content: str, status: str = 
 
 # ============ 核心 step executor (run_agent + stream_agent 复用) ============
 
+def _prevalidate_booking(db, tool_args: dict) -> str | None:
+    """Block 29: HITL 前预校验 create_booking 参数.
+
+    返回 None 表示校验通过 (可进 pending_confirmation);
+    返回错误消息字符串表示失败 (落回普通 tool 路径, tool 抛同样错误喂回 LLM).
+    参数缺失/日期格式坏等也视为失败, 让 LLM 有机会自己纠正参数或向用户澄清.
+    """
+    try:
+        listing_id_raw = tool_args.get("listing_id")
+        listing_id = int(listing_id_raw)
+        check_in_raw = tool_args.get("check_in")
+        check_out_raw = tool_args.get("check_out")
+        check_in = date.fromisoformat(check_in_raw) if isinstance(check_in_raw, str) else check_in_raw
+        check_out = date.fromisoformat(check_out_raw) if isinstance(check_out_raw, str) else check_out_raw
+        guests = int(tool_args.get("guests", 1))
+        validate_booking_request(db, listing_id, check_in, check_out, guests)
+        return None
+    except BookingRuleError as e:
+        return str(e)
+    except (ValueError, TypeError) as e:
+        return f"下单参数无效 ({e}), 请检查 listing_id/check_in/check_out/guests 后重试"
+
+
 async def _execute_step(
     db,
     user: User,
@@ -216,8 +240,11 @@ async def _execute_step(
         tool_args = {}
 
     # ============ HITL 拦截: create_booking 需要用户确认 ============
-    # 不调 LO, 先记 step + 设 run.status='pending_confirmation'
-    if tool_name == "create_booking":
+    # Block 29: 先预校验 (房源存在/日期合法/不订过去日期/人数/冲突).
+    # 失败则不进 pending_confirmation, 落到下方普通 tool 路径 —— create_booking 内部
+    # 会抛同样的 ToolError, 错误喂回 LLM 让它主动告诉用户"该日期已被预订/日期已过期",
+    # 而不是等用户点完确认才失败.
+    if tool_name == "create_booking" and _prevalidate_booking(db, tool_args) is None:
         step = AgentStep(
             run_id=run.id,
             step_index=step_idx,

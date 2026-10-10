@@ -1570,3 +1570,55 @@ run_started → step_started → step_completed → ... → final → done
 - 房东 confirm（线下收款）不产生取消，无原因写入
 
 **提交**: (待用户说 "commit git")
+
+---
+
+## 📅 2026-10-10 — Block 29：Agent 下单预校验（可订性判断 + 过去日期拒绝 + 确认后去支付）
+
+**目标**：用户反馈三个 Agent 问题 —— ①订已被预订的房源时 agent 不提醒，直接弹确认卡；②输入过去日期（如今天 10-10 说"订 10 月 1 号到 2 号"）也能下单成功；③确认订单后想直接付款要自己去行程页找。根因：HITL 拦截点在所有校验**之前**，LLM 调 create_booking 直接进 pending_confirmation，冲突/过去日期从未被预检。
+
+**新增 (backend)**:
+- `services/booking_rules.py` 升级为统一校验模块：
+  - `BookingRuleError(message, code, http_status)` — code 对齐 ToolError 体系（NOT_FOUND/INVALID_ARGS/CONFLICT），http_status 供 API 转换
+  - `validate_booking_request(db, listing_id, check_in, check_out, guests)` 全量校验：房源存在 / 退房晚于入住 / **入住不早于今天** / 人数 1-20 且 ≤ max_guests / 日期冲突
+- `services/agent/orchestrator.py`：`_prevalidate_booking()` 在 HITL 拦截前预校验 —— 失败不进 pending_confirmation，落到普通 tool 路径（tool 抛同样错误 → {"error", "code"} 喂回 LLM）→ **LLM 主动告诉用户"该日期已被预订/日期不能早于今天"并建议换日期**；参数坏（listing_id 非数字/日期乱格式）同样让 LLM 有机会自己纠正
+- `services/agent/tools.py create_booking`：原分散校验（guests 范围/max_guests/冲突）替换为 validate_booking_request；str 日期 parse 失败单独报"格式无效"；错误消息后缀加行动指引"请向用户说明原因并建议更换日期或房源"
+- `api/bookings.py create_booking`：同样替换为统一校验（过去日期 → 400，冲突 → 409）
+- `scripts/test_host_block27.py` Test 4 补断言：API 过去日期 400 / agent tool 过去日期 ToolError / validate 各分支（同日/人数/超额/不存在/通过）
+
+**新增 (frontend)**:
+- `components/AgentMessage.tsx`：消息 status=completed 且 steps 中有 create_booking 成功结果时，渲染「订单 #x 已创建 · 15 分钟内完成支付 [去支付]」CTA 条（确认卡片确认后即被移除，CTA 在消息下方持续存在；历史消息同样生效，已支付/已失效由 PaymentView 兜底）；点击关面板并跳 /payment/{booking_id}
+- booking_id 从 `AgentStep.tool_result` 提取（object 类型收窄后访问）
+
+**验证**:
+- [x] `_prevalidate_booking` 冒烟：冲突日期/过去日期/坏参数返回错误串（不进 HITL），合法日期返回 None（进 HITL）
+- [x] `test_host_block27`: 5/5（含新增 Block 29 断言）
+- [x] `test_agent_block11_5`: 5/5（HITL approved/reject/conflict 全路径没破坏 —— 合法日期正常进确认流程）
+- [x] `test_agent_block12`: 10/10、`test_host_dashboard`: 6/6
+- [x] `pnpm exec tsc --noEmit` + `pnpm run build`: 0 报错
+- [ ] 浏览器手测: agent 对话"帮我订某房源 10月1号入住" → 应被拒绝并建议换日期；订已被预订日期 → agent 提醒冲突；确认订单后消息下方出现「去支付」按钮直达支付页
+
+**约定 / 假设**:
+- 预校验与 tool 内校验是同一函数 —— fall-through 后 tool 再抛同样错误，无副作用（校验失败绝不落库）
+- HITL 确认到执行之间仍存在竞态窗口（别人先下单）—— confirm 端点 tool 抛 ToolError → run failed，用户看到失败原因（Block 11.5 已有）
+- "不早于今天"用服务器本地日期（date.today()），与惰性过期用 DB NOW() 不同源，演示项目可接受
+
+**提交**: (待用户说 "commit git")
+
+**小修 (Block 29 后续, 用户实测反馈 3 个 bug)**:
+
+1. **确认下单按钮永远转圈 (根因级)**:
+   - bug: `stores/agent.ts applyEventToMessages` 没有处理 `run_started` 事件 → 流式占位 assistant 消息**永远没有 runId**; `confirmRun` 成功后按 `m.runId !== runId` 匹配消息 → 匹配不到 → store 不更新 → 确认卡永久 loading (**后端其实已下单成功**, 刷新可见)
+   - fix: 加 `run_started` 分支绑定 runId; `pending_confirmation` 分支防御性补 runId; confirmRun 失败 rethrow; AgentConfirmCard catch 后重置 loading + toast (此前 finally 注释假设"卡片即将被替换", 失败时不成立)
+2. **"工具调用出错: 错误 pending_confirmation"**:
+   - bug: `AgentToolStep` 的 `isError = !!step.tool_error` 未排除 HITL 等待状态 (tool_error='pending_confirmation' 是正常语义), 渲染成红色错误
+   - fix: isPending 单独分支 — 黄色时钟图标 + "等待用户确认下单"提示
+3. **支付完成后 agent 查不到已支付信息**:
+   - bug: `list_my_trips` 不输出支付单状态, agent 只能看到 booking.status=confirmed, 无法回答"付了没"
+   - fix: 查询前先 `expire_stale_payments`(惰性过期), 输出加 `payment_status` / `paid_at` / `cancel_reason`
+4. **下单失败后再让 agent 订就不调工具**:
+   - 根因: confirm 端点 ToolError 分支只写 run.error, **不写 assistant Message** → 对话历史里没有失败记录, 用户接着说"那帮我正常预订"时 LLM 上下文断裂, 答非所问
+   - fix: 失败时写一条 "❌ 下单失败: {原因}。请调整后重试" 进 conversation
+5. **刷新后确认卡消失**: AgentRunResponse 加 `pending_tool_call` 输出; 前端 `loadConversation` 重建 pending_confirmation 消息与确认卡 (此前 pending run 落进 else 分支显示"生成失败")
+
+验证: test_agent_block11_5 5/5 / test_host_block27 5/5 / tsc+build 0 报错

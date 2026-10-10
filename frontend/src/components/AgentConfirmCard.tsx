@@ -7,6 +7,7 @@
 import React, { useState } from 'react'
 import { Loader2, Calendar, Users, Home, CheckCircle2, X } from 'lucide-react'
 import { useAgentStore } from '@/stores/agent'
+import { useToast } from '@/hooks/useToast'
 import type { PendingConfirmation } from '@/types/agent'
 
 interface Props {
@@ -31,6 +32,7 @@ function getListingTitle(args: Record<string, unknown>): string {
 
 export function AgentConfirmCard({ pending }: Props) {
   const confirmRun = useAgentStore((s) => s.confirmRun)
+  const toast = useToast()
   const [confirming, setConfirming] = useState<null | boolean>(null)
   const loading = confirming !== null
   const { run_id, tool_args } = pending
@@ -40,8 +42,11 @@ export function AgentConfirmCard({ pending }: Props) {
     setConfirming(approved)
     try {
       await confirmRun(run_id, approved)
-    } finally {
-      // 不重置: 卡片组件即将被父消息替换, 这里不需要清
+      // 成功: 卡片即将被父消息替换 (store 已清 pendingConfirmation), 不需要清状态
+    } catch {
+      // Block 29 fix: 失败必须重置 loading, 否则按钮永远转圈
+      toast.error('确认失败, 请重试 (订单可能已创建, 可在行程页查看)')
+      setConfirming(null)
     }
   }
   const title = getListingTitle(tool_args)

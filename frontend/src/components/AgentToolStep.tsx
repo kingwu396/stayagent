@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, Loader2, CheckCircle2, XCircle, Wrench } from 'lucide-react'
+import { ChevronDown, ChevronRight, Loader2, CheckCircle2, XCircle, Wrench, Clock } from 'lucide-react'
 import type { AgentStep } from '@/types/agent'
 import { AgentListingCard, type AgentListingItem } from './agent/AgentListingCard'
 import { AgentTipsCard, type AgentTipItem } from './agent/AgentTipsCard'
@@ -175,8 +175,10 @@ function Field({ label, value }: { label: string; value: string }) {
 }
 export function AgentToolStep({ step }: AgentToolStepProps) {
   const [expanded, setExpanded] = useState(false)
-  const isError = !!step.tool_error
+  // Block 29 fix: tool_error='pending_confirmation' 是 HITL 等待用户确认的正常状态,
+  // 不应渲染成红色错误 (此前显示"错误: pending_confirmation")
   const isPending = step.tool_error === 'pending_confirmation'
+  const isError = !!step.tool_error && !isPending
   const inProgress = !step.tool_error && !step.tool_result && step.duration_ms == null
   const useCardRenderer = !isError && !isPending && step.tool_result != null
 
@@ -194,6 +196,8 @@ export function AgentToolStep({ step }: AgentToolStepProps) {
 
         {inProgress ? (
           <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin flex-shrink-0" />
+        ) : isPending ? (
+          <Clock className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
         ) : isError ? (
           <XCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
         ) : (
@@ -226,7 +230,11 @@ export function AgentToolStep({ step }: AgentToolStepProps) {
               </pre>
             </div>
           )}
-          {isError ? (
+          {isPending ? (
+            <div className="text-xs text-amber-600">
+              ⏳ 等待用户确认下单 (在下方确认卡片操作)
+            </div>
+          ) : isError ? (
             <div>
               <div className="text-xs text-red-500 mb-1">错误</div>
               <pre className="text-xs bg-red-50 text-red-700 p-2 rounded overflow-x-auto">

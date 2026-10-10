@@ -18,12 +18,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.models import (
-    User, Listing, Wishlist, WishlistItem, Booking, Message,
+    User, Listing, Wishlist, WishlistItem, Booking, Message, Payment,
 )
+from app.api.payments import expire_stale_payments
 from app.services.rag import retrieve_tips
 from app.core.llm_client import get_llm_client
 from app.services.agent.retry import retry_on_llm_error
-from app.services.booking_rules import find_conflict
+from app.services.booking_rules import validate_booking_request, BookingRuleError
 
 logger = logging.getLogger(__name__)
 
@@ -415,33 +416,27 @@ def create_booking(
     """为当前用户下单. 抛 ToolError 表示业务错 (HITL 二次确认前会先暂停)."""
     # 参数规范化
     if isinstance(check_in, str):
-        check_in = date.fromisoformat(check_in)
+        try:
+            check_in = date.fromisoformat(check_in)
+        except ValueError:
+            raise ToolError(f"入住日期格式无效: {check_in!r} (需要 YYYY-MM-DD)", code="INVALID_ARGS")
     if isinstance(check_out, str):
-        check_out = date.fromisoformat(check_out)
+        try:
+            check_out = date.fromisoformat(check_out)
+        except ValueError:
+            raise ToolError(f"退房日期格式无效: {check_out!r} (需要 YYYY-MM-DD)", code="INVALID_ARGS")
 
-    if guests < 1 or guests > 20:
-        raise ToolError(f"人数 {guests} 超出合法范围 (1-20)", code="INVALID_ARGS")
-
+    # Block 29: 统一校验 (listing 存在/日期合法/不订过去/人数/冲突), 与 API 同一套规则
     listing = db.get(Listing, listing_id)
     if not listing:
         raise ToolError(f"房源 #{listing_id} 不存在", code="NOT_FOUND")
+    try:
+        validate_booking_request(db, listing_id, check_in, check_out, guests)
+    except BookingRuleError as e:
+        # 给 LLM 的错误消息加一句行动指引, 让它主动向用户提出换日期/换房源
+        raise ToolError(f"{e} (请向用户说明原因并建议更换日期或房源)", code=e.code)
 
     totals = _compute_booking_totals(listing, check_in, check_out)
-
-    if guests > listing.max_guests:
-        raise ToolError(
-            f"该房源最多接待 {listing.max_guests} 位客人 (你输入 {guests})",
-            code="INVALID_ARGS",
-        )
-
-    # Block 27: 日期冲突校验 (与 api/bookings.py 同一规则, pending/confirmed 占位)
-    conflict = find_conflict(db, listing_id, check_in, check_out)
-    if conflict:
-        raise ToolError(
-            f"该房源 {check_in} ~ {check_out} 已被预订 (订单 #{conflict.id}, "
-            f"{conflict.check_in} ~ {conflict.check_out}), 请向用户确认更换日期",
-            code="CONFLICT",
-        )
 
     booking = Booking(
         user_id=user.id,
@@ -494,6 +489,9 @@ def list_my_trips(
     if status and status not in valid_statuses:
         raise ToolError(f"status 必须从 {valid_statuses} 中选", code="INVALID_ARGS")
 
+    # Block 29 fix: 先惰性过期未支付订单, 保证 pending/actual 状态与真实一致
+    expire_stale_payments(db)
+
     limit = min(max(limit, 1), 50)
     stmt = (
         select(Booking, Listing)
@@ -508,6 +506,10 @@ def list_my_trips(
     rows = db.execute(stmt).all()
     items = []
     for b, l in rows:
+        # Block 29 fix: 带上支付单状态 —— 用户问"付了没/已支付信息"时 agent 才有依据
+        payment = db.execute(
+            select(Payment).where(Payment.booking_id == b.id).order_by(Payment.id.desc()).limit(1)
+        ).scalar_one_or_none()
         items.append({
             "booking_id": b.id,
             "listing_id": b.listing_id,
@@ -519,6 +521,9 @@ def list_my_trips(
             "nights": b.nights,
             "total": float(b.total),
             "status": b.status,
+            "payment_status": payment.status if payment else None,
+            "paid_at": payment.paid_at.isoformat() if payment and payment.paid_at else None,
+            "cancel_reason": b.cancel_reason,
             "created_at": b.created_at.isoformat() if b.created_at else None,
         })
     return {"count": len(items), "items": items}
