@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { BarChart3, LogOut, Heart, Home, MapPin, User } from 'lucide-react'
+import { BarChart3, LogOut, Heart, Home, MapPin, User, CalendarDays } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { hostApi } from '@/api/host'
 import { useToast } from '@/hooks/useToast'
@@ -80,14 +80,24 @@ export function UserMenu() {
             我的行程
           </Link>
           {user.is_host ? (
-            <Link
-              to="/host"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm text-brand-600 hover:bg-slate-50 font-medium"
-            >
-              <BarChart3 className="w-4 h-4" />
-              房东后台
-            </Link>
+            <>
+              <Link
+                to="/host"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm text-brand-600 hover:bg-slate-50 font-medium"
+              >
+                <BarChart3 className="w-4 h-4" />
+                房东后台
+              </Link>
+              <Link
+                to="/host/bookings"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm text-brand-600 hover:bg-slate-50 font-medium"
+              >
+                <CalendarDays className="w-4 h-4" />
+                房东订单
+              </Link>
+            </>
           ) : (
             <button
               onClick={async () => {

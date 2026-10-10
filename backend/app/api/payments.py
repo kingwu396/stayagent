@@ -41,6 +41,7 @@ def expire_stale_payments(db) -> int:
         booking = db.get(Booking, p.booking_id)
         if booking and booking.status == "pending":
             booking.status = "cancelled"
+            booking.cancel_reason = "expired"  # Block 28: 超时未支付自动作废
     db.commit()
     logger.info("expire_stale_payments: %d 笔支付单过期", len(stale))
     return len(stale)
@@ -118,7 +119,8 @@ async def pay_payment(payment_id: int, current_user: CurrentUser, db: DBSession)
     if payment.status == "succeeded":
         return _to_response(payment)  # 幂等
     if payment.status == "failed":
-        raise HTTPException(status_code=400, detail="支付单已失效(超时未支付)")
+        # failed 的两种来源: 惰性过期 / 房东取消 (Block 27), 文案兼顾两者
+        raise HTTPException(status_code=400, detail="支付单已失效(订单已取消或超时未支付)")
     if payment.status != "pending":
         raise HTTPException(status_code=400, detail=f"支付单状态异常: {payment.status}")
 

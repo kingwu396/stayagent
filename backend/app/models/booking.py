@@ -36,6 +36,13 @@ class Booking(Base):
         default="confirmed",
     )
 
+    # Block 28: 取消原因 — user(房客取消) / host(房东取消) / expired(超时未支付自动作废)
+    # 仅 status=cancelled 时有值; 老数据为 NULL, 前端兜底显示"已取消"
+    cancel_reason: Mapped[str | None] = mapped_column(
+        Enum("user", "host", "expired", name="booking_cancel_reason_enum"),
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

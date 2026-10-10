@@ -1,14 +1,21 @@
-"""PDF 上传 API (Block 12)
+"""上传 API
 
-POST /api/uploads/pdf: multipart 上传 PDF, 用 pdfplumber 抽取文本, 返回 {file_id, text, ...}
+- POST /api/uploads/pdf  (Block 12): PDF 上传 + pdfplumber 抽文本
+- POST /api/uploads/image (Block 27): 房源图片上传
+- GET  /api/uploads/images/{filename} (Block 27): 图片访问 (挂在 /api 下, vite proxy 免改)
 
-约束:
+PDF 约束:
 - 需要登录 (CurrentUser)
 - 仅 application/pdf
 - 单文件 <= 10 MB
 - 保存到 /tmp/stayagent_uploads/{uuid}.pdf (不立即清理, 靠 OS 周期性 tmp 清理)
 
-后续 Block 可以加 DELETE /api/uploads/pdf/{file_id}, 本次不做.
+图片约束 (Block 27):
+- 需要登录 (CurrentUser)
+- 仅 jpeg / png / webp
+- 单文件 <= 5 MB
+- 存 settings.upload_dir (默认 ./uploads/images, .gitignore 已排除)
+- 演示项目不做孤儿图片清理 (房源删了文件保留)
 """
 import logging
 import os
@@ -16,9 +23,11 @@ import uuid
 
 import pdfplumber
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 
+from app.config import settings
 from app.deps import CurrentUser
-from app.schemas.upload import PdfUploadResponse
+from app.schemas.upload import ImageUploadResponse, PdfUploadResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -112,3 +121,68 @@ async def upload_pdf(
         page_count=page_count,
         summary=None,  # 不在上传时生成 summary (省 LLM 调用, 让前端拿到 text 后自己决定)
     )
+
+
+# ============ Block 27: 房源图片上传 ============
+
+IMAGE_CONTENT_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
+MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB
+
+
+@router.post("/image", response_model=ImageUploadResponse)
+async def upload_image(
+    current_user: CurrentUser,
+    file: UploadFile = File(..., description="图片文件 (jpeg/png/webp)"),
+):
+    """上传房源图片, 返回可直接存进 Listing.images 的相对 URL"""
+    ext = IMAGE_CONTENT_TYPES.get(file.content_type or "")
+    if not ext:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"仅接受 JPEG/PNG/WebP (当前 content_type={file.content_type})",
+        )
+
+    content = await file.read()
+    if len(content) > MAX_IMAGE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"图片超过 {MAX_IMAGE_SIZE // (1024 * 1024)} MB 上限",
+        )
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="文件为空")
+
+    os.makedirs(settings.upload_dir, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}{ext}"
+    save_path = os.path.join(settings.upload_dir, filename)
+    try:
+        with open(save_path, "wb") as f:
+            f.write(content)
+    except OSError as e:
+        logger.exception("image save failed")
+        raise HTTPException(status_code=500, detail=f"保存失败: {e}")
+
+    logger.info(
+        "Image upload: user=%d, file=%s (%d KB) -> %s",
+        current_user.id, file.filename or "?", len(content) // 1024, filename,
+    )
+    return ImageUploadResponse(
+        url=f"/api/uploads/images/{filename}",
+        filename=file.filename or "untitled",
+        size=len(content),
+    )
+
+
+@router.get("/images/{filename}")
+async def get_image(filename: str):
+    """图片访问 (无需登录, 房源图本就是公开数据). 挂 /api 前缀走 vite proxy."""
+    # 防目录穿越: 只允许纯文件名
+    if not filename or "/" in filename or ".." in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="非法文件名")
+    path = os.path.join(settings.upload_dir, filename)
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="图片不存在")
+    return FileResponse(path)

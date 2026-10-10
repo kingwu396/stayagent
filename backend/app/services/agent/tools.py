@@ -23,6 +23,7 @@ from app.models import (
 from app.services.rag import retrieve_tips
 from app.core.llm_client import get_llm_client
 from app.services.agent.retry import retry_on_llm_error
+from app.services.booking_rules import find_conflict
 
 logger = logging.getLogger(__name__)
 
@@ -431,6 +432,15 @@ def create_booking(
         raise ToolError(
             f"该房源最多接待 {listing.max_guests} 位客人 (你输入 {guests})",
             code="INVALID_ARGS",
+        )
+
+    # Block 27: 日期冲突校验 (与 api/bookings.py 同一规则, pending/confirmed 占位)
+    conflict = find_conflict(db, listing_id, check_in, check_out)
+    if conflict:
+        raise ToolError(
+            f"该房源 {check_in} ~ {check_out} 已被预订 (订单 #{conflict.id}, "
+            f"{conflict.check_in} ~ {conflict.check_out}), 请向用户确认更换日期",
+            code="CONFLICT",
         )
 
     booking = Booking(

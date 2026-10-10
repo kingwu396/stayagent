@@ -12,10 +12,13 @@
  */
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Eye, Home, DollarSign, TrendingUp, ExternalLink } from 'lucide-react'
+import { Eye, Home, DollarSign, TrendingUp, ExternalLink, Pencil, Calendar, Trash2, Plus } from 'lucide-react'
 import { hostApi } from '@/api/host'
 import { propertyTypeLabel } from '@/lib/labels'
+import { useToast } from '@/hooks/useToast'
 import { ErrorState } from '@/components/ErrorState'
+import { ConfirmModal } from '@/components/ConfirmModal'
+import { HostCalendarModal } from '@/components/HostCalendarModal'
 import type { HostMeResponse, HostDashboardResponse, HostListingStat } from '@/types/host'
 
 function MiniBarChart({ items }: { items: HostListingStat[] }) {
@@ -64,6 +67,11 @@ export function HostDashboardView() {
     dashboard: HostDashboardResponse | null
     error: string | null
   }>({ loading: true, info: null, dashboard: null, error: null })
+  const toast = useToast()
+  // Block 27: 删除确认 / 房态日历
+  const [deleting, setDeleting] = useState<HostListingStat | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [calendarItem, setCalendarItem] = useState<HostListingStat | null>(null)
 
   // Block 23: 抽出 load 供错误重试
   function load() {
@@ -84,6 +92,22 @@ export function HostDashboardView() {
   }, [])
 
   const { loading, info, dashboard, error } = state
+
+  // Block 27: 删除房源 (有订单时后端 409)
+  async function handleDelete() {
+    if (!deleting) return
+    setDeleteLoading(true)
+    try {
+      await hostApi.deleteListing(deleting.listing_id)
+      toast.success(`已删除「${deleting.title}」`)
+      setDeleting(null)
+      load()
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || '删除失败')
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
 
   if (loading) {
     // Block 23: 结构化骨架(KPI×4 + 图表区 + 表格 3 行)
@@ -160,11 +184,33 @@ export function HostDashboardView() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">房东后台</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          欢迎, {info.username} · {info.listing_count} 个房源
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">房东后台</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            欢迎, {info.username} · {info.listing_count} 个房源
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl transition"
+          >
+            <Home className="w-4 h-4" /> 返回主页
+          </Link>
+          <Link
+            to="/host/bookings"
+            className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl transition"
+          >
+            房东订单
+          </Link>
+          <Link
+            to="/host/listings/new"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-xl transition"
+          >
+            <Plus className="w-4 h-4" /> 发布新房源
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -218,7 +264,7 @@ export function HostDashboardView() {
         </div>
         {dashboard.items.length === 0 ? (
           <div className="p-8 text-center text-slate-400 text-sm">
-            还没有房源. 联系 Admin 给你分配, 或者等待 host seed 数据.
+            还没有房源. 点击右上角「发布新房源」开始.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -285,12 +331,32 @@ export function HostDashboardView() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link
-                        to={`/listings/${item.listing_id}`}
-                        className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700"
-                      >
-                        查看 <ExternalLink className="w-3 h-3" />
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          to={`/listings/${item.listing_id}`}
+                          className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700"
+                        >
+                          查看 <ExternalLink className="w-3 h-3" />
+                        </Link>
+                        <Link
+                          to={`/host/listings/${item.listing_id}/edit`}
+                          className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900"
+                        >
+                          <Pencil className="w-3 h-3" /> 编辑
+                        </Link>
+                        <button
+                          onClick={() => setCalendarItem(item)}
+                          className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900"
+                        >
+                          <Calendar className="w-3 h-3" /> 日历
+                        </button>
+                        <button
+                          onClick={() => setDeleting(item)}
+                          className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-rose-600"
+                        >
+                          <Trash2 className="w-3 h-3" /> 删除
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -299,6 +365,27 @@ export function HostDashboardView() {
           </div>
         )}
       </div>
+
+      {/* Block 27: 删除确认 + 房态日历 */}
+      <ConfirmModal
+        open={deleting !== null}
+        title="删除该房源?"
+        description={
+          deleting
+            ? `「${deleting.title}」将被永久删除, 心愿单中的收藏也会一并移除. 有订单的房源无法删除.`
+            : ''
+        }
+        confirmText="删除"
+        loading={deleteLoading}
+        onConfirm={handleDelete}
+        onCancel={() => !deleteLoading && setDeleting(null)}
+      />
+      <HostCalendarModal
+        open={calendarItem !== null}
+        listingId={calendarItem?.listing_id ?? 0}
+        listingTitle={calendarItem?.title ?? ''}
+        onClose={() => setCalendarItem(null)}
+      />
     </div>
   )
 }

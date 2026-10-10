@@ -1480,3 +1480,93 @@ run_started → step_started → step_completed → ... → final → done
 - 测试: TS 0 报错, build OK
 
 **提交**: (待用户说 "commit git")
+
+---
+
+## 📅 2026-10-10 — Block 27：完善房东端（房源 CRUD / 订单管理 / 房态日历 / 冲突校验）
+
+**目标**：房东端从只读看板升级为可运营闭环 —— 自己发布/编辑/删除房源、管理房客订单、查看房态，并堵住"同一房源同一日期可被重复预订"的漏洞。
+
+**新增 (backend)**:
+- `app/services/booking_rules.py`: `find_conflict()` 日期冲突校验（区间重叠 `b.check_in < check_out AND b.check_out > check_in`，首尾相接不算冲突，仅 pending/confirmed 占位）
+- 接入两处：`api/bookings.py create_booking`（冲突 409）+ `services/agent/tools.py create_booking`（ToolError CONFLICT，HITL 路径同样生效）
+- `api/uploads.py`: `POST /api/uploads/image`（jpeg/png/webp ≤ 5MB）+ `GET /api/uploads/images/{filename}`（挂 /api 前缀走 vite proxy，防目录穿越）；`config.py` 加 `upload_dir`
+- `api/host.py` 房源 CRUD：
+  - `POST /api/host/listings` 发布（host_name 取当前用户名，rating/review 从 0）
+  - `PATCH /api/host/listings/{id}` 部分更新（exclude_unset）
+  - `DELETE /api/host/listings/{id}`（bookings 外键 RESTRICT → 有订单 409；心愿单项 DB 级联清理）
+- `api/host.py` 订单管理：
+  - `GET /api/host/bookings?status=&listing_id=`（join Listing/User，含房客名+房源摘要，先惰性过期未支付订单）
+  - `POST .../confirm`（pending → confirmed 线下收款，支付单置 succeeded）
+  - `POST .../cancel`（pending/confirmed → cancelled，作废 pending 支付单）
+  - `POST .../complete`（confirmed 且 check_out < today → completed）
+- `api/host.py` 房态日历：`GET /api/host/listings/{id}/calendar?month=YYYY-MM`（返回当月 pending/confirmed 占位区间）
+- `schemas/host.py`: `ListingCreateRequest / ListingUpdateRequest / HostBookingItem / HostCalendarResponse`
+- 新测试 `scripts/test_host_block27.py`（5 个测试：图片上传 6 断言 / CRUD 越权与删除约束 / 订单状态机 / 冲突校验含 agent 路径 / 日历月份边界）
+
+**新增 (frontend)**:
+- `views/HostListingFormView.tsx`：发布/编辑复用（`/host/listings/new` 与 `/:id/edit`），分区表单（基本信息/类型 chips/价格/CounterRow 房间配置/设施 chips 取自 filter-options/图片上传预览+封面标记，≤10 张）
+- `views/HostBookingsView.tsx`：订单中心（状态 tab + 房源下拉筛选，确认/取消/完结操作，ConfirmModal 二次确认）
+- `components/HostCalendarModal.tsx`：月历模态（confirmed 红 / pending 黄 / 空闲灰，可切月，纯展示不锁房）
+- `HostDashboardView`：表格加 编辑/日历/删除 操作列 + 顶部"发布新房源"+"房东订单"按钮
+- `UserMenu`：is_host 时加"房东订单"入口；`router` 注册 3 条新路由
+- `api/host.ts` 新增 8 个函数；`api/uploads.ts` 加 `uploadImage`；`types/host.ts` 同步扩展
+
+**修复 (历史遗留测试断言，与本 Block 无关但顺手修)**:
+- `test_agent_block11_5`: A1 断言 "已下单"→"订单已创建"、`status=="confirmed"`→`"pending"`（Block 26 改待支付流程后未同步）
+- `test_agent_block12`: Test 3/10 城市断言 Tokyo/Kyoto→东京/京都（f3dede1 汉化后 LLM/regex 均输出中文标准名）；Test 10 输入改中文城市（同进程多次 asyncio.run 会触发 "Event loop is closed" 降级 regex，regex 只认中文城市）
+
+**验证**:
+- [x] `test_host_block27`: 5/5 通过（图片 415/413/穿越、CRUD 403/409、订单状态机全路径、冲突 409/首尾相接/cancelled 不占位/agent CONFLICT、日历跨月边界）
+- [x] `test_host_dashboard`: 6/6（没破坏）
+- [x] `test_agent_block11_5`: 5/5（修复断言后）
+- [x] `test_agent_block12`: 10/10（修复断言后）
+- [x] `pnpm exec tsc --noEmit` + `pnpm run build`: 0 报错
+- [ ] 浏览器手测: host1@test.com → 发布房源(传图) → 前台可见 → 房客下单 → 订单确认/日历标色 → 同日期再下单 409（按宪法由用户手测）
+
+**约定 / 假设**:
+- 图片存 `backend/uploads/images/`（.gitignore 已排除），演示项目不做孤儿图片清理
+- 房东 confirm 视为线下收款（payment 直接 succeeded + paid_at）
+- 日历占位语义 = [check_in, check_out) 的夜晚，退房日当天不占
+- 测试踩坑：同一 session 多次 `asyncio.run` 会触发 LLM client "Event loop is closed" → 降级 regex（无碍线上，线上每请求独立 loop）
+- MySQL REPEATABLE READ：测试里跨 session 读其他连接新提交的数据前需先 commit 结束挂起快照事务
+
+**提交**: (待用户说 "commit git")
+
+---
+
+## 📅 2026-10-10 — Block 28：取消订单分类展示（取消原因 + 已取消专页 + 超时作废）
+
+**目标**：房客反馈"房东取消后用户端没显示"的延伸 —— 行程页不再混排已取消订单；新建已取消订单专页并标明每笔订单的取消原因（你主动取消 / 房东取消 / 超时未支付自动作废）。
+
+**新增 (backend)**:
+- `models/booking.py`: `Booking.cancel_reason` 字段 — `ENUM('user','host','expired')` nullable；live DB 已 ALTER（AFTER status）
+- 三条取消路径写入原因：
+  - `api/bookings.py cancel_booking` → `user`（房客主动取消）
+  - `api/host.py cancel_host_booking` → `host`（房东取消，响应体也带 cancel_reason）
+  - `api/payments.py expire_stale_payments` → `expired`（15 分钟超时自动作废，机制 Block 26 已有，本次补原因标记）
+- `schemas/booking.py` BookingResponse / `schemas/host.py` HostBookingItem 输出 cancel_reason
+- `scripts/test_host_block27.py` 补断言：房东取消 cancel_reason=host；回拨支付单 created_at 16 分钟触发惰性过期 → booking cancelled + cancel_reason=expired + payment failed
+
+**新增 (frontend)**:
+- `views/CancelledTripsView.tsx`（路由 `/trips/cancelled`）：已取消订单专页，每单带原因徽标（user 灰 / host 橙 / expired 红 + 图标），老数据 cancel_reason=NULL 兜底显示"已取消"
+- `views/TripsView.tsx`：列表过滤 cancelled（副标题数量改用有效行程数），标题下加"已取消的订单 (N)"入口
+- `views/HostBookingsView.tsx`：已取消订单显示原因徽标（房客取消 / 我取消的 / 超时未支付）
+- `types/booking.ts` BookingCancelReason + Booking.cancel_reason；`types/host.ts` 同步
+
+**修复**:
+- `api/payments.py pay_payment` 失败文案 "支付单已失效(超时未支付)" → "(订单已取消或超时未支付)"（房东取消也走 failed，原文案误导）
+- `views/TripsView.tsx` + `views/PaymentView.tsx`（上一轮修复，随本 Block 记录）：可见时静默轮询 + visibilitychange/focus 刷新，房东取消/超时作废后房客页面自动感知（TripsView 30s / PaymentView 15s，payingRef 防支付中覆盖）
+
+**验证**:
+- [x] `test_host_block27`: 5/5（新增 host/expired 原因断言）
+- [x] `test_host_dashboard`: 6/6（没破坏）
+- [x] `pnpm exec tsc --noEmit` + `pnpm run build`: 0 报错
+- [ ] 浏览器手测: 房客下单不支付 → 15 分钟后行程页消失/专页显示"超时未支付"；房客自己取消 → 专页"你主动取消"；房东取消 → 专页"房东取消"、房东端"我取消的"
+
+**约定 / 假设**:
+- cancel_reason 仅 status=cancelled 有值；Block 28 之前的存量取消订单为 NULL，前端兜底
+- 行程页与专页共用 `GET /api/bookings` 全量接口，前端各自过滤（数据量小，不加查询参数）
+- 房东 confirm（线下收款）不产生取消，无原因写入
+
+**提交**: (待用户说 "commit git")

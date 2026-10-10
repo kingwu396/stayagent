@@ -5,7 +5,7 @@
  * 边界: 已 confirmed → 直接显示已支付;cancelled/过期 → 订单失效提示;
  *      15 分钟倒计时(与后端惰性过期一致), 归零提示已超时。
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Check, ChevronRight, Smartphone, MessageCircle,
@@ -41,6 +41,8 @@ export function PaymentView() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [method, setMethod] = useState<PaymentMethod>('alipay')
   const [paying, setPaying] = useState(false)
+  // 轮询闭包里读最新 paying 状态用 (state 在 effect 闭包里会 stale)
+  const payingRef = useRef(false)
   const [paidPayment, setPaidPayment] = useState<Payment | null>(null)
 
   // 加载订单
@@ -51,11 +53,28 @@ export function PaymentView() {
       setIsLoading(false)
       return
     }
-    bookingsApi
-      .getById(numId)
-      .then(setBooking)
+    const fetchBooking = () =>
+      bookingsApi.getById(numId).then((b) => {
+        // paying 中不覆盖 (支付成功瞬间轮询可能带回旧 pending 数据, 让位给 paidPayment 流程)
+        if (!payingRef.current) setBooking(b)
+      })
+    fetchBooking()
       .catch((err: any) => setLoadError(err.response?.data?.detail || err.message || '订单加载失败'))
       .finally(() => setIsLoading(false))
+
+    // 房东取消/后台惰性过期无推送 — 页面可见时每 15s 静默轮询,
+    // booking 变 cancelled/confirmed 后自动切「订单已失效」/「已支付」视图
+    const refresh = () => {
+      if (document.visibilityState !== 'visible' || payingRef.current) return
+      fetchBooking().catch(() => {}) // 轮询失败不打扰用户
+    }
+    const t = setInterval(refresh, 15000)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   // 15 分钟倒计时(从订单创建时间起算, 与后端惰性过期一致)
@@ -77,6 +96,7 @@ export function PaymentView() {
   async function handlePay() {
     if (!booking || paying) return
     setPaying(true)
+    payingRef.current = true
     try {
       // 1. 创建/复用支付单 2. 模拟网关支付(前端加 1.2s 处理动画增强真实感)
       const payment: Payment = await paymentsApi.create({ booking_id: booking.id, method })
@@ -87,8 +107,14 @@ export function PaymentView() {
       setPaidPayment(paid)
     } catch (err: any) {
       toast.error(err.response?.data?.detail || err.message || '支付失败')
+      // 支付失败可能因房东已取消/订单已过期 — 立即拉一次最新状态切视图
+      bookingsApi
+        .getById(booking.id)
+        .then(setBooking)
+        .catch(() => {})
     } finally {
       setPaying(false)
+      payingRef.current = false
     }
   }
 

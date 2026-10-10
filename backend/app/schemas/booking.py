@@ -26,6 +26,7 @@ class BookingResponse(BaseModel):
     service_fee: Decimal
     total: Decimal
     status: str
+    cancel_reason: str | None = None  # Block 28: cancelled 时的原因 user/host/expired
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

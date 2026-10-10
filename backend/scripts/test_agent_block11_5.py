@@ -191,7 +191,8 @@ def test_a_approve(db, user: User, listing: Listing, token: str) -> bool:
     body = resp.json()
     print(f"  response: status={body['status']} content='{body['final_content'][:50]}...'")
     assert body["status"] == "completed", f"expected completed, got {body['status']}"
-    assert "已下单" in body["final_content"]
+    # Block 26 起下单改 pending 待支付, 话术从 "已下单" 变为 "订单已创建"(待支付)
+    assert "订单已创建" in body["final_content"]
 
     db.commit()
     db.expire_all()
@@ -199,10 +200,11 @@ def test_a_approve(db, user: User, listing: Listing, token: str) -> bool:
     print(f"  bookings: {[(b.id, b.listing_id, b.guests, b.nights, b.total) for b in bookings]}")
     assert len(bookings) == 1
     assert bookings[0].listing_id == listing.id
-    assert bookings[0].status == "confirmed"
+    # Block 26 起 agent 下单同步走待支付流程 (确认后由用户去支付页付款)
+    assert bookings[0].status == "pending"
     assert bookings[0].guests == 2
     assert bookings[0].nights == 3
-    print("  ✓ booking 落库, run.status=completed, content 含 '已下单'")
+    print("  ✓ booking 落库 (pending 待支付), run.status=completed, content 含 '订单已创建'")
     return True
 
 

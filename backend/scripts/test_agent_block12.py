@@ -202,8 +202,9 @@ def test_3_parse_plan(db, user: User) -> bool:
     r = asyncio.run(parse_travel_plan_pdf(user=user, db=db, plan_text=text))
     print(f"  parsed: {r['parsed']}")
     parsed = r["parsed"]
-    assert "Tokyo" in parsed["cities"] or "Kyoto" in parsed["cities"], \
-        f"expected Tokyo/Kyoto, got {parsed['cities']}"
+    # f3dede1 汉化后 LLM 抽取输出中文标准城市名 (Tokyo → 东京)
+    assert "东京" in parsed["cities"] or "京都" in parsed["cities"], \
+        f"expected 东京/京都, got {parsed['cities']}"
     assert "2026-11-01" in parsed["dates"], f"expected ISO date, got {parsed['dates']}"
     assert r["raw_excerpt"][:100] == text[:100]
     print(f"  method={r['method']} (llm 优先, 失败 regex 兜底)")
@@ -224,7 +225,7 @@ def test_4_recommend_from_plan(db, user: User) -> bool:
     if r["recommendations"]:
         first_city = r["recommendations"][0].get("city", "?")
         print(f"  first hit city: {first_city}")
-        assert first_city in ("Tokyo",), f"expected Tokyo, got {first_city}"
+        assert first_city in ("东京",), f"expected 东京, got {first_city}"
     else:
         print(f"  ⚠️ no recommendations (Tokyo seed 缺失?)")
     print("  ✓ recommend_from_plan 走 search_listings 路径")
@@ -384,11 +385,13 @@ def test_10_parse_travel_with_text(db, user: User) -> bool:
     import asyncio
     result = asyncio.run(parse_travel_plan_pdf(
         user=user, db=db,
-        plan_text="Going to Tokyo from 2026-11-01 to 2026-11-05. Love sushi.",
+        # 城市用中文: LLM 路径输出中文标准名, regex 兜底也只认中文城市
+        # (同进程多次 asyncio.run 会让 LLM client 报 "Event loop is closed" 降级 regex)
+        plan_text="Going to 东京 from 2026-11-01 to 2026-11-05. Love sushi.",
     ))
     parsed = result["parsed"]
     print(f"  method={result['method']}, cities={parsed['cities']}, dates={parsed['dates']}")
-    assert "Tokyo" in parsed["cities"]
+    assert "东京" in parsed["cities"]
     assert "2026-11-01" in parsed["dates"]
     print("  ✓ plan_text 路径正常工作")
 

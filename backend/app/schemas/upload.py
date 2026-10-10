@@ -15,3 +15,10 @@ class PdfUploadResponse(BaseModel):
 class PdfUploadError(BaseModel):
     error: str
     code: str  # "INVALID_TYPE" | "TOO_LARGE" | "EXTRACT_FAILED"
+
+
+class ImageUploadResponse(BaseModel):
+    """Block 27: 图片上传返回可直接存进 Listing.images 的相对 URL"""
+    url: str = Field(description='相对 URL, 如 "/api/uploads/images/xxx.jpg"')
+    filename: str = Field(description="原始文件名")
+    size: int = Field(description="字节数")

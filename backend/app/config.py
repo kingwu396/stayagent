@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     cookie_secure: bool = False  # 生产环境改 True
     cookie_samesite: str = "lax"
 
+    # Block 27: 房源图片上传目录 (相对 backend 运行目录)
+    upload_dir: str = "./uploads/images"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

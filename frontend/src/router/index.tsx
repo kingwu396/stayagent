@@ -5,8 +5,11 @@ import { NotFoundView } from '@/views/NotFoundView'
 import { ListingDetailView } from '@/views/ListingDetailView'
 import { WishlistView } from '@/views/WishlistView'
 import { HostDashboardView } from '@/views/HostDashboardView'
+import { HostListingFormView } from '@/views/HostListingFormView'
+import { HostBookingsView } from '@/views/HostBookingsView'
 import { PaymentView } from '@/views/PaymentView'
 import { TripsView } from '@/views/TripsView'
+import { CancelledTripsView } from '@/views/CancelledTripsView'
 import { SearchView } from '@/views/SearchView'
 import { LoginView } from '@/views/LoginView'
 import { RegisterView } from '@/views/RegisterView'
@@ -68,6 +71,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: '/trips/cancelled',
+        element: (
+          <ProtectedRoute>
+            <CancelledTripsView />
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: '/host',
         element: (
           <ProtectedRoute>
@@ -75,6 +86,9 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+      { path: '/host/listings/new', element: <ProtectedRoute><HostListingFormView /></ProtectedRoute> },
+      { path: '/host/listings/:id/edit', element: <ProtectedRoute><HostListingFormView /></ProtectedRoute> },
+      { path: '/host/bookings', element: <ProtectedRoute><HostBookingsView /></ProtectedRoute> },
       { path: '*', element: <NotFoundView /> },
     ],
   },

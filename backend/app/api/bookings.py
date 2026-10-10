@@ -9,6 +9,7 @@ from app.deps import CurrentUser, DBSession
 from app.api.payments import expire_stale_payments
 from app.models import Payment
 from app.models import Booking, Listing
+from app.services.booking_rules import find_conflict
 from app.schemas.booking import (
     BookingCreate, BookingResponse, BookingListResponse,
 )
@@ -31,6 +32,7 @@ def _to_response(b: Booking) -> BookingResponse:
         service_fee=b.service_fee,
         total=b.total,
         status=b.status,
+        cancel_reason=b.cancel_reason,
         created_at=b.created_at,
     )
 
@@ -67,6 +69,17 @@ async def create_booking(payload: BookingCreate, current_user: CurrentUser, db: 
 
     if payload.guests > listing.max_guests:
         raise HTTPException(status_code=400, detail=f"该房源最多接待 {listing.max_guests} 位客人")
+
+    # Block 27: 日期冲突校验 (pending/confirmed 订单占位, 首尾相接不算冲突)
+    conflict = find_conflict(db, payload.listing_id, payload.check_in, payload.check_out)
+    if conflict:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"该日期已被预订 (订单 #{conflict.id}, {conflict.check_in} ~ {conflict.check_out}), "
+                "请更换日期"
+            ),
+        )
 
     price = Decimal(str(listing.price_per_night))
     cleaning = Decimal(str(listing.cleaning_fee or 0))
@@ -129,6 +142,7 @@ async def cancel_booking(booking_id: int, current_user: CurrentUser, db: DBSessi
         if payment:
             payment.status = "failed"
     b.status = "cancelled"
+    b.cancel_reason = "user"  # Block 28: 房客主动取消
     db.commit()
     db.refresh(b)
     return _to_response(b)

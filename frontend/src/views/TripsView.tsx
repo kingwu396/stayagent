@@ -34,8 +34,9 @@ export function TripsView() {
   const [pendingCancel, setPendingCancel] = useState<Booking | null>(null)
   const toast = useToast()
 
-  async function load() {
-    setIsLoading(true)
+  async function load(opts: { silent?: boolean } = {}) {
+    // silent: 后台轮询不闪 skeleton, 只静默更新数据
+    if (!opts.silent) setIsLoading(true)
     setError(null)
     try {
       const data = await bookingsApi.list()
@@ -50,6 +51,19 @@ export function TripsView() {
 
   useEffect(() => {
     load()
+    // 房东取消/支付过期都发生在服务端, 前端无推送 —
+    // 页面可见时每 30s 静默轮询 + 切回标签页立即刷新, 保证订单状态及时更新
+    const refresh = () => {
+      if (document.visibilityState === 'visible') load({ silent: true })
+    }
+    const t = setInterval(refresh, 30000)
+    document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', refresh)
+      window.removeEventListener('focus', refresh)
+    }
   }, [])
 
   async function onConfirmCancel() {
@@ -68,9 +82,11 @@ export function TripsView() {
     }
   }
 
-  const totalNights = bookings
-    .filter((b) => b.status !== 'cancelled')
-    .reduce((sum, b) => sum + b.nights, 0)
+  // Block 28: 已取消订单不在行程页展示, 收进专门的「已取消订单」页
+  const activeBookings = bookings.filter((b) => b.status !== 'cancelled')
+  const cancelledCount = bookings.length - activeBookings.length
+
+  const totalNights = activeBookings.reduce((sum, b) => sum + b.nights, 0)
 
   return (
     <div className="min-h-screen bg-white">
@@ -94,10 +110,19 @@ export function TripsView() {
             你的行程
           </h1>
           <p className="text-sm text-stone-500">
-            {!isLoading && total > 0
-              ? `共 ${total} 段行程 · ${totalNights} 晚`
+            {!isLoading && activeBookings.length > 0
+              ? `共 ${activeBookings.length} 段行程 · ${totalNights} 晚`
               : '还没有预订的行程'}
           </p>
+          {/* Block 28: 已取消订单收进专门页面 */}
+          {!isLoading && (
+            <Link
+              to="/trips/cancelled"
+              className="inline-flex items-center gap-1 mt-3 text-sm text-stone-500 hover:text-ink underline-offset-4 hover:underline"
+            >
+              已取消的订单{cancelledCount > 0 ? ` (${cancelledCount})` : ''}
+            </Link>
+          )}
         </header>
 
         {/* Loading */}
@@ -121,7 +146,7 @@ export function TripsView() {
         {!isLoading && error && <ErrorState description={error} onRetry={load} />}
 
         {/* Empty */}
-        {!isLoading && !error && bookings.length === 0 && (
+        {!isLoading && !error && activeBookings.length === 0 && (
           <EmptyState
             title="还没有任何行程"
             description="从房源详情页预订后，你的行程会出现在这里。"
@@ -129,9 +154,9 @@ export function TripsView() {
         )}
 
         {/* Bookings list */}
-        {!isLoading && !error && bookings.length > 0 && (
+        {!isLoading && !error && activeBookings.length > 0 && (
           <div className="space-y-4">
-            {bookings.map((b) => (
+            {activeBookings.map((b) => (
               <BookingRow
                 key={b.id}
                 booking={b}
