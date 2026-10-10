@@ -10,15 +10,6 @@ import { useToast } from '@/hooks/useToast'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import type { Booking } from '@/types/booking'
 
-function formatDate(iso: string): { day: string; month: string; year: string } {
-  const d = new Date(iso)
-  return {
-    day: String(d.getDate()).padStart(2, '0'),
-    month: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
-    year: String(d.getFullYear()),
-  }
-}
-
 function formatMoney(decimalStr: string): string {
   // 后端返 "106.50"，前端只 .00 → "106.50"
   return `¥${parseFloat(decimalStr).toFixed(2)}`
@@ -198,113 +189,136 @@ interface BookingRowProps {
   canceling: boolean
 }
 
+/** Block 30: 状态徽标 (彩色 pill, 与房东订单中心视觉统一) */
+const STATUS_META: Record<string, { label: string; cls: string }> = {
+  pending: { label: '待支付', cls: 'bg-amber-100 text-amber-800' },
+  confirmed: { label: '已确认', cls: 'bg-emerald-100 text-emerald-800' },
+  completed: { label: '已完成', cls: 'bg-slate-200 text-slate-700' },
+  cancelled: { label: '已取消', cls: 'bg-rose-100 text-rose-700' },
+}
+
+function fmtRangeDate(iso: string): { m: string; d: string } {
+  const dt = new Date(iso)
+  return {
+    m: dt.toLocaleDateString('zh-CN', { month: 'short' }).replace('月', '月'),
+    d: String(dt.getDate()).padStart(2, '0'),
+  }
+}
+
 function BookingRow({ booking: b, on取消, canceling }: BookingRowProps) {
-  const is取消led = b.status === 'cancelled'
-  const checkIn = formatDate(b.check_in)
-  const checkOut = formatDate(b.check_out)
+  const status = STATUS_META[b.status] ?? { label: b.status, cls: 'bg-slate-100 text-slate-600' }
+  const inDate = fmtRangeDate(b.check_in)
+  const outDate = fmtRangeDate(b.check_out)
+  const cover =
+    b.listing.primary_image ||
+    `https://picsum.photos/seed/stayagent-${b.listing_id}/640/480`
 
   return (
-    <article
-      className={`bg-paper border border-slate-200 rounded-md p-6 transition ${
-        is取消led ? 'opacity-50' : 'hover:border-slate-300'
-      }`}
-    >
-      <div className="flex flex-col md:flex-row md:items-start gap-6">
-        {/* Date block (主视觉) */}
-        <div className="flex md:flex-col items-baseline md:items-start gap-3 md:gap-1 md:min-w-[140px]">
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-ink leading-none">
-              {checkIn.day}
-            </span>
-            <span className="text-xs text-stone-500 uppercase tracking-wider">
-              {checkIn.month}
-            </span>
-          </div>
-          <div className="text-xs text-stone-400">→</div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-ink leading-none">
-              {checkOut.day}
-            </span>
-            <span className="text-xs text-stone-500 uppercase tracking-wider">
-              {checkOut.month}
-            </span>
-          </div>
-          <span className="text-xs text-stone-500 mt-1">{checkIn.year}</span>
-        </div>
+    <article className="group bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+      <div className="flex flex-col sm:flex-row">
+        {/* 房源封面 (16:10, 点击直达详情) */}
+        <Link
+          to={`/listings/${b.listing_id}`}
+          className="relative sm:w-56 h-44 sm:h-auto flex-shrink-0 overflow-hidden"
+        >
+          <img
+            src={cover}
+            alt={b.listing.title}
+            loading="lazy"
+            className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+          />
+          {/* 状态徽标浮层 */}
+          <span
+            className={`absolute top-3 left-3 text-xs font-medium px-2.5 py-1 rounded-full shadow-sm ${status.cls}`}
+          >
+            {status.label}
+          </span>
+        </Link>
 
-        {/* 分隔线 */}
-        <div className="hidden md:block w-px h-24 bg-slate-200" />
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <h3 className={`text-xl font-bold text-ink mb-1 ${is取消led ? 'line-through' : ''}`}>
-            {b.listing.title}
-          </h3>
-          <p className="text-sm text-stone-500 mb-3">
-            {b.listing.city}, {b.listing.country}
-          </p>
-
-          {/* Meta line */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-stone-600 mb-3">
-            <span className="flex items-center gap-1">
-              <Calendar className="w-3 h-3" />
-              {b.nights} 晚
-            </span>
-            <span className="flex items-center gap-1">
-              <Users className="w-3 h-3" />
-              {b.guests} 位客人
-            </span>
+        {/* 信息区 */}
+        <div className="flex-1 min-w-0 p-5 flex flex-col">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-lg font-bold text-ink line-clamp-1">
+                {b.listing.title}
+              </h3>
+              <p className="text-sm text-stone-500 mt-0.5">
+                {b.listing.city}, {b.listing.country}
+                <span className="text-stone-300 mx-1.5">·</span>
+                <span className="text-xs">订单 #{b.id}</span>
+              </p>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <div className="text-xl font-bold text-ink tabular-nums">
+                {formatMoney(b.total)}
+              </div>
+              <div className="text-xs text-stone-400">合计</div>
+            </div>
           </div>
 
-          {/* Price + status */}
-          <div className="flex items-baseline justify-between border-t border-slate-100 pt-3">
-            <span className="text-sm text-stone-600">
-              {formatMoney(b.total)} <span className="text-xs text-stone-400">合计</span>
-            </span>
-            <span className="text-xs text-stone-500">
-              {statusText(b)}
-            </span>
+          {/* 入住/退房 双格日期面板 */}
+          <div className="grid grid-cols-2 max-w-xs mt-4 border border-slate-200 rounded-xl overflow-hidden divide-x divide-slate-200">
+            <div className="px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wider text-stone-400">入住</div>
+              <div className="text-sm font-semibold text-ink">
+                {inDate.m} {inDate.d} 日
+              </div>
+            </div>
+            <div className="px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wider text-stone-400">退房</div>
+              <div className="text-sm font-semibold text-ink">
+                {outDate.m} {outDate.d} 日
+              </div>
+            </div>
           </div>
 
-          {/* Actions */}
-          {!is取消led && (
-            <div className="flex items-center justify-end gap-2 mt-3">
-              {b.status === 'pending' && (
-                <Link
-                  to={`/payment/${b.id}`}
-                  className="px-3 py-1.5 text-xs bg-brand-500 hover:bg-brand-600 text-white rounded transition"
-                >
-                  去支付
-                </Link>
-              )}
+          {/* meta + 操作 */}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mt-4 pt-3 border-t border-slate-100">
+            <div className="flex items-center gap-4 text-xs text-stone-600">
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5" />
+                {b.nights} 晚
+              </span>
+              <span className="flex items-center gap-1">
+                <Users className="w-3.5 h-3.5" />
+                {b.guests} 位客人
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
               <Link
                 to={`/listings/${b.listing_id}`}
-                className="text-xs text-stone-500 hover:text-ink underline-offset-4 hover:underline"
+                className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-ink border border-slate-200 rounded-lg hover:border-slate-300 transition"
               >
                 查看房源
               </Link>
-              <button
-                onClick={on取消}
-                disabled={canceling}
-                className="px-3 py-1.5 text-xs text-stone-600 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded transition disabled:opacity-50"
+              {b.status !== 'completed' && (
+                <button
+                  onClick={on取消}
+                  disabled={canceling}
+                  className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50 border border-slate-200 rounded-lg transition disabled:opacity-50"
+                >
+                  {canceling ? '取消中…' : '取消预订'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* 待支付: 高亮行动条 (15 分钟时限, 与支付页一致) */}
+          {b.status === 'pending' && (
+            <div className="flex items-center gap-3 mt-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+              <span className="flex-1 text-xs text-amber-800">
+                ⏳ 订单待支付, 超时将自动取消
+              </span>
+              <Link
+                to={`/payment/${b.id}`}
+                className="px-4 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition flex-shrink-0"
               >
-                {canceling ? '取消中…' : '取消'}
-              </button>
+                去支付
+              </Link>
             </div>
           )}
         </div>
       </div>
     </article>
   )
-}
-
-function statusText(b: Booking): string {
-  const d = new Date(b.created_at).toLocaleDateString('zh-CN')
-  const map: Record<string, string> = {
-    confirmed: `已确认 · ${d} 预订`,
-    cancelled: `已取消 · ${d} 预订`,
-    completed: `已完成 · ${d} 入住`,
-    pending: `待支付 · ${d} 创建`,
-  }
-  return map[b.status] || b.status
 }

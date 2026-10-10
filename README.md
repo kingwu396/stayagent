@@ -1,36 +1,35 @@
 # StayAgent
 
 > **Airbnb 风格住宿平台 × AI Travel Agent**
-> Agent 能真正帮你订房 — 不只是聊天，能调工具、改数据、影响实际业务流程
+> 不只是聊天 —— Agent 能真正调工具、下订单、走支付，影响实际业务流程
 
-立项文档见 `docs/project-charter.md`（本地参考用，不上传 git）。
+FastAPI + React 双端全栈项目：房客端覆盖搜索/预订/模拟支付/行程管理，房东端覆盖房源发布/订单管理/房态日历，AI Agent 通过 12 个工具 + ReAct 循环帮用户完成"搜房 → 比价 → 下单 → 支付"全链路。
 
 ---
 
-## 📍 项目板块
+## ✨ 功能总览
 
-> 完整迭代日志见 [docs/CHANGELOG.md](docs/CHANGELOG.md)
+### 🧳 房客端
+- **搜索与筛选**：50 城 1000+ 房源，DB 端过滤（价格直方图/设施多选/房型/卧室数），分页 + 地图（Leaflet + OSM）
+- **预订与模拟支付**：待支付订单 15 分钟倒计时，三种支付方式（支付宝/微信/卡），支付成功自动确认；超时自动作废
+- **订单管理**：行程页（有效订单）+ 已取消专页，取消原因可追溯（你主动取消 / 房东取消 / 超时未支付）；房东取消后房客页面 30s 内自动感知
+- **心愿单**：多清单收藏 + 按名称增删
 
-| Block | 内容 | 加分项覆盖 |
-|---|---|---|
-| 1 | 项目骨架 + Hello StayAgent | F1, B1, B2 |
-| 2 | 用户系统 | B4, F3 |
-| 3 | Listing seed 数据 | B8 |
-| 4-7 | 首页 / 搜索 / 详情 / 心愿单 / Trips | F2, F4, F6 |
-| 8 | LLM 客户端 + 12 Tool Schema | A1 |
-| 9 | Agent Orchestrator + 7 Tool | A10 |
-| 10 | AgentPanel UI + SSE 流式 | A2, F7 |
-| 11 | AgentPanel 重构 (浮动+全屏+历史) | A4, A5, A8 |
-| 11.5 | create_booking (HITL) + 拖动 + 全屏微调 | A9 |
-| **12** | **Tools 9-12 + RAG (Travel Tips) + PDF 上传** | **A3, A6, A7** |
-| **13** | **F5 动画 + F8 Generative UI + 演示文档** | **F5, F8** |
-| 14 | 房源扩容 1000 条 + DB 端过滤/分页 | B8 |
-| 15 | 房东后台 (Host Dashboard) + view 计数 | F2 |
-| 16 | 房源详情页 Airbnb 风重做 (预订卡/评价/地图) | F2 |
-| 17 | Agent 流式打字机 + content_discard 修复 | A2 |
-| 18 | 搜索浮层按 panel 对齐 | F2 |
-| 19 | 搜索条统一 + Hero↔顶栏 layoutId morph | F5 |
-| 19.5 | PDF 结构化抽取升级: LLM 优先 + regex 兜底 | A6 |
+### 🏠 房东端
+- **房源管理**：发布/编辑/删除（图片上传 ≤5MB，首图封面），有订单的房源拒删保护
+- **订单中心**：查看房客订单（按状态/房源筛选），确认（线下收款）/ 取消 / 完结，支付单联动
+- **房态日历**：月历视图展示已确认（红）/ 待支付（黄）占位，跨月订单正确展开
+- **数据看板**：房源数 / 访问量 / 预订 / 营收 KPI + Top5 访问图表
+
+### 🤖 AI Agent（DeepSeek + 手写 ReAct）
+- **12 个工具**：搜房源 / 看详情 / 比价 / 心愿单增删查 / **下单（HITL 人工确认）** / 查行程 / PDF 行程解析 / 行程推荐 / RAG 旅游知识问答
+- **下单预校验**：确认弹卡之前就校验房源存在 / 日期合法 / **不订过去日期** / 人数上限 / **日期冲突** —— 校验失败直接喂回 LLM，agent 主动告诉用户"该日期已被预订"并建议换期
+- **下单闭环**：确认后生成待支付订单，消息下方「去支付」直达支付页；支付状态（payment_status/paid_at）可被 agent 查询
+- **流式体验**：SSE + 打字机 + 工具卡片（Generative UI）+ 历史会话
+
+### 🔐 安全
+- 双 Token：Access（15min）+ Refresh（7d，HttpOnly Cookie + Redis 白名单轮换，原子 GETDEL 防竞态）
+- Redis 黑名单即时撤销 access token；房东端 API 角色隔离（403）
 
 ---
 
@@ -58,8 +57,8 @@ graph LR
       T2[get_listing_detail]
       T3[compare_listings]
       T4-7[心愿单 4 个]
-      T8[create_booking<br/>HITL]
-      T9[list_my_trips]
+      T8[create_booking<br/>HITL + 预校验]
+      T9[list_my_trips 含支付状态]
       T10-11[PDF tools]
       T12[search_travel_tips RAG]
     end
@@ -68,142 +67,104 @@ graph LR
   RAG --> Tools
 ```
 
----
+详见 [docs/architecture.md](docs/architecture.md)（双 Token 鉴权 / ReAct 循环 / RAG 闭环 / HITL / SSE 各章配图）。
 
-## 🔄 Agent 调用流程
+### 预订状态机
 
-```mermaid
-sequenceDiagram
-  participant U as User
-  participant FE as Frontend
-  participant BE as Backend
-  participant L as LLM (DeepSeek)
-  participant DB
-
-  U->>FE: 输入问题 + (可选) PDF
-  FE->>BE: POST /api/agent/chat/stream
-  BE->>DB: 写 user message
-  BE->>L: 拼 messages (system + history + augmented)
-  L-->>BE: tool_calls: [search_listings, ...]
-  loop 直到 final 或 timeout
-    BE->>DB: 写 AgentStep
-    BE->>BE: 调 tool (查 DB 或 RAG)
-    BE-->>FE: SSE: step_started/completed
-  end
-  L-->>BE: final content
-  BE->>DB: 写 assistant message + AgentRun
-  BE-->>FE: SSE: final + done
-  FE-->>U: 渐入消息 + tool cards 展开
+```
+pending ──支付成功/房东线下确认──▶ confirmed ──退房后完结──▶ completed
+   │ 15min 超时                      │
+   └──────────────┬─────────────────┘
+                  ▼ cancelled (cancel_reason: user / host / expired)
 ```
 
-HITL 例外：`create_booking` 触发时返回 `status=pending_confirmation`，前端渲染 `AgentConfirmCard`，用户点确认后调 `/api/agent/runs/{id}/confirm`。
-
-RAG 流程：`search_travel_tips(query)` → `embed(query)` → 全表 cosine similarity → top-3 tips → LLM 二次组织成中文回答。
+日期冲突校验：同一房源 `[check_in, check_out)` 区间重叠即拒绝（409），房客 API 与 Agent 工具共用同一套规则（`app/services/booking_rules.py`）。
 
 ---
 
-## 🚀 快速开始
+## 🚀 快速开始（本地开发）
 
-### 安装
+### 依赖
+
+- [uv](https://docs.astral.sh/uv/)（Python 包管理，自动建虚拟环境）
+- Node 20+ / pnpm
+- MySQL 8、Redis
+- DeepSeek API Key
+
+### 安装与配置
 
 ```bash
-make install            # uv sync + pnpm install
+make install                                   # uv sync + pnpm install
+cp backend/.env.example backend/.env           # 编辑: MYSQL_PASSWORD / DEEPSEEK_API_KEY / JWT_SECRET
+cp frontend/.env.example frontend/.env.local   # 前端无必填项
 ```
-
-### 配置环境
-
-```bash
-cp backend/.env.example backend/.env          # 然后编辑填值
-cp frontend/.env.example frontend/.env.local  # 前端无必填项
-```
-
-**后端环境变量**（`backend/.env`）：
-
-| 变量 | 必填 | 说明 |
-|---|---|---|
-| `MYSQL_USER` / `MYSQL_PASSWORD` | ✅ | MySQL 账号（本地默认 root） |
-| `MYSQL_HOST` / `MYSQL_PORT` / `MYSQL_DB` | - | 默认 `127.0.0.1:3306` / `stayagent` |
-| `DEEPSEEK_API_KEY` | ✅ | [platform.deepseek.com](https://platform.deepseek.com/api_keys) 申请 |
-| `DEEPSEEK_BASE_URL` | - | 默认 `https://api.deepseek.com` |
-| `JWT_SECRET` | ✅ | Token 签名密钥，生产环境务必换强随机值 |
-| `REDIS_URL` | - | 默认 `redis://localhost:6379/0`（认证 token 黑白名单依赖） |
-| `COOKIE_SECURE` | - | 生产 HTTPS 环境设 `true` |
-| `HF_ENDPOINT` | - | 可选 `https://hf-mirror.com`，国内加速首次下载 RAG embedding 模型 |
-
-> Redis 未启动时后端可软启动，但登录/认证相关 API 会 503 — 先 `make redis`。
-
-前端开发期由 Vite proxy 把 `/api` 转发到 `http://127.0.0.1:8000`（见 `vite.config.ts`），无需配置后端地址。
 
 ### Seed 演示数据
 
 ```bash
-make seed                                  # 100 条房源 (10 城 × 10 条)
-uv run python -m scripts.seed_travel_tips  # 30 条 RAG 知识库 (5 类 × 6 条)
+make seed                                       # 1000 条房源 (50 城 × 20) + 3 个演示房东
+uv run python -m scripts.seed_travel_tips       # 30 条 RAG 知识库
 ```
+
+演示房东：`host1@test.com` / `host2@test.com` / `host3@test.com`，密码 `TestPass123!`
 
 ### 启动
 
 ```bash
+make redis    # 认证依赖 Redis, 先启动
 make dev      # 同时启动前后端
 ```
 
-- 🎨 前端：<http://localhost:5173>
+- 🎨 前端：<http://localhost:5173>（Vite proxy 把 `/api` 转发到 8000，无需配后端地址）
 - 🚀 后端：<http://127.0.0.1:8000>
 - 📚 API 文档：<http://127.0.0.1:8000/docs>
+
+> 任意账号可在用户菜单点「成为房东」一键开通房东端。
+
+---
+
+## 📦 部署
+
+### 本地 Demo（面试演示 / 快速体验，约 5 分钟）
+
+前置：**uv / pnpm / MySQL / Redis**（各一行安装命令见 [docs/DEPLOY.md](docs/DEPLOY.md) 第 ⓪ 节）：
+
+```bash
+git clone git@gitee.com:Piggyplayground/stayagent.git && cd stayagent
+cp backend/.env.example backend/.env    # 只需填 MYSQL_PASSWORD; DeepSeek key 可留占位
+make install && make redis && make seed && make dev
+# 打开 http://localhost:5173
+```
+
+不填 DeepSeek key 时**除 AI 对话外全部功能可演示**；演示房东 `host1@test.com` / `TestPass123!`。
+
+### 生产部署
+
+完整指南见 **[docs/DEPLOY.md](docs/DEPLOY.md)**：
+
+- 云服务器（Ubuntu）手动部署：MySQL/Redis 初始化 → uvicorn + systemd 常驻 → Vite build 静态托管 → Nginx 反向代理 → HTTPS (certbot)
+- Nginx 关键配置（**SSE 必须关缓冲** / SPA 路由 fallback / 上传体积）
+- 更新流程、备份、常见问题排查表
+
+生产架构一句话：`Nginx(443) ─ / → dist 静态文件；/api → uvicorn(127.0.0.1:8000, systemd) → MySQL + Redis`
 
 ---
 
 ## 🧪 验证
 
 ```bash
-# 后端 unit tests
+# 后端验证脚本 (需先 make seed + 本地 MySQL/Redis)
 cd backend
-uv run python -m scripts.test_agent_block11_5    # 5/5
-uv run python -m scripts.test_agent_block12      # 10/10
+uv run python -m scripts.test_host_block27     # 房东端 CRUD/订单/日历/冲突校验 5/5
+uv run python -m scripts.test_host_dashboard   # Block 15 看板回归 6/6
+uv run python -m scripts.test_agent_block11_5  # HITL 下单全路径 5/5
+uv run python -m scripts.test_agent_block12    # PDF/RAG 工具 10/10
 
-# 前端 build
+# 前端
 cd ../frontend
-pnpm exec tsc --noEmit
-pnpm run build
+pnpm exec tsc --noEmit    # 类型检查
+pnpm run build            # 生产构建
 ```
-
----
-
-## 🎬 演示脚本
-
-详见 **[docs/demo.md](docs/demo.md)** — 5 分钟答辩脚本。
-
----
-
-## 🐛 开发踩坑记录（真实问题 → 解法）
-
-完整日志见 [docs/CHANGELOG.md](docs/CHANGELOG.md)，逐条面试口径见 [docs/interview/tech-decisions.md](docs/interview/tech-decisions.md)。精选：
-
-| # | 坑 | 解法 |
-|---|---|---|
-| 1 | npm/pip 装依赖慢、环境易污染 | 全量迁移 pnpm + uv，速度快 10-100× |
-| 2 | AMap 瓦片灰屏连修 3 次（securityJsCode / WebGL / 真浏览器复现） | 第 3 次仍不稳定后果断换 Leaflet + OSM：功能等价、0 配置 |
-| 3 | Tool schema 写 `file_path`、实现要 `plan_text`，LLM 按 schema 调 → TypeError | schema / 实现 / prompt 三处对齐，并加单测断言 properties |
-| 4 | 流式输出时 LLM 先吐 preamble 再调工具，客套话混进聊天气泡 | 自定义 SSE 事件 `content_discard`：后端 buffer 与前端 content 同一事件清零 |
-| 5 | amenities 筛选先分页后过滤，每页条数不稳定 | 改为全量候选 → Python 端 AND 过滤 → 再分页 |
-| 6 | Redis 未启动后端直接起不来 | 软启动：连接失败仅告警，认证 API 降级 503 |
-| 7 | PDF 结构化抽取 regex 只认固定写法（"带爸妈"=3 人抓不到） | 升级 LLM 结构化抽取优先 + regex 兜底，输出字段同构、无感降级 |
-
----
-
-## 🔑 关键技术决策
-
-| 决策 | 替代方案 | 为何选这个 |
-|---|---|---|
-| **uv** (Rust 写的 pip) | pip + venv | 快 10-100×，自动管虚拟环境 |
-| **pnpm** | npm / yarn | 速度快、磁盘省、monorepo 友好 |
-| **Sentence-Transformers** (本地 RAG) | 云 embedding API / LangChain | 0 成本、不引依赖、规模 30 条足够 |
-| **DeepSeek** | OpenAI / Claude | 中文强、价格低、OpenAI 协议兼容 |
-| **手写 ReAct** | LangChain / LlamaIndex | 透明可控，无黑盒 |
-| **MySQL** + SQLAlchemy 2.0 | Postgres / MongoDB | 项目 ORM 基础 |
-| **Redis 黑名单** | JWT-only | 即时撤销 access token，无需等过期 |
-| **PDF inline 注入** | file_id 引用 | LLM 直接读，避免幻觉参数 |
-| **PDF 抽取 LLM 优先 + regex 兜底** | 纯 regex | 自由文本（"带爸妈"=3 人 / 任意城市）也能结构化，LLM 失败自动降级 |
 
 ---
 
@@ -213,32 +174,61 @@ pnpm run build
 stayagent/
 ├── backend/
 │   ├── app/
-│   │   ├── api/         # HTTP 路由 (auth/listings/bookings/wishlists/agent/uploads)
-│   │   ├── core/        # llm_client / redis_client / security
+│   │   ├── api/         # 路由: auth / listings / bookings / payments / wishlists / agent / uploads / host / health
+│   │   ├── core/        # llm_client / redis_client / security (双 Token)
 │   │   ├── db/          # SQLAlchemy Base + Session
-│   │   ├── models/      # 9 张表
+│   │   ├── models/      # 10 张表 (User/Listing/Booking/Payment/Wishlist/Conversation/AgentRun/...)
 │   │   ├── schemas/     # Pydantic schemas
-│   │   └── services/
-│   │       ├── agent/   # orchestrator / tools / tool_schemas / prompts / retry
-│   │       └── rag/      # Block 12: sentence-transformers + cosine
+│   │   ├── services/
+│   │   │   ├── agent/   # orchestrator (ReAct+HITL) / tools / tool_schemas / prompts / retry
+│   │   │   ├── booking_rules.py  # 预订统一校验 (冲突/过去日期/人数) — API 与 Agent 共用
+│   │   │   └── rag/     # sentence-transformers + cosine
 │   ├── scripts/         # seed_listings / seed_travel_tips / test_block_*
 │   └── pyproject.toml
 ├── frontend/
-│   ├── src/
-│   │   ├── api/         # axios + uploads + agent
-│   │   ├── components/  # 33+ 组件 + agent/ 子目录 (F8)
-│   │   ├── views/       # 7 页面
-│   │   ├── stores/      # auth / wishlist / agent / toast (zustand)
-│   │   ├── hooks/ / lib/ / types/ / router/
-│   │   └── index.css
-│   └── tailwind.config.js
+│   └── src/
+│       ├── api/         # axios 封装 (host/bookings/payments/uploads/agent/...)
+│       ├── views/       # Home/Search/ListingDetail/Trips/CancelledTrips/Payment/Host*/...
+│       ├── components/  # 40+ 组件 (含 agent/ Generative UI 子目录)
+│       ├── stores/      # zustand: auth / wishlist / agent / toast
+│       └── router/      # react-router v6 + ProtectedRoute
 ├── docs/
-│   ├── CHANGELOG.md
-│   ├── CONSTITUTION.md
-│   ├── project-charter.md
-│   ├── demo.md             # Block 13: 5 分钟演示脚本
-│   ├── architecture.md     # Block 13: 架构详解
-│   └── screenshots/        # Block 13: 截图占位
-├── Makefile
-└── README.md
+│   ├── DEPLOY.md        # 生产部署指南
+│   ├── architecture.md  # 架构详解
+│   ├── CHANGELOG.md     # 逐 Block 迭代日志 (30+ Blocks)
+│   └── demo.md          # 5 分钟演示脚本
+└── Makefile
 ```
+
+---
+
+## 🔑 关键技术决策
+
+| 决策 | 替代方案 | 为何选这个 |
+|---|---|---|
+| **uv** | pip + venv | 快 10-100×，自动管虚拟环境 |
+| **pnpm** | npm / yarn | 速度快、磁盘省、monorepo 友好 |
+| **手写 ReAct** | LangChain / LlamaIndex | 透明可控，无黑盒，HITL 拦截点自己说了算 |
+| **DeepSeek** | OpenAI / Claude | 中文强、价格低、OpenAI 协议兼容 |
+| **Sentence-Transformers 本地 RAG** | 云 embedding API | 0 成本、30 条知识库规模足够 |
+| **MySQL + SQLAlchemy 2.0** | Postgres / MongoDB | 项目 ORM 基础 |
+| **Redis 黑白名单** | 纯 JWT | access token 即时撤销 + refresh 轮换防重放 |
+| **Leaflet + OSM** | AMap | 0 配置、无瓦片灰屏坑（详见踩坑 #2） |
+| **预订校验三处共用** | 各写各的 | API / Agent tool / HITL 预校验同一函数，杜绝旁路 |
+
+---
+
+## 🐛 踩坑记录精选
+
+完整日志见 [docs/CHANGELOG.md](docs/CHANGELOG.md)，面试口径见 [docs/interview/tech-decisions.md](docs/interview/tech-decisions.md)：
+
+| # | 坑 | 解法 |
+|---|---|---|
+| 1 | amenities 筛选先分页后过滤，每页条数不稳 | 全量候选 → MySQL `JSON_CONTAINS` AND 过滤 → SQL 分页 |
+| 2 | AMap 瓦片灰屏连修 3 次 | 果断换 Leaflet + OSM：功能等价、0 配置 |
+| 3 | LLM 先吐 preamble 再调工具，客套话混进气泡 | 自定义 SSE 事件 `content_discard`，前后端同一事件清零 |
+| 4 | HITL 确认卡永远转圈（后端其实已下单） | 流式占位消息没绑 runId，`confirmRun` 匹配不到 —— `run_started` 事件补绑定 |
+| 5 | Agent 订已被预订的日期/过去日期不提醒 | 校验提前到 HITL 拦截之前，失败喂回 LLM 主动告知用户 |
+| 6 | 房东取消订单后房客页面不更新 | 服务端无推送 → 可见时轮询 + focus 刷新（行程页 30s / 支付页 15s） |
+| 7 | 同一 session 多次 `asyncio.run` 报 Event loop is closed | 测试脚本限制；LLM 降级 regex 时城市匹配需中文名 |
+| 8 | MySQL REPEATABLE READ 下跨 session 读不到新数据 | 旧快照事务未结束 —— 测试里跨 session 读前先 commit |

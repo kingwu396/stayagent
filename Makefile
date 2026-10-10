@@ -1,13 +1,20 @@
-.PHONY: help install dev backend frontend redis clean
+.PHONY: help install dev backend frontend redis seed seed-tips test check build clean
 
 help:
 	@echo "StayAgent 开发命令:"
-	@echo "  make install  - 安装所有依赖（首次）"
-	@echo "  make redis    - 启动 Redis (brew services)"
-	@echo "  make dev      - 同时启动前后端（推荐）"
-	@echo "  make backend  - 只启动后端"
-	@echo "  make frontend - 只启动前端"
-	@echo "  make clean    - 清理临时文件"
+	@echo "  make install   - 安装所有依赖（首次）"
+	@echo "  make dev       - 同时启动前后端（推荐）"
+	@echo "  make backend   - 只启动后端"
+	@echo "  make frontend  - 只启动前端"
+	@echo "  make redis     - 启动 Redis (本机 redis-server, 已在跑则跳过)"
+	@echo "  make seed      - 填充 1000 条房源演示数据 (幂等, 含 3 个演示房东)"
+	@echo "  make seed-tips - 填充 30 条 RAG 旅游知识库"
+	@echo "  make test      - 跑后端全部验证脚本 (需先 seed + MySQL/Redis)"
+	@echo "  make check     - 前端类型检查 + 生产构建"
+	@echo "  make build     - 只构建前端产物 (dist/)"
+	@echo "  make clean     - 清理临时文件"
+	@echo ""
+	@echo "生产部署见 docs/DEPLOY.md (systemd + nginx, 不走 make)"
 
 install:
 	@echo "📦 安装后端依赖（uv）..."
@@ -15,10 +22,6 @@ install:
 	@echo "📦 安装前端依赖（pnpm）..."
 	cd frontend && pnpm install
 	@echo "✅ 安装完成"
-
-seed:
-	@echo "🌱 填充 100 条房源演示数据..."
-	cd backend && uv run python -m scripts.seed_listings
 
 redis:
 	@echo "🔴 启动 Redis..."
@@ -34,9 +37,35 @@ frontend:
 	cd frontend && pnpm dev
 
 dev:
-	@echo "🚀 同时启动前后端（Ctrl+C 关闭）"
+	@echo "🚀 同时启动前后端（Ctrl+C 一起关闭）"
 	@make -j 2 backend frontend
 
+seed:
+	@echo "🌱 填充房源演示数据 (50 城 × 20, 增量幂等)..."
+	cd backend && uv run python -m scripts.seed_listings
+
+seed-tips:
+	@echo "🌱 填充 RAG 旅游知识库 (5 类 × 6 条)..."
+	cd backend && uv run python -m scripts.seed_travel_tips
+
+test:
+	@echo "🧪 跑后端验证脚本..."
+	cd backend && uv run python -m scripts.test_host_block27
+	cd backend && uv run python -m scripts.test_host_dashboard
+	cd backend && uv run python -m scripts.test_agent_block11_5
+	cd backend && uv run python -m scripts.test_agent_block12
+
+check:
+	@echo "🔎 前端类型检查..."
+	cd frontend && pnpm exec tsc --noEmit
+	@echo "🔎 前端生产构建..."
+	cd frontend && pnpm run build
+
+build:
+	cd frontend && pnpm run build
+
+# 注意: __pycache__ 用 find 递归清理 (shell 默认不开 globstar, ** 不生效)
 clean:
-	rm -rf backend/.venv frontend/node_modules backend/**/__pycache__ frontend/dist
+	rm -rf backend/.venv frontend/node_modules frontend/dist
+	find backend -name "__pycache__" -type d -prune -exec rm -rf {} +
 	@echo "✅ 清理完成"

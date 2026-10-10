@@ -1622,3 +1622,36 @@ run_started → step_started → step_completed → ... → final → done
 5. **刷新后确认卡消失**: AgentRunResponse 加 `pending_tool_call` 输出; 前端 `loadConversation` 重建 pending_confirmation 消息与确认卡 (此前 pending run 落进 else 分支显示"生成失败")
 
 验证: test_agent_block11_5 5/5 / test_host_block27 5/5 / tsc+build 0 报错
+
+---
+
+## 📅 2026-10-10 — Block 30：行程页订单卡片重设计 + README/部署文档重写
+
+**目标**：用户反馈行程页订单样式简陋；README 内容停在 Block 19 且无部署文档。
+
+**新增 (frontend)**:
+- `views/TripsView.tsx` BookingRow 全面重设计（Airbnb checkout 卡片风）：
+  - 左侧房源封面图（primary_image，picsum seed 兜底，hover 缩放，点击直达详情）
+  - 状态徽标浮层在图片左上角（待支付琥珀/已确认绿/已完成灰，与房东订单中心视觉统一）
+  - 右侧价格突出显示；入住/退房双格日期面板（带边框分栏）
+  - meta 行（晚数/人数）+ 操作区（查看房源 / 取消预订）
+  - **待支付高亮行动条**：琥珀色提示"超时将自动取消"+ 去支付按钮
+  - 已完成订单隐藏取消按钮；删除旧 formatDate（改 fmtRangeDate）
+
+**新增 (docs)**:
+- `docs/DEPLOY.md`：生产部署指南（新写）—— 生产架构图（Nginx 静态托管+反代 / uvicorn+systemd / MySQL+Redis）、Ubuntu 环境准备、MySQL 初始化与 .env 生产必改项（JWT_SECRET/COOKIE_SECURE 等）、systemd 单元、**Nginx 关键配置（SSE proxy_buffering off / SPA try_files fallback / 上传体积）**、HTTPS certbot、更新流程、排查表（7 条）、MySQL 备份
+- `README.md` 重写：功能总览（房客/房东/Agent/安全四板块，更新到 Block 29 现状）、架构图（工具清单同步）、**预订状态机图**（含 cancel_reason）、快速开始、部署入口、验证命令、项目结构、技术决策、踩坑精选 8 条
+
+**验证**:
+- [x] `pnpm exec tsc --noEmit` + `pnpm run build`: 0 报错
+- [ ] 浏览器手测: /trips 页看新卡片（封面图/状态徽标/日期面板/待支付条）
+
+**提交**: (待用户说 "commit git")
+
+**小修 (Block 30 后续, Demo 部署 + Makefile 修缮)**:
+- Makefile 修缮: help 漏列 seed / .PHONY 缺失 / clean 的 `**/__pycache__` 不递归(macOS make 3.81 无 globstar, 改 find) / redis 描述与实现不符; 新增 `make test`(4 个验证脚本)/`make check`(tsc+build)/`make build`/`make seed-tips`; help 指向 DEPLOY.md
+- Demo 部署文档 (面试官本地原生跑, 不用 Docker): DEPLOY.md 第 ⓪ 节
+  - 前置一行装依赖 (macOS brew / Ubuntu apt: uv + pnpm + mysql + redis)
+  - 流程: cp .env 填 MySQL 密码 (DeepSeek 可留空) → make install → make redis → make seed → make dev → localhost:5173
+  - key 留空降级说明 (除 AI 对话外全部可用) + 演示账号 + 两条常见问题
+  - README 部署节同步为 Demo 三步 + 生产部署入口
