@@ -82,69 +82,52 @@ pending ──支付成功/房东线下确认──▶ confirmed ──退房后
 
 ---
 
-## 🚀 快速开始（本地开发）
+## 🚀 快速开始（本地运行 / 面试 Demo，约 5 分钟）
 
-### 依赖
+### 1. 前置依赖（一次性）
 
-- [uv](https://docs.astral.sh/uv/)（Python 包管理，自动建虚拟环境）
-- Node 20+ / pnpm
-- MySQL 8、Redis
-- DeepSeek API Key
+| 依赖 | macOS (Homebrew) | Ubuntu |
+|---|---|---|
+| MySQL + Redis | `brew install mysql redis && brew services start mysql` | `sudo apt install -y mysql-server redis-server && sudo systemctl enable --now mysql redis-server` |
+| uv | `curl -LsSf https://astral.sh/uv/install.sh \| sh` | 同左 |
+| Node 20+ / pnpm | `brew install node && corepack enable pnpm` | `sudo apt install -y nodejs && sudo corepack enable pnpm` |
 
-### 安装与配置
-
-```bash
-make install                                   # uv sync + pnpm install
-cp backend/.env.example backend/.env           # 编辑: MYSQL_PASSWORD / DEEPSEEK_API_KEY / JWT_SECRET
-cp frontend/.env.example frontend/.env.local   # 前端无必填项
-```
-
-### Seed 演示数据
-
-```bash
-make seed                                       # 1000 条房源 (50 城 × 20) + 3 个演示房东
-uv run python -m scripts.seed_travel_tips       # 30 条 RAG 知识库
-```
-
-演示房东：`host1@test.com` / `host2@test.com` / `host3@test.com`，密码 `TestPass123!`
-
-### 启动
-
-```bash
-make redis    # 认证依赖 Redis, 先启动
-make dev      # 同时启动前后端
-```
-
-- 🎨 前端：<http://localhost:5173>（Vite proxy 把 `/api` 转发到 8000，无需配后端地址）
-- 🚀 后端：<http://127.0.0.1:8000>
-- 📚 API 文档：<http://127.0.0.1:8000/docs>
-
-> 任意账号可在用户菜单点「成为房东」一键开通房东端。
-
----
-
-## 📦 部署
-
-### 本地 Demo（面试演示 / 快速体验，约 5 分钟）
-
-前置：**uv / pnpm / MySQL / Redis**（各一行安装命令见 [docs/DEPLOY.md](docs/DEPLOY.md) 第 ⓪ 节）：
+### 2. 拉代码 + 配置
 
 ```bash
 git clone git@gitee.com:Piggyplayground/stayagent.git && cd stayagent
-cp backend/.env.example backend/.env    # 只需填 MYSQL_PASSWORD; DeepSeek key 可留占位
-make install && make redis && make seed && make dev
-# 打开 http://localhost:5173
+cp backend/.env.example backend/.env
 ```
 
-不填 DeepSeek key 时**除 AI 对话外全部功能可演示**；演示房东 `host1@test.com` / `TestPass123!`。
+`backend/.env` 只需填一处：`MYSQL_PASSWORD`（本机 MySQL 密码）。
+`DEEPSEEK_API_KEY` 可留占位 `sk-xxx` —— **除 AI 对话外的全部功能都可演示**（搜索/筛选/预订/支付/房东端/日历）；要演示 Agent 就填真实 key（调用费极低，几厘/次）。
 
-### 生产部署
+### 3. 启动（全走 make）
 
-完整指南见 **[docs/DEPLOY.md](docs/DEPLOY.md)**：
+```bash
+make install   # 前后端依赖 (首次)
+make redis     # 启动 Redis (已在跑则跳过; 认证依赖它)
+make seed      # 1000 条房源 + 3 个演示房东 + RAG 知识库 (幂等)
+make dev       # 同时启动前后端, Ctrl+C 一起关
+```
 
-- 云服务器（Ubuntu）手动部署：MySQL/Redis 初始化 → uvicorn + systemd 常驻 → Vite build 静态托管 → Nginx 反向代理 → HTTPS (certbot)
-- Nginx 关键配置（**SSE 必须关缓冲** / SPA 路由 fallback / 上传体积）
-- 更新流程、备份、常见问题排查表
+打开 **<http://localhost:5173>**（Vite proxy 已把 `/api` 转发到 8000；API 文档在 <http://127.0.0.1:8000/docs>）。
+
+### 演示速览
+
+- **房客**：注册任意账号 → 搜索 → 详情页预订 → 支付页（15 分钟倒计时）→ 行程页
+- **房东**：登录 `host1@test.com`（密码 `TestPass123!`）→ 用户菜单「房东后台」→ 发布房源 / 订单中心 / 房态日历
+- **已取消订单**：行程页 →「已取消的订单」专页（区分 你取消 / 房东取消 / 超时）
+- 任意账号可在用户菜单点「成为房东」一键开通房东端
+
+> 遇到问题？登录报 503 = Redis 没起（`make redis`）；`database: disconnected` = `.env` 的 MySQL 密码不符。更多细节见 [docs/DEPLOY.md](docs/DEPLOY.md) 第 ⓪ 节。
+
+---
+
+## 🖥 部署
+
+- **本地 / 面试 Demo**：就是上面的快速开始，没有额外步骤
+- **云服务器生产部署**（Ubuntu）：见 **[docs/DEPLOY.md](docs/DEPLOY.md)** —— MySQL/Redis 初始化 → uvicorn + systemd 常驻 → Vite build 静态托管 → Nginx 反向代理 → HTTPS (certbot)，含 Nginx 关键配置（SSE 关缓冲 / SPA fallback）与排查表
 
 生产架构一句话：`Nginx(443) ─ / → dist 静态文件；/api → uvicorn(127.0.0.1:8000, systemd) → MySQL + Redis`
 
@@ -153,17 +136,8 @@ make install && make redis && make seed && make dev
 ## 🧪 验证
 
 ```bash
-# 后端验证脚本 (需先 make seed + 本地 MySQL/Redis)
-cd backend
-uv run python -m scripts.test_host_block27     # 房东端 CRUD/订单/日历/冲突校验 5/5
-uv run python -m scripts.test_host_dashboard   # Block 15 看板回归 6/6
-uv run python -m scripts.test_agent_block11_5  # HITL 下单全路径 5/5
-uv run python -m scripts.test_agent_block12    # PDF/RAG 工具 10/10
-
-# 前端
-cd ../frontend
-pnpm exec tsc --noEmit    # 类型检查
-pnpm run build            # 生产构建
+make test    # 后端 4 个验证脚本 (房东端/HITL/PDF·RAG, 需先 make seed)
+make check   # 前端 tsc 类型检查 + 生产构建
 ```
 
 ---
@@ -193,7 +167,7 @@ stayagent/
 │       ├── stores/      # zustand: auth / wishlist / agent / toast
 │       └── router/      # react-router v6 + ProtectedRoute
 ├── docs/
-│   ├── DEPLOY.md        # 生产部署指南
+│   ├── DEPLOY.md        # 部署指南 (本地 Demo 细节 + 云服务器生产)
 │   ├── architecture.md  # 架构详解
 │   ├── CHANGELOG.md     # 逐 Block 迭代日志 (30+ Blocks)
 │   └── demo.md          # 5 分钟演示脚本
