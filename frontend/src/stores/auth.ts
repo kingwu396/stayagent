@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { authApi } from '@/api/auth'
 import { getToken, setToken, clearToken } from '@/api/client'
 import type { User } from '@/api/auth'
+import { apiErrorText } from '@/lib/utils'
 
 interface AuthState {
   user: User | null
@@ -43,7 +44,7 @@ export const useAuthStore = create<AuthState>()(
           set({ token: access_token, user, isLoading: false })
         } catch (err: any) {
           set({
-            error: err.response?.data?.detail || '登录失败',
+            error: apiErrorText(err, '登录失败'),
             isLoading: false,
           })
           throw err
@@ -58,7 +59,7 @@ export const useAuthStore = create<AuthState>()(
           await get().login(username, password)
         } catch (err: any) {
           set({
-            error: err.response?.data?.detail || '注册失败',
+            error: apiErrorText(err, '注册失败'),
             isLoading: false,
           })
           throw err

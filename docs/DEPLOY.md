@@ -300,3 +300,5 @@ cd ../frontend && pnpm install && pnpm run build   # 前端产物即改即生效
 # 每日备份 MySQL (crontab)
 0 3 * * * mysqldump -u stayagent -p'你的密码' stayagent | gzip > /opt/backups/stayagent_$(date +\%F).sql.gz
 ```
+
+恢复：`mysql -u stayagent -p stayagent < 备份文件.sql`
