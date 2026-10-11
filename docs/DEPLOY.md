@@ -6,7 +6,7 @@
 
 ## ⓪ 本地 Demo（面试演示 / 快速体验）
 
-面向 macOS / Ubuntu 开发机，约 5 分钟跑起来。前置条件四样：**uv、pnpm、MySQL、Redis**。
+面向 macOS / Ubuntu / Windows 开发机，约 5 分钟跑起来。前置条件四样：**uv、pnpm、MySQL、Redis**。
 
 ### 1. 装依赖（一次性）
 
@@ -22,6 +22,39 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 sudo corepack enable pnpm
 sudo systemctl enable --now mysql redis-server
 ```
+
+### Windows 用户（二选一）
+
+#### 方案 A：WSL2（推荐，坑最少）
+
+Windows 上没有官方 Redis、也没有原生 `make`，所以最顺畅的路径是装 WSL2（微软官方的 Linux 子系统），之后**本文档所有 Ubuntu 命令原样照抄**：
+
+```powershell
+# 管理员 PowerShell, 执行后重启电脑 (默认装 Ubuntu)
+wsl --install
+```
+
+重启后打开「Ubuntu」终端，从上面 **Ubuntu 那段**的安装命令开始照做（`git clone` 仓库也放在 WSL 文件系统里）。前后端照常 `make dev`，**Windows 浏览器直接访问 http://localhost:5173**（WSL2 自动端口转发，无需任何配置）。
+
+#### 方案 B：Windows 原生（不推荐，能用但坑多）
+
+```powershell
+winget install Git.Git OpenJS.NodeJS.LTS Oracle.MySQL    # Git / Node / MySQL
+winget install astral-sh.uv                              # uv
+corepack enable pnpm                                     # 需管理员 PowerShell
+winget install Memurai.MemuraiDeveloper                  # Redis 兼容替代 (无官方 Windows Redis)
+```
+
+不用 make，命令对应关系：
+
+| make 目标 | 原生命令 (backend/frontend 目录下) |
+|---|---|
+| `make install` | `cd backend && uv sync`；`cd frontend && pnpm install` |
+| `make redis` | Memurai 装完即 Windows 服务自启，跳过 |
+| `make seed` | `cd backend && uv run python -m scripts.seed_listings` |
+| `make dev` | 两个终端分别跑：`uv run uvicorn app.main:app --reload --port 8000`；`cd frontend && pnpm dev` |
+
+> MySQL 用 winget 装完会弹配置向导，记住设置的 root 密码填进 `.env`。此路径未全量验证，遇问题优先切方案 A。
 
 ### 2. 拉代码 + 配置
 

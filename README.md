@@ -92,6 +92,8 @@ pending ──支付成功/房东线下确认──▶ confirmed ──退房后
 | uv | `curl -LsSf https://astral.sh/uv/install.sh \| sh` | 同左 |
 | Node 20+ / pnpm | `brew install node && corepack enable pnpm` | `sudo apt install -y nodejs && sudo corepack enable pnpm` |
 
+> **Windows 用户**：推荐装 WSL2（管理员 PowerShell 执行 `wsl --install`，重启后进入 Ubuntu 终端）按 Ubuntu 列操作，Windows 浏览器直接访问 localhost；原生 Windows 安装（winget + Memurai 替代 Redis）见 [docs/DEPLOY.md](docs/DEPLOY.md) 第 ⓪ 节。
+
 ### 2. 拉代码 + 配置
 
 ```bash
