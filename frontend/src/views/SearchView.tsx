@@ -40,7 +40,7 @@ function parseSearchFromURL(sp: URLSearchParams): CompactSearchState {
   }
 }
 
-/** 把 CompactSearchState 写到 URL（保留 page） */
+/** 把 CompactSearchState 写到 URL */
 function applySearchToURL(current: URLSearchParams, s: CompactSearchState): URLSearchParams {
   const next = new URLSearchParams(current)
   function setOrDel(k: string, v: string) {
@@ -52,7 +52,6 @@ function applySearchToURL(current: URLSearchParams, s: CompactSearchState): URLS
   setOrDel('check_out', s.checkOut)
   const g = s.guests.adults + s.guests.children
   setOrDel('min_guests', g > 0 ? String(g) : '')
-  next.delete('page')
   return next
 }
 
@@ -76,7 +75,7 @@ function parseFilterFromURL(sp: URLSearchParams): FilterState {
   }
 }
 
-/** 把 FilterState 写到 URL（保留 page） */
+/** 把 FilterState 写到 URL */
 function applyFilterToURL(current: URLSearchParams, f: FilterState): URLSearchParams {
   const next = new URLSearchParams(current)
   function setOrDel(k: string, v: string) {
@@ -91,7 +90,6 @@ function applyFilterToURL(current: URLSearchParams, f: FilterState): URLSearchPa
   setOrDel('min_beds', f.min_beds > 0 ? String(f.min_beds) : '')
   setOrDel('min_bathrooms', f.min_bathrooms > 0 ? String(f.min_bathrooms) : '')
   setOrDel('amenities', f.amenities.length ? f.amenities.join(',') : '')
-  next.delete('page')
   return next
 }
 
@@ -114,6 +112,8 @@ export function SearchView() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const search = useMemo(() => parseSearchFromURL(searchParams), [searchParams])
+  // Block 31: URL 不再携带 page (loadMore 改为纯内存分页, 见 loadMore 注释),
+  // 所以 searchParams 变化 ⟺ 真实筛选变化, filter 可直接依赖它
   const filter = useMemo(() => parseFilterFromURL(searchParams), [searchParams])
 
   // 带 city 的搜索记入 localStorage「继续搜索」（主页欢迎回来板块用）
@@ -211,15 +211,12 @@ export function SearchView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, search.guests.adults, search.guests.children])
 
-  // 用户点 Load More
+  // 用户点 Load More —— 纯内存分页, 不写 URL:
+  // ① page 参数从未被读取 (挂载总是从第 1 页拉), 写了也没用
+  // ② 写 URL 会被 router 的 ScrollRestoration 当成新导航 → 页面跳回顶部
+  // ③ URL 变化还会重建 filter → 重置 effect 把刚追加的第 2 页清空
   function loadMore() {
-    const nextPage = loadedPage + 1
-    fetchPage(nextPage, true, filter)
-    setSearchParams((sp) => {
-      const np = new URLSearchParams(sp)
-      np.set('page', String(nextPage))
-      return np
-    })
+    fetchPage(loadedPage + 1, true, filter)
   }
 
   // CompactTopbar 搜索回调：更新 URL

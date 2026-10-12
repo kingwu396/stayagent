@@ -144,12 +144,24 @@ def _city_hint(db) -> str:
     )
 
 
+def _date_hint() -> str:
+    """Block 31: 注入当前日期 —— LLM 不知道今天几号, 会按训练知识默认输出过去
+    年份 (如 2025), 触发 booking_rules 的"不早于今天"校验, 下单必失败"""
+    today = date.today()
+    weekdays = ["一", "二", "三", "四", "五", "六", "日"]
+    return (
+        f"\n\n[时间提示] 今天是 {today.year}年{today.month}月{today.day}日 "
+        f"星期{weekdays[today.weekday()]}。"
+        "涉及预订/日期的回答必须以此为基准计算, 入住/退房日期不能早于今天。"
+    )
+
+
 def _build_messages(db, user: User, run_message: str, conversation_id: int) -> list[dict]:
     """拼装 messages: system + 历史 (不含刚 insert 的 user) + 当前 user"""
     history = _load_history(db, conversation_id)
     if history and history[-1].get("role") == "user" and history[-1].get("content") == run_message:
         history = history[:-1]
-    system = SYSTEM_PROMPT + _city_hint(db)
+    system = SYSTEM_PROMPT + _date_hint() + _city_hint(db)
     return (
         [{"role": "system", "content": system}]
         + history

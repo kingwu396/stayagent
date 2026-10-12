@@ -1655,3 +1655,40 @@ run_started → step_started → step_completed → ... → final → done
   - 流程: cp .env 填 MySQL 密码 (DeepSeek 可留空) → make install → make redis → make seed → make dev → localhost:5173
   - key 留空降级说明 (除 AI 对话外全部可用) + 演示账号 + 两条常见问题
   - README 部署节同步为 Demo 三步 + 生产部署入口
+
+---
+
+## 📅 2026-10-12 — Block 31：搜索页「加载更多」失效修复
+
+**Bug**: 搜索页点「加载更多」毫无效果（"已显示 20 / 1000" 不再增长）。
+
+**根因**（典型的 React 引用相等性陷阱）:
+- `filter = useMemo(() => parseFilterFromURL(searchParams), [searchParams])` 依赖整个 `searchParams` **引用**
+- `loadMore()` 会把 URL 的 `page` 写成 2（`setSearchParams`）→ `searchParams` 新引用 → `filter` 重建出**新对象**（即使字段内容一字未变）
+- 重置 effect `useEffect(..., [filter])` 依赖 filter 引用 → 被误触发 → `setItems([])` + `fetchPage(1)` → 刚合并进来的第 2 页被清空，列表回到第 1 页
+
+**Fix** (`views/SearchView.tsx`，最终方案见下方"追加修复"):
+- 临时方案: 新增 `filterKey` = 剥离 `page` 参数后的 URL 串，filter 的 useMemo 依赖改为 `filterKey` —— page 变化时字符串不变 → filter 引用稳定 → 重置 effect 不被误触发
+- 最终根修（同日追加）: `loadMore` 不再写 URL（page 参数从未被读取），URL 无 page 后 filter 可直接依赖 `searchParams`，`filterKey` 已移除
+
+**验证**: tsc 0 报错 + build 通过；手测路径 = 搜索页点「加载更多」→ 列表增长到 40/60...，滚动位置不动
+
+**追加修复: agent 默认日期是 2025 年（用户复测后纠正 —— 不是"2026 正确"而是真 bug）**:
+- 根因: orchestrator 的 system prompt 从未注入当前日期, LLM 不知道今天几号, 用户说"帮我订个房"时按训练知识默认输出 2025 年日期; 又因 2025 早于今天, 被 booking_rules 的"不早于今天"校验拒绝 → agent 下单永远失败
+- fix: `_date_hint()` 注入 "[时间提示] 今天是 2026年10月12日 星期一。涉及预订/日期的回答必须以此为基准计算, 入住/退房日期不能早于今天"（与 `_city_hint` 同模式, 拼进 system）; 日期每次请求动态生成, 无硬编码
+- 验证: hint 输出正确; test_agent_block11_5 5/5、test_agent_block12 10/10 回归通过
+
+**追加修复: 点「加载更多」后页面跳回顶部**:
+- 根因: `loadMore` 里 `setSearchParams` 把 `page=2` 写进 URL → react-router 视作一次新导航 → `router/index.tsx` 的 `<ScrollRestoration />` 对"新位置"默认滚到顶部
+- 关键发现: URL 的 `page` 参数**从未被任何代码读取**(挂载总是从第 1 页拉), 写它纯属副作用 —— 同时它还是上一个 bug (filter 重建清空列表) 的触发源
+- fix (views/SearchView.tsx): `loadMore` 改为纯内存分页, 不再写 URL; URL 无 page 后 `filterKey` 剥离逻辑简化回直接依赖 `searchParams`; `applySearchToURL/applyFilterToURL` 里过时的 `delete('page')` 一并清理
+- 效果: 点击后滚动位置不动, 下方追加新卡片, 「加载更多」按钮保留 (用户明确要求不改成无限滚动)
+- 验证: tsc 0 报错 + build 通过
+
+**追加优化: AgentFab 悬浮按钮可拖动** (`components/AgentFab.tsx`):
+- framer-motion `drag` + 全视口约束层 (`pointer-events-none` 的 fixed inset-0 ref), 按钮可在视口内任意拖动
+- 位置用 `useMotionValue` 控制, dragEnd 存 localStorage (`agent-fab-pos`), 刷新后恢复; 恢复时 + resize 时 clamp 回视口内
+- 点击防误触: ~~onTap~~(实测 framer onTap 在 drag 场景判定不可靠, 拖动松手仍触发) → 改为 `draggedRef` 标志位, onDragStart 置位, onClick 检查并吞掉拖动后的那次 click
+- 细节: `dragMomentum={false}` 松手即停不惯性滑行; `touch-none` 防移动端拖动时页面跟着滚; cursor-grab/grabbing
+- 注意: AgentPanel 弹出位置仍固定在右下角, 不跟随按钮 (浮动窗本身已可拖动)
+- 验证: tsc + build 通过
