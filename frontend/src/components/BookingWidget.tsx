@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown } from 'lucide-react'
 import type { ListingDetail } from '@/types/listing'
@@ -64,6 +65,8 @@ export function BookingWidget({ listing }: BookingWidgetProps) {
 
   const [openPanel, setOpenPanel] = useState<'dates' | 'guests' | null>(null)
   const widgetRef = useRef<HTMLDivElement>(null)
+  // 日期+人数卡片: 桌面端 popover portal 到 body 后按它的视口坐标定位
+  const anchorRef = useRef<HTMLDivElement>(null)
 
   const pricePerNight = parseFloat(listing.price_per_night)
   const cleaningFee = parseFloat(listing.cleaning_fee)
@@ -94,10 +97,11 @@ export function BookingWidget({ listing }: BookingWidgetProps) {
   useEffect(() => {
     if (!openPanel) return
     function onDocClick(e: MouseEvent) {
-      if (!widgetRef.current) return
-      if (!widgetRef.current.contains(e.target as Node)) {
-        setOpenPanel(null)
-      }
+      const target = e.target as Element
+      if (widgetRef.current?.contains(target)) return
+      // 移动端日期抽屉 portal 到了 document.body, 不在 widgetRef 内, 也要算"内部"
+      if (target.closest?.('[data-booking-popover]')) return
+      setOpenPanel(null)
     }
     document.addEventListener('mousedown', onDocClick)
     return () => document.removeEventListener('mousedown', onDocClick)
@@ -188,7 +192,7 @@ export function BookingWidget({ listing }: BookingWidgetProps) {
       </div>
 
       {/* 日期 + 人数: 单卡片边框 */}
-      <div className="border border-slate-300 rounded-xl overflow-visible mt-4 relative">
+      <div ref={anchorRef} className="border border-slate-300 rounded-xl overflow-visible mt-4 relative">
         {/* 日期行 */}
         <div className="grid grid-cols-2 divide-x divide-slate-300 border-b border-slate-300">
           <button
@@ -233,7 +237,7 @@ export function BookingWidget({ listing }: BookingWidgetProps) {
           <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${openPanel === 'guests' ? 'rotate-180' : ''}`} />
         </button>
 
-        {/* 日期弹出面板 (Airbnb 风格: 双月 + 已选 chip + 顶/底栏) */}
+        {/* 日期弹出面板 (Airbnb 风格: 双月 + 已选 chip + 顶/底栏; portal 到 body, 避开页面 stacking context) */}
         {openPanel === 'dates' && (
           <DatePickerPopover
             checkIn={checkIn}
@@ -242,6 +246,7 @@ export function BookingWidget({ listing }: BookingWidgetProps) {
             onClear={clearDates}
             onClose={() => setOpenPanel(null)}
             nights={nights}
+            anchorRef={anchorRef}
           />
         )}
 
@@ -298,6 +303,19 @@ interface DatePickerPopoverProps {
   onClear: () => void
   onClose: () => void
   nights: number
+  /** 日期+人数卡片 ref, 桌面端 fixed 定位锚点 */
+  anchorRef: RefObject<HTMLDivElement | null>
+}
+
+/** 视口 < 768px 判定 (与 Tailwind md 断点一致), resize 时同步 */
+function useIsMobile(): boolean {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    function onResize() { setMobile(window.innerWidth < 768) }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  return mobile
 }
 
 function DatePickerPopover({
@@ -307,11 +325,40 @@ function DatePickerPopover({
   onClear,
   onClose,
   nights,
+  anchorRef,
 }: DatePickerPopoverProps) {
-  return (
-    <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-30 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-expand-down w-[680px] max-w-[calc(100vw-2rem)]">
-      {/* 顶部: 左侧 nights 摘要, 右侧 已选日期 chip */}
-      <div className="flex items-center justify-between px-6 pt-5 pb-3 gap-4">
+  // 必须 portal 到 document.body:
+  // 页面过渡层 (PageTransition 的 framer transform) 会给详情页创建独立 stacking context,
+  // 弹层 z-50 逃不出去, 会被轮播图/底部预订栏/FAB 穿透遮挡 —— 移动端桌面端都一样
+  const isMobile = useIsMobile()
+
+  // 桌面端: fixed 定位, 锚点卡片下缘居中; scroll/resize 实时跟随
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  useLayoutEffect(() => {
+    if (isMobile) return
+    function update() {
+      const el = anchorRef.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      const half = 340 // popover 宽 680 的一半
+      setPos({
+        left: Math.min(Math.max(r.left + r.width / 2, half + 8), window.innerWidth - half - 8),
+        top: r.bottom + 8,
+      })
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true) // capture: 页面/容器滚动都触发
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [isMobile, anchorRef])
+
+  const body = (
+    <>
+      {/* 顶部: 左侧 nights 摘要, 右侧 已选日期 chip (窄屏纵排防挤压) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between px-5 md:px-6 pt-3 md:pt-5 pb-3 gap-3">
         <div className="flex-shrink-0">
           <div className="text-2xl font-bold text-slate-900">
             {nights > 0 ? `${nights}晚` : '选择日期'}
@@ -322,7 +369,7 @@ function DatePickerPopover({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
+        <div className="flex items-center gap-2 flex-wrap justify-start sm:justify-end">
           {checkIn && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-full text-xs text-slate-700">
               <span className="text-slate-500">入住日期</span>
@@ -387,7 +434,48 @@ function DatePickerPopover({
           关闭
         </button>
       </div>
-    </div>
+    </>
+  )
+
+  // 移动端: portal 到 body 的全宽底部抽屉 (遮罩 + 把手 + 限高 + 安全区)
+  if (isMobile) {
+    return createPortal(
+      <>
+        <div
+          data-booking-popover
+          className="fixed inset-0 bg-black/40 z-[45]"
+          onClick={onClose}
+        />
+        <div
+          data-booking-popover
+          className="fixed inset-x-0 bottom-0 z-50 bg-white shadow-2xl border-t border-slate-200 rounded-t-2xl max-h-[85vh] overflow-y-auto pb-[env(safe-area-inset-bottom)] animate-expand-down"
+        >
+          {/* 抽屉把手 */}
+          <div className="flex justify-center pt-2">
+            <div className="w-10 h-1 rounded-full bg-slate-300" />
+          </div>
+          {body}
+        </div>
+      </>,
+      document.body
+    )
+  }
+
+  // 桌面端: 同样 portal 到 body, fixed 定位跟随锚点卡片
+  return createPortal(
+    <div
+      data-booking-popover
+      className="fixed z-30 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-expand-down w-[680px] max-w-[calc(100vw-2rem)]"
+      style={{
+        left: pos?.left ?? 0,
+        top: pos?.top ?? 0,
+        transform: 'translateX(-50%)',
+        visibility: pos ? 'visible' : 'hidden', // 首次定位完成前不闪现
+      }}
+    >
+      {body}
+    </div>,
+    document.body
   )
 }
 

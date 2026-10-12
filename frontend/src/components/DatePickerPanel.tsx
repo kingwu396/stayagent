@@ -104,7 +104,8 @@ export function DatePickerPanel({ checkIn, checkOut, onChange, variant = 'double
   }
 
   return (
-    <div className={`p-6 max-w-full max-h-[520px] overflow-y-auto ${variant === 'double' ? 'w-[700px]' : 'w-[360px]'}`}>
+    // 移动端: 全宽 (底部抽屉场景); 桌面端: 双月 700px / 单月 360px
+    <div className={`p-4 md:p-6 max-w-full max-h-[520px] overflow-y-auto ${variant === 'double' ? 'w-full md:w-[700px]' : 'w-[360px]'}`}>
       {/* 模式切换 */}
       <div className="flex items-center justify-center mb-5">
         <div className="inline-flex bg-slate-100 rounded-full p-1 relative">
@@ -138,7 +139,7 @@ export function DatePickerPanel({ checkIn, checkOut, onChange, variant = 'double
 
       {mode === 'specific' ? (
         <>
-          {/* 日历：单月或双月 */}
+          {/* 日历：单月或双月 (双月在移动端只显示单月, 靠翻页切换 —— 格子不至于挤到点不中) */}
           <div className={variant === 'double' ? 'flex gap-6' : 'flex justify-center'}>
             <MonthGrid
               year={viewYear}
@@ -152,17 +153,19 @@ export function DatePickerPanel({ checkIn, checkOut, onChange, variant = 'double
               onNext={() => shift(1)}
             />
             {variant === 'double' && (
-              <MonthGrid
-                year={viewYear}
-                month={viewMonth + 1 > 11 ? 0 : viewMonth + 1}
-                viewYear={viewYear + (viewMonth + 1 > 11 ? 1 : 0)}
-                inRange={inRange}
-                isStart={isStart}
-                isEnd={isEnd}
-                isPast={isPast}
-                onPick={onPick}
-                onNext={() => shift(1)}
-              />
+              <div className="hidden md:block md:flex-1 md:min-w-0">
+                <MonthGrid
+                  year={viewYear}
+                  month={viewMonth + 1 > 11 ? 0 : viewMonth + 1}
+                  viewYear={viewYear + (viewMonth + 1 > 11 ? 1 : 0)}
+                  inRange={inRange}
+                  isStart={isStart}
+                  isEnd={isEnd}
+                  isPast={isPast}
+                  onPick={onPick}
+                  onNext={() => shift(1)}
+                />
+              </div>
             )}
           </div>
         </>
@@ -288,6 +291,17 @@ function MonthGrid({
           const mid = inRange(d)
           const today = d.getTime() === new Date().setHours(0, 0, 0, 0)
 
+          // 样式互斥分支, 不让冲突类共存:
+          // 之前 hover:bg-slate-100 与 bg-brand-500 同挂一个元素, 移动端 tap 后
+          // hover 粘滞 + hover 选择器特异性更高 → 选中格子被盖成近白色
+          const stateCls = past
+            ? 'text-slate-300 cursor-not-allowed'
+            : start || end
+              ? 'bg-brand-500 text-white font-semibold'
+              : mid
+                ? 'bg-brand-100 text-brand-800 rounded-none'
+                : 'text-slate-700 hover:bg-slate-100'
+
           return (
             <button
               key={day}
@@ -296,9 +310,7 @@ function MonthGrid({
               onClick={() => onPick(d)}
               className={[
                 'aspect-square flex items-center justify-center text-sm rounded-full transition relative',
-                past ? 'text-slate-300 cursor-not-allowed' : 'text-slate-700 hover:bg-slate-100',
-                mid ? 'bg-brand-50 text-brand-700 rounded-none' : '',
-                start || end ? 'bg-brand-500 text-white font-semibold hover:bg-brand-500' : '',
+                stateCls,
                 today && !start && !end ? 'ring-1 ring-rose-200 text-rose-600' : '',
               ].filter(Boolean).join(' ')}
             >

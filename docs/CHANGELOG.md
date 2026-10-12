@@ -1692,3 +1692,23 @@ run_started → step_started → step_completed → ... → final → done
 - 细节: `dragMomentum={false}` 松手即停不惯性滑行; `touch-none` 防移动端拖动时页面跟着滚; cursor-grab/grabbing
 - 注意: AgentPanel 弹出位置仍固定在右下角, 不跟随按钮 (浮动窗本身已可拖动)
 - 验证: tsc + build 通过
+
+**追加修复: 移动端房源详情页日期选择器不可用** (`components/BookingWidget.tsx` + `DatePickerPanel.tsx`):
+- 问题: ① 双月日历写死 `w-[700px]` 横排, 手机 ~390px 宽度下两个月硬挤一排, 日期格子只剩 ~20px 点不中; ② 弹层 absolute 定位在狭窄预订卡片下方, 顶部「入住/退房日期」chips 被压成竖排溢出遮挡日历
+- fix: 移动端改为**全宽底部抽屉** (fixed inset-x-0 bottom-0 + 顶部圆角 + 把手 + 85vh 限高 + 安全区 padding + 半透明遮罩点击关闭), 桌面端保持原 absolute popover 不变 (全部用 md: 前缀隔离)
+- DatePickerPanel 双月模式: 第二个月 `hidden md:block` —— 移动端单月 + 翻页, 格子宽度 ~20px → ~44px (达标触屏目标); 面板宽度 `w-full md:w-[700px]`
+- 顶部摘要栏窄屏改纵排 (`flex-col sm:flex-row`), chips 不再竖排溢出
+- 遮罩 z-[45] 盖住 AgentFab (z-40) 防误点, 抽屉 z-50; 已验证 PageTransition 的 y 动画结束后 framer 输出 transform: none, 不破坏 fixed 定位
+- 验证: tsc + build 通过
+
+**二次修复: 抽屉被页面内容穿透遮挡**:
+- 现象: 抽屉上半正常, 日历区域被下方房源图片轮播 / 底部预订栏 / FAB 穿透盖住
+- 根因: PageTransition (framer y 动画) 给详情页创建独立 stacking context, 抽屉 z-50 逃不出去 —— 轮播卡片 (带 transform 动画) 和 FAB 等都在它上面; 之前"动画结束 transform: none 就没问题"的判断不成立 ( stacking context 期间层级已输)
+- fix: 移动端抽屉 `createPortal` 到 `document.body`, 彻底跳出页面层叠上下文; 新增 `useIsMobile()` hook (768px 断点, resize 同步) 做分支, 桌面端保持原 absolute popover (portal 会丢跟随坐标)
+- 配套: portal 后抽屉 DOM 不在 widgetRef 内 → `onDocClick` 加 `[data-booking-popover]` closest 排除, 否则点抽屉内部会被误判"点外部"而关闭
+- 验证: tsc + build 通过
+
+**三次修复: 选中日期"变白" + 桌面端同样 portal 化**:
+- 选中格子变白根因: 日期按钮上 `hover:bg-slate-100` 与 `bg-brand-500` 同时挂在一个元素, 移动端 tap 后 hover 粘滞, 且 `.hover\:bg-slate-100:hover` 特异性高于 `.bg-brand-500` → 选中格子被盖成近白; MonthGrid 改互斥分支拼 className (past / start|end / mid / default 四态不共存冲突类), mid 高亮从 brand-50 加深到 brand-100
+- 桌面端遮挡同样存在 (absolute popover 也在 PageTransition stacking context 内) → 统一全端 portal 到 body: 桌面端 fixed + 锚点卡片 getBoundingClientRect 定位 (下缘居中 + 视口边界 clamp + scroll capture/resize 实时跟随 + 首帧 visibility 防闪现), 移动端保持底部抽屉
+- 验证: tsc + build 通过
