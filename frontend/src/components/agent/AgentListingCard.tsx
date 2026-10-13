@@ -8,6 +8,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Star } from 'lucide-react'
 import { useAgentStore } from '@/stores/agent'
+import { PLACEHOLDER_IMAGE } from '@/lib/placeholder'
 import { propertyTypeLabel } from '@/lib/labels'
 
 export interface AgentListingItem {
@@ -22,7 +23,7 @@ export interface AgentListingItem {
   primary_image?: string | null
 }
 
-const FALLBACK = 'https://picsum.photos/seed/placeholder/400/300'
+const FALLBACK = PLACEHOLDER_IMAGE
 
 export function AgentListingCard({ item }: { item: AgentListingItem }) {
   const price = typeof item.price_per_night === 'string'

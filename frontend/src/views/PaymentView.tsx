@@ -16,6 +16,7 @@ import { bookingsApi } from '@/api/bookings'
 import { paymentsApi } from '@/api/payments'
 import { useToast } from '@/hooks/useToast'
 import type { Booking } from '@/types/booking'
+import { PLACEHOLDER_IMAGE } from '@/lib/placeholder'
 import type { Payment, PaymentMethod } from '@/types/payment'
 
 const METHODS: { key: PaymentMethod; label: string; desc: string; icon: typeof Smartphone; bg: string }[] = [
@@ -208,7 +209,7 @@ export function PaymentView() {
                 <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
                   <div className="flex gap-4">
                     <img
-                      src={booking.listing.primary_image || 'https://picsum.photos/seed/placeholder/400/300'}
+                      src={booking.listing.primary_image || PLACEHOLDER_IMAGE}
                       alt={booking.listing.title}
                       className="w-24 h-24 rounded-xl object-cover bg-slate-100 flex-shrink-0"
                     />

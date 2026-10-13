@@ -7,8 +7,9 @@ import { useAuthStore } from '@/stores/auth'
 import { useWishlistPicker } from '@/components/WishlistPickerModal'
 import { propertyTypeLabel } from '@/lib/labels'
 import { useToast } from '@/hooks/useToast'
+import { PLACEHOLDER_IMAGE } from '@/lib/placeholder'
 
-const FALLBACK_IMAGE = 'https://picsum.photos/seed/placeholder/400/300'
+const FALLBACK_IMAGE = PLACEHOLDER_IMAGE
 
 interface ListingCardProps {
   listing: ListingSummary

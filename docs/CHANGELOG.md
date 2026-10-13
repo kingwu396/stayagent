@@ -1718,3 +1718,22 @@ run_started → step_started → step_completed → ... → final → done
 - fix: 改本地字母头像 (Gmail 风格: 名字首字母 + 8 色板按 hash 确定性选色), 零网络请求, 彻底去掉该外部依赖
 - 遗留风险 (未改): picsum.photos 同为外部占位图服务且全站房源图都是 seed 进 DB 的 picsum URL, 目前服务正常; 若未来挂掉需把图片本地化 (下载到 backend/uploads + 改 seed)
 - 验证: tsc + build 通过
+
+## 📅 2026-10-13 — Block 32：picsum 图片全量本地化
+
+**背景**: pravatar 403 事件证明第三方占位图服务不可靠; 排查发现全站房源图/城市图/评价图/兜底图全依赖 picsum.photos, 一旦它加跨域限制全站图片瘫痪. 全部下载本地化.
+
+**后端**:
+- 新增 `scripts/localize_images.py`: 扫 DB 所有 picsum URL + 前端固定资源 (占位图/50 城市图/8 评价图), httpx + ThreadPoolExecutor(16) 并发下载到 `uploads/images/{picsum,cities,reviews}/`, 更新 DB URL → `/api/uploads/images/...`; 幂等 (已存在跳过/已是本地路径跳过) + 断点续传 + --dry-run + 失败清单
+- `api/uploads.py` GET 端点改 `{file_path:path}`: 支持子目录 (白名单 picsum/cities/reviews), 目录穿越/非法子目录仍 400
+- Makefile 新增 `make localize-images`; seed_listings.py 注释更新
+
+**前端** (8 处 picsum 引用全清):
+- 新增 `lib/placeholder.ts`: PLACEHOLDER_IMAGE / PLACEHOLDER_IMAGE_LARGE / cityImage() / reviewImage() 常量
+- ListingCard / WishlistPickerModal / MoreListingsCarousel / AgentListingCard / PaymentView / TripsView 兜底图 → 本地占位图
+- ImageGallery onError 兜底 (原来随机 picsum seed, 根本无法预下载) → PLACEHOLDER_IMAGE_LARGE
+- WelcomeBack 城市图 → 本地 cities/{city}.jpg; ReviewsSection 评价图 (原来 per-listing seed, 理论 4000 张) → 固定 8 张本地图轮换
+
+**本机验证**: 2871 张下载 0 失败 (154s, 172MB); DB 1000 条房源 URL 全部本地化 (0 残留); 端点实测子目录/中文城市名/占位图/评价图全 200, 目录穿越与非法子目录 400; tsc + build 通过
+
+**服务器部署**: uploads/ 不进 git —— 服务器跑 `uv run python -m scripts.localize_images` 重新下载, 或本机 rsync `backend/uploads/images/` 上传 (DB URL 两端通用); README 快速开始与 DEPLOY.md 均已把 localize-images 列为标准步骤

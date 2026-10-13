@@ -52,6 +52,7 @@ winget install Memurai.MemuraiDeveloper                  # Redis 兼容替代 (�
 | `make install` | `cd backend && uv sync`；`cd frontend && pnpm install` |
 | `make redis` | Memurai 装完即 Windows 服务自启，跳过 |
 | `make seed` | `cd backend && uv run python -m scripts.seed_listings` |
+| `make localize-images` | `cd backend && uv run python -m scripts.localize_images` |
 | `make dev` | 两个终端分别跑：`uv run uvicorn app.main:app --reload --port 8000`；`cd frontend && pnpm dev` |
 
 > MySQL 用 winget 装完会弹配置向导，记住设置的 root 密码填进 `.env`。此路径未全量验证，遇问题优先切方案 A。
@@ -73,6 +74,7 @@ cp backend/.env.example backend/.env
 make install   # 前后端依赖 (首次)
 make redis     # 启动 Redis (已在跑则跳过)
 make seed      # 1000 条房源 + 3 个演示房东 (幂等)
+make localize-images  # 图片本地化 (~2900 张下载到 uploads/, 幂等, 不跑则图片 404)
 make dev       # 同时启动前后端, Ctrl+C 一起关
 ```
 
@@ -202,7 +204,13 @@ cd /opt/stayagent/backend
 uv sync                          # 安装依赖 (自动建 .venv)
 uv run python -m scripts.seed_listings          # 1000 条演示房源 (可选, 幂等)
 uv run python -m scripts.seed_travel_tips       # RAG 知识库 30 条 (可选)
+uv run python -m scripts.localize_images        # 图片本地化 (~2900 张, 约 2-3 分钟, 见下)
 ```
+
+> 🖼 **图片本地化（Block 32 起为必做步骤）**：全站房源/城市/评价图原是 picsum.photos 外链，
+> `localize_images` 会把它们下载到 `backend/uploads/images/` 并把 DB 里的 URL 改写为本地路径（幂等，中断可重跑续传）。
+> 若服务器访问 picsum 慢或不通，可在**本机**跑完后 rsync 上传（DB URL 两端通用）：
+> `rsync -avz backend/uploads/images/ user@server:/opt/stayagent/backend/uploads/images/`
 
 先手动跑一次验证：
 
@@ -305,6 +313,7 @@ sudo certbot --nginx -d your-domain.com        # 自动改写 Nginx 配置 + 续
 ```bash
 cd /opt/stayagent && git pull origin main
 cd backend && uv sync                     # 依赖有变时
+uv run python -m scripts.localize_images  # Block 32 起: 图片本地化 (幂等, 已下载的秒过)
 sudo systemctl restart stayagent
 cd ../frontend && pnpm install && pnpm run build   # 前端产物即改即生效, 无需重启
 ```
@@ -321,7 +330,7 @@ cd ../frontend && pnpm install && pnpm run build   # 前端产物即改即生效
 | `/api/health` database: disconnected | MySQL 账号密码/库名与 `.env` 不一致；看 `journalctl -u stayagent -f` |
 | Agent 回答卡住不动 | Nginx 忘了 `proxy_buffering off`，或 `proxy_read_timeout` 太短 |
 | 刷新非首页路由 404 | Nginx SPA fallback `try_files` 没配 |
-| 房源图片 404 | 图片存 `backend/uploads/images/`（相对后端 WorkingDirectory），systemd 的 `WorkingDirectory` 必须是 `/opt/stayagent/backend` |
+| 房源图片 404 | 图片存 `backend/uploads/images/`（相对后端 WorkingDirectory），systemd 的 `WorkingDirectory` 必须是 `/opt/stayagent/backend`；**Block 32 起**先确认跑过 `uv run python -m scripts.localize_images`（否则本地图根本没下载），或从本机 rsync `backend/uploads/images/` 上去 |
 | RAG 首次查询 3 秒延迟 | 正常（embedding 模型 lazy-load，仅首次） |
 | 支付页倒计时结束自动取消 | 设计行为：15 分钟惰性过期，订单进"已取消"专页，原因为"超时未支付" |
 

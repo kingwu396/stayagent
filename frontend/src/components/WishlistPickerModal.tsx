@@ -5,6 +5,7 @@ import { useWishlistStore } from '@/stores/wishlist'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/hooks/useToast'
 import type { ListingSummary } from '@/types/listing'
+import { PLACEHOLDER_IMAGE } from '@/lib/placeholder'
 
 /** 弹窗开关（模块级全局，ListingCard 只管 open） */
 interface WishlistPickerState {
@@ -19,7 +20,7 @@ export const useWishlistPicker = create<WishlistPickerState>()((set) => ({
   close: () => set({ listing: null }),
 }))
 
-const FALLBACK_IMAGE = 'https://picsum.photos/seed/placeholder/400/300'
+const FALLBACK_IMAGE = PLACEHOLDER_IMAGE
 
 /**
  * 「保存到心愿单」选择弹窗（Airbnb 样式）：

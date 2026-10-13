@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { PLACEHOLDER_IMAGE_LARGE } from '@/lib/placeholder'
 
 interface ImageGalleryProps {
   images: string[]
   title: string
 }
 
-/** Block 23: 图片加载失败 → picsum 兜底(与全站策略一致) */
+/** Block 32: 图片加载失败 → 本地占位图兜底 (picsum 已本地化, 不再依赖第三方) */
 const imgFallback = (e: React.SyntheticEvent<HTMLImageElement>) => {
   const el = e.currentTarget
   if (el.dataset.fallback) return
   el.dataset.fallback = '1'
-  el.src = `https://picsum.photos/seed/fallback-${Math.floor(Math.random() * 9999)}/800/600`
+  el.src = PLACEHOLDER_IMAGE_LARGE
 }
 
 export function ImageGallery({ images, title }: ImageGalleryProps) {

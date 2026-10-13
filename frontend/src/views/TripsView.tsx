@@ -9,6 +9,7 @@ import { bookingsApi } from '@/api/bookings'
 import { useToast } from '@/hooks/useToast'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import type { Booking } from '@/types/booking'
+import { PLACEHOLDER_IMAGE } from '@/lib/placeholder'
 
 function formatMoney(decimalStr: string): string {
   // 后端返 "106.50"，前端只 .00 → "106.50"
@@ -211,7 +212,7 @@ function BookingRow({ booking: b, on取消, canceling }: BookingRowProps) {
   const outDate = fmtRangeDate(b.check_out)
   const cover =
     b.listing.primary_image ||
-    `https://picsum.photos/seed/stayagent-${b.listing_id}/640/480`
+    PLACEHOLDER_IMAGE
 
   return (
     <article className="group bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">

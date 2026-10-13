@@ -8,7 +8,8 @@ Block 14 扩容:
 - 默认行为: 增量 (add only missing cities) → 最终 ~1000
 - --truncate: TRUNCATE 表后重建 (适合 demo / 测试)
 
-图片用 picsum.photos 的 seed 模式, 确定性 + 无需下载.
+图片先入 picsum.photos seed URL (确定性), seed 后必须跑 scripts/localize_images
+下载到本地 uploads/ 并改写 DB (Block 32: 第三方占位图服务不可靠, 全部本地化).
 
 运行:
   uv run python -m scripts.seed_listings           # 增量

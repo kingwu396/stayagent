@@ -176,13 +176,29 @@ async def upload_image(
     )
 
 
-@router.get("/images/{filename}")
-async def get_image(filename: str):
-    """图片访问 (无需登录, 房源图本就是公开数据). 挂 /api 前缀走 vite proxy."""
-    # 防目录穿越: 只允许纯文件名
-    if not filename or "/" in filename or ".." in filename or "\\" in filename:
+# Block 32: 本地化图片子目录白名单 (localize_images.py 下载的 picsum/城市/评价图)
+IMAGE_SUBDIRS = {"picsum", "cities", "reviews"}
+
+
+@router.get("/images/{file_path:path}")
+async def get_image(file_path: str):
+    """图片访问 (无需登录, 房源图本就是公开数据). 挂 /api 前缀走 vite proxy.
+
+    支持两种路径:
+    - {filename}          用户上传图 (Block 27)
+    - {subdir}/{filename} 本地化图 (Block 32, subdir 限白名单)
+    """
+    # 防目录穿越
+    if not file_path or ".." in file_path or "\\" in file_path:
         raise HTTPException(status_code=400, detail="非法文件名")
-    path = os.path.join(settings.upload_dir, filename)
+    parts = file_path.split("/")
+    if len(parts) == 1:
+        rel = parts[0]
+    elif len(parts) == 2 and parts[0] in IMAGE_SUBDIRS and parts[1]:
+        rel = os.path.join(parts[0], parts[1])
+    else:
+        raise HTTPException(status_code=400, detail="非法文件名")
+    path = os.path.join(settings.upload_dir, rel)
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="图片不存在")
     return FileResponse(path)

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { getRecentSearches, type RecentSearch } from '@/lib/recent'
+import { cityImage } from '@/lib/placeholder'
 import { formatDateRange, formatGuestsSummary, totalGuests } from '@/hooks/useCompactSearch'
 
 /**
@@ -40,7 +41,7 @@ function SearchCard({ search }: { search: RecentSearch }) {
       className="group flex items-center gap-4 bg-white border border-slate-200 rounded-2xl p-3 shadow-sm hover:shadow-lg transition"
     >
       <img
-        src={`https://picsum.photos/seed/${encodeURIComponent(search.city)}/160/160`}
+        src={cityImage(search.city)}
         alt={search.city}
         loading="lazy"
         className="w-16 h-16 md:w-20 md:h-20 rounded-xl object-cover flex-shrink-0 bg-slate-100"

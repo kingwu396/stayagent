@@ -4,13 +4,14 @@ import { Star, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { ListingSummary } from '@/types/listing'
 import { listingsApi } from '@/api/listings'
 import { formatPrice, formatRating } from '@/lib/utils'
+import { PLACEHOLDER_IMAGE } from '@/lib/placeholder'
 
 interface MoreListingsCarouselProps {
   city: string
   currentListingId: number
 }
 
-const FALLBACK_IMAGE = 'https://picsum.photos/seed/placeholder/400/300'
+const FALLBACK_IMAGE = PLACEHOLDER_IMAGE
 const CARD_WIDTH = 216 // 200px card + 16px gap
 
 export function MoreListingsCarousel({ city, currentListingId }: MoreListingsCarouselProps) {

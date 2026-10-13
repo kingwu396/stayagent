@@ -1,4 +1,4 @@
-.PHONY: help install dev backend frontend redis seed seed-tips test check build clean
+.PHONY: help install dev backend frontend redis seed seed-tips localize-images test check build clean
 
 help:
 	@echo "StayAgent 开发命令:"
@@ -9,6 +9,7 @@ help:
 	@echo "  make redis     - 启动 Redis (本机 redis-server, 已在跑则跳过)"
 	@echo "  make seed      - 填充 1000 条房源演示数据 (幂等, 含 3 个演示房东)"
 	@echo "  make seed-tips - 填充 30 条 RAG 旅游知识库"
+	@echo "  make localize-images - picsum 图片下载到本地 uploads/ 并改写 DB (幂等, seed 后跑一次)"
 	@echo "  make test      - 跑后端全部验证脚本 (需先 seed + MySQL/Redis)"
 	@echo "  make check     - 前端类型检查 + 生产构建"
 	@echo "  make build     - 只构建前端产物 (dist/)"
@@ -47,6 +48,10 @@ seed:
 seed-tips:
 	@echo "🌱 填充 RAG 旅游知识库 (5 类 × 6 条)..."
 	cd backend && uv run python -m scripts.seed_travel_tips
+
+localize-images:
+	@echo "🖼  picsum 图片本地化 (下载 ~2900 张到 backend/uploads/images/, 约 2-3 分钟)..."
+	cd backend && uv run python -m scripts.localize_images
 
 test:
 	@echo "🧪 跑后端验证脚本..."

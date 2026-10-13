@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Sparkles, CheckCircle2, KeyRound, MessageCircle, MapPin, Tag, Camera, ChevronDown, ChevronRight } from 'lucide-react'
 import type { ListingDetail } from '@/types/listing'
+import { reviewImage } from '@/lib/placeholder'
 
 interface ReviewsSectionProps {
   listing: ListingDetail
@@ -64,12 +65,8 @@ const REVIEW_TEXTS = [
   '景色真的超出预期,早晨的阳光照进客厅特别治愈。设施齐全,WiFi 流畅,工作区也够用。强烈推荐给远程办公的朋友。',
 ] as const
 
-const PHOTOS = [
-  'https://picsum.photos/seed/review-a/200/150',
-  'https://picsum.photos/seed/review-b/200/150',
-  'https://picsum.photos/seed/review-c/200/150',
-  'https://picsum.photos/seed/review-d/200/150',
-]
+// Block 32: 评价图本地化 —— 8 张固定本地图轮换 (localize_images.py 下载), 不再外链 picsum
+const PHOTOS = Array.from({ length: 8 }, (_, i) => reviewImage(i + 1))
 
 // ============ 组件 ============
 
@@ -277,7 +274,7 @@ function ReviewCard({ review }: { review: ReviewCard }) {
           className="aspect-[4/3] w-full rounded-lg object-cover bg-slate-100"
         />
         <img
-          src={`https://picsum.photos/seed/${review.id}-p2/200/150`}
+          src={reviewImage((intHash(parseInt(review.id), 800, 0, 7)) + 1)}
           alt={`${review.name} 评价图 2`}
           loading="lazy"
           className="aspect-[4/3] w-full rounded-lg object-cover bg-slate-100"
