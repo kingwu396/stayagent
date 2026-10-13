@@ -1712,3 +1712,9 @@ run_started → step_started → step_completed → ... → final → done
 - 选中格子变白根因: 日期按钮上 `hover:bg-slate-100` 与 `bg-brand-500` 同时挂在一个元素, 移动端 tap 后 hover 粘滞, 且 `.hover\:bg-slate-100:hover` 特异性高于 `.bg-brand-500` → 选中格子被盖成近白; MonthGrid 改互斥分支拼 className (past / start|end / mid / default 四态不共存冲突类), mid 高亮从 brand-50 加深到 brand-100
 - 桌面端遮挡同样存在 (absolute popover 也在 PageTransition stacking context 内) → 统一全端 portal 到 body: 桌面端 fixed + 锚点卡片 getBoundingClientRect 定位 (下缘居中 + 视口边界 clamp + scroll capture/resize 实时跟随 + 首帧 visibility 防闪现), 移动端保持底部抽屉
 - 验证: tsc + build 通过
+
+**线上修复: 评论头像 403 (i.pravatar.cc 跨域限制)** (`components/ReviewsSection.tsx`):
+- 第三方占位图服务 pravatar.cc 开启 Cross-Origin-Resource-Policy: same-origin, 所有评论头像 ERR_BLOCKED_BY_RESPONSE 403
+- fix: 改本地字母头像 (Gmail 风格: 名字首字母 + 8 色板按 hash 确定性选色), 零网络请求, 彻底去掉该外部依赖
+- 遗留风险 (未改): picsum.photos 同为外部占位图服务且全站房源图都是 seed 进 DB 的 picsum URL, 目前服务正常; 若未来挂掉需把图片本地化 (下载到 backend/uploads + 改 seed)
+- 验证: tsc + build 通过

@@ -50,6 +50,12 @@ const TAG_POOL = [
 
 const REVIEWERS = ['Judy', 'Anna', 'Mark', 'Sophie', 'Leo', 'Yuki', 'Chen', 'Maria'] as const
 
+// 头像配色板 (本地字母头像, 替代 i.pravatar.cc —— 第三方占位图服务已开启跨域限制返回 403, 不可靠)
+const AVATAR_COLORS = [
+  'bg-rose-500', 'bg-orange-500', 'bg-amber-500', 'bg-emerald-500',
+  'bg-teal-500', 'bg-sky-500', 'bg-indigo-500', 'bg-violet-500',
+] as const
+
 const REVIEW_TEXTS = [
   '交通便利,环境超级温馨舒适,窗外城景很棒,晚霞洒在窗外整个城市都温柔了,房子设施齐全,家具布置精致很新也很干净,这趟入住之旅很满意,五星好评🌟🌟🌟🌟🌟',
   '我们在这里面度过了美好时光! 公寓非常干净、舒适,景观优美。地理位置优越,位于市中心,前往任何地方都很方便。房东很棒,非常友善,总是快速回复任何问题或疑问,与我们…',
@@ -109,10 +115,11 @@ export function ReviewsSection({ listing }: ReviewsSectionProps) {
       const date = new Date()
       date.setMonth(date.getMonth() - monthsAgo)
       const yearMonth = `${date.getFullYear()}年${date.getMonth() + 1}月`
+      const name = REVIEWERS[intHash(id, 500 + i, 0, REVIEWERS.length - 1)]
       return {
         id: `${id}-${i}`,
-        avatar: `https://i.pravatar.cc/100?u=${id}-reviewer-${i}`,
-        name: REVIEWERS[intHash(id, 500 + i, 0, REVIEWERS.length - 1)],
+        avatarColor: AVATAR_COLORS[intHash(id, 550 + i, 0, AVATAR_COLORS.length - 1)],
+        name,
         yearsOnAirbnb: intHash(id, 600 + i, 1, 7),
         stars: 5,
         date: yearMonth,
@@ -227,7 +234,7 @@ export function ReviewsSection({ listing }: ReviewsSectionProps) {
 
 interface ReviewCard {
   id: string
-  avatar: string
+  avatarColor: string
   name: string
   yearsOnAirbnb: number
   stars: number
@@ -240,12 +247,13 @@ function ReviewCard({ review }: { review: ReviewCard }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <img
-          src={review.avatar}
-          alt={review.name}
-          loading="lazy"
-          className="w-11 h-11 rounded-full object-cover bg-slate-100"
-        />
+        {/* 本地字母头像: 零网络请求, 颜色按 hash 确定 */}
+        <div
+          className={`w-11 h-11 rounded-full flex items-center justify-center text-white text-lg font-semibold select-none ${review.avatarColor}`}
+          aria-hidden="true"
+        >
+          {review.name[0]}
+        </div>
         <div>
           <div className="text-sm font-semibold text-slate-900">{review.name}</div>
           <div className="text-xs text-slate-500">
