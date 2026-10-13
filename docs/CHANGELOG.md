@@ -1794,3 +1794,9 @@ run_started → step_started → step_completed → ... → final → done
 - 场景: 搜索历史含本地化未覆盖的城市/省份 (如 广东), WelcomeBack 的 cities/{name}.jpg 404 → 破图
 - 修复: img 加 onError 兜底换 PLACEHOLDER_IMAGE (真实城市图不受影响); 仅渲染层兜底, 不预生成任意文本的城市图
 - 验证: playwright 预置 广东(无图)/成都(有图) 两条搜索记录, 截图确认 广东 卡片显示占位图、成都 显示真实图
+
+**修复线上 /api/auth/refresh 500: GETDEL 兼容旧版 Redis**:
+- 排查: curl 探测线上端点, 无 cookie/假 token 都正常 401 → 端点健康, 500 出在校验后的 Redis 操作
+- 根因: refresh 一次性消费用 GETDEL (需 Redis 6.2+), 服务器 Redis 版本旧 → unknown command → 未捕获异常 500
+- 修复: 改 Lua 脚本原子 GET+DEL (Redis 2.6+ 全兼容, 语义与 GETDEL 一致: 拿到值的同时删除, 并发只有一个请求能消费)
+- 验证: 本地实测 注册→登录→刷新 200 / 旧 cookie 重放 401 "refresh token 已撤销"; tsc 无涉; 后端改动需重启服务

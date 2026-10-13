@@ -37,6 +37,15 @@ async def _require_redis():
 
 REFRESH_COOKIE_NAME = "refresh_token"
 
+# 原子 GET+DEL (等价 GETDEL, 但兼容 Redis 2.6+; 旧版本没有 GETDEL 命令)
+_GETDEL_LUA = """
+local v = redis.call('GET', KEYS[1])
+if v then
+  redis.call('DEL', KEYS[1])
+end
+return v
+"""
+
 
 # ============ Cookie 辅助 ============
 
@@ -148,11 +157,12 @@ async def refresh(
 
     redis = await get_redis()
 
-    # 白名单校验 + 一次性消费（原子 GETDEL，Redis 6.2+）:
+    # 白名单校验 + 一次性消费（原子 GET+DEL）:
     # 并发两个请求带同一 refresh cookie 时（如双标签页同时静默续期），
-    # 只有第一个 getdel 能拿到值，第二个拿到 None → 401。
+    # 只有第一个能拿到值，第二个拿到 None → 401。
     # 保证 rotation 的"一个 refresh token 只能换一次"是原子语义，而不是 check-then-delete 竞态。
-    stored_user_id = await redis.getdel(f"refresh:{old_jti}")
+    # 用 Lua 而非 GETDEL: GETDEL 需要 Redis 6.2+, 服务器 Redis 旧版本会 unknown command → 500
+    stored_user_id = await redis.eval(_GETDEL_LUA, 1, f"refresh:{old_jti}")
     if stored_user_id is None:
         raise HTTPException(status_code=401, detail="refresh token 已撤销，请重新登录")
 
