@@ -1760,3 +1760,12 @@ run_started → step_started → step_completed → ... → final → done
 - wishlist store 新增 `removeFromAll(listingId)`: 从**所有**清单移除 (覆盖同一房源加进多个清单的边角, 只移除第一个的话红心仍亮用户困惑); Optimistic 更新 + 失败 fetchAll 回滚
 - ListingCard 三态分支: 未登录 → 暂存+跳登录; 已收藏 → 直接取消 + toast; 未收藏 → 弹选择框
 - 验证: tsc + build 通过
+
+**注册校验修复: 用户名支持中文 + 校验错误中文化**:
+- 现象: 中文用户名注册被拒, 报 Pydantic 原始英文 `username: String should match pattern '^[a-zA-Z0-9_-]+$'`, 用户费解
+- 根因: RegisterRequest 的 pattern 只允许英数字下划线; 422 消息前端直接透传未翻译
+- 后端: pattern 换成 field_validator + `[\w-]+` (unicode 感知, 支持中英文/数字/下划线/短横线, 仍拒绝空格与特殊符号), 拦截消息直接用中文; min/max 长度不变
+- 前端: apiErrorText 加字段中文标签映射 (username→用户名 等) + 常见 Pydantic 英文消息翻译规则 (长度/邮箱格式/pattern); 注册页用户名 placeholder 同步更新
+- 意外发现: pydantic EmailStr 默认允许 SMTPUTF8, 中文邮箱本地部分后端本来就能注册 (如 超级无敌@test.com)
+- 但浏览器原生校验 (input type=email) 仍会拦中文邮箱, 弹 "«@»前面的内容不应包含符号" 气泡, 前后端行为不一致 → 注册表单加 noValidate 关掉原生校验, 格式统一交后端判定; 补 "Field required → 不能为空" 翻译规则 (noValidate 后 required 拦截也失效, 空提交到后端)
+- 验证: 后端脚本实测中文用户名/英文用户名/空格/特殊符号 4 组用例; tsc + build 通过

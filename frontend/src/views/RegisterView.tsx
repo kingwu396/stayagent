@@ -31,7 +31,9 @@ export function RegisterView() {
         <h1 className="text-3xl font-bold text-slate-900 mb-2">加入 StayAgent 🚀</h1>
         <p className="text-slate-500 mb-6">创建账号，开启 AI 旅行助手</p>
 
-        <form onSubmit={onSubmit} className="space-y-4">
+        {/* noValidate: 关掉浏览器原生校验气泡 (type=email 会拦中文邮箱本地部分),
+            格式统一交给后端 EmailStr 判定, 错误由 apiErrorText 翻成中文 */}
+        <form onSubmit={onSubmit} noValidate className="space-y-4">
           <div>
             <label htmlFor="reg-email" className="block text-sm font-medium text-slate-700 mb-1">邮箱</label>
             <input
@@ -44,7 +46,7 @@ export function RegisterView() {
                 if (error) clearError()
               }}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
-              placeholder="alice@example.com"
+              placeholder="你的邮箱，如 alice@example.com"
             />
           </div>
 
@@ -62,7 +64,7 @@ export function RegisterView() {
                 if (error) clearError()
               }}
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
-              placeholder="3-50 字符，字母数字下划线"
+              placeholder="3-50 字符，支持中英文、数字、下划线"
             />
           </div>
 
