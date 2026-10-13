@@ -16,11 +16,14 @@ import { uploadsApi } from '@/api/uploads'
 import { useToast } from '@/hooks/useToast'
 import { ErrorState } from '@/components/ErrorState'
 import { CounterRow } from '@/components/CounterRow'
-import { propertyTypeLabel } from '@/lib/labels'
+import { propertyTypeLabel, amenityLabel } from '@/lib/labels'
 import type { ListingFormData } from '@/types/host'
+import { apiErrorText } from '@/lib/utils'
 
 const PROPERTY_TYPES = ['apartment', 'house', 'villa', 'hotel', 'studio'] as const
 const MAX_IMAGES = 10
+/** 价格上限 (每晚价/清洁费/服务费统一封顶, 与后端 le 校验一致) */
+const PRICE_MAX = 100000
 
 const EMPTY_FORM: ListingFormData = {
   title: '',
@@ -108,7 +111,7 @@ export function HostListingFormView() {
         setLoading(false)
       } catch (err: any) {
         if (cancelled) return
-        setError(err?.response?.data?.detail || err?.message || '加载失败')
+        setError(apiErrorText(err, '加载失败'))
         setLoading(false)
       }
     }
@@ -128,7 +131,7 @@ export function HostListingFormView() {
       const res = await uploadsApi.uploadImage(file)
       set('images', [...form.images, res.url])
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail || '图片上传失败')
+      toast.error(apiErrorText(err, '图片上传失败'))
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -163,6 +166,9 @@ export function HostListingFormView() {
     if (!form.city.trim()) return '请填写城市'
     if (!form.country.trim()) return '请填写国家/地区'
     if (!form.price_per_night || Number(form.price_per_night) <= 0) return '每晚价格需大于 0'
+    if (Number(form.price_per_night) > PRICE_MAX) return `每晚价格不能超过 ¥${PRICE_MAX}`
+    if (Number(form.cleaning_fee) > PRICE_MAX) return `清洁费不能超过 ¥${PRICE_MAX}`
+    if (Number(form.service_fee) > PRICE_MAX) return `服务费不能超过 ¥${PRICE_MAX}`
     return null
   }
 
@@ -174,17 +180,23 @@ export function HostListingFormView() {
       return
     }
     setSaving(true)
+    // 经纬度留空时归一化为 null: 后端是 Decimal | None, 空串解析会 422
+    const payload: ListingFormData = {
+      ...form,
+      latitude: form.latitude === '' ? null : form.latitude,
+      longitude: form.longitude === '' ? null : form.longitude,
+    }
     try {
       if (isEdit && listingId) {
-        await hostApi.updateListing(listingId, form)
+        await hostApi.updateListing(listingId, payload)
         toast.success('房源已更新')
       } else {
-        await hostApi.createListing(form)
+        await hostApi.createListing(payload)
         toast.success('房源发布成功')
       }
       navigate('/host')
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail || '保存失败')
+      toast.error(apiErrorText(err, '保存失败'))
     } finally {
       setSaving(false)
     }
@@ -320,6 +332,7 @@ export function HostListingFormView() {
             <input
               type="number"
               min="1"
+              max={PRICE_MAX}
               step="0.01"
               className={inputCls}
               value={form.price_per_night}
@@ -332,6 +345,7 @@ export function HostListingFormView() {
             <input
               type="number"
               min="0"
+              max={PRICE_MAX}
               step="0.01"
               className={inputCls}
               value={form.cleaning_fee}
@@ -343,6 +357,7 @@ export function HostListingFormView() {
             <input
               type="number"
               min="0"
+              max={PRICE_MAX}
               step="0.01"
               className={inputCls}
               value={form.service_fee}
@@ -380,7 +395,7 @@ export function HostListingFormView() {
                     : 'bg-white text-slate-700 border-slate-300 hover:border-slate-900')
                 }
               >
-                {name}
+                {amenityLabel(name)}
               </button>
             ))}
           </div>

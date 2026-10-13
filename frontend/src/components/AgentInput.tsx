@@ -4,6 +4,7 @@ import { useAgentStore, keyOf, type ConvKey } from '@/stores/agent'
 import { useToast } from '@/hooks/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { uploadsApi } from '@/api/uploads'
+import { apiErrorText } from '@/lib/utils'
 
 export function AgentInput() {
   const conversationId = useAgentStore((s) => s.conversationId)
@@ -83,7 +84,7 @@ export function AgentInput() {
       setDraft(key, { attachment: att })
       toast.success(`已解析 ${att.filename} (${att.page_count} 页, ${att.char_count} 字)`)
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || err.message || '上传失败'
+      const msg = apiErrorText(err, '上传失败')
       toast.error(`上传失败: ${msg}`)
     } finally {
       setUploading(false)

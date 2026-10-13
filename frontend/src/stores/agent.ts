@@ -19,6 +19,7 @@ import type {
   ConversationSummary,
   PdfAttachment,
 } from '@/types/agent'
+import { apiErrorText } from '@/lib/utils'
 
 /** 桶 key:数字会话 id 的字符串形式;未落库的新对话用 'new' */
 export type ConvKey = string
@@ -404,7 +405,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }
       })
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || err?.message || '删除失败'
+      const msg = apiErrorText(err, '删除失败')
       throw new Error(msg)
     }
   },

@@ -9,6 +9,7 @@ import { bookingsApi } from '@/api/bookings'
 import { DatePickerPanel } from './DatePickerPanel'
 import { GuestsPanel, type GuestsValue } from './GuestsPanel'
 import { PriceBreakdown } from './PriceBreakdown'
+import { apiErrorText } from '@/lib/utils'
 
 interface BookingWidgetProps {
   listing: ListingDetail
@@ -160,7 +161,7 @@ export function BookingWidget({ listing }: BookingWidgetProps) {
       toast.success('订单已创建, 请完成支付')
       navigate(`/payment/${booking.id}`)
     } catch (err: any) {
-      const msg = err.response?.data?.detail || err.message || '预订失败'
+      const msg = apiErrorText(err, '预订失败')
       toast.error(msg)
     } finally {
       setIsSubmitting(false)

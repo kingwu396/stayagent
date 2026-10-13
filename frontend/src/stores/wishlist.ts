@@ -50,6 +50,7 @@ interface WishlistState {
 }
 
 import type { MigrateResponse } from '@/types/wishlist'
+import { apiErrorText } from '@/lib/utils'
 
 export const useWishlistStore = create<WishlistState>()(
   persist(
@@ -66,7 +67,7 @@ export const useWishlistStore = create<WishlistState>()(
           const data = await wishlistsApi.list()
           set({ lists: data, isLoading: false })
         } catch (err: any) {
-          set({ error: err.response?.data?.detail || err.message || '加载失败', isLoading: false })
+          set({ error: apiErrorText(err, '加载失败'), isLoading: false })
         }
       },
 
@@ -219,7 +220,7 @@ export const useWishlistStore = create<WishlistState>()(
           set({ lists: [wl, ...get().lists] })
           return wl
         } catch (err: any) {
-          const detail = err.response?.data?.detail || err.message || '创建失败'
+          const detail = apiErrorText(err, '创建失败')
           set({ error: detail })
           return null
         }

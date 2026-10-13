@@ -14,6 +14,7 @@ import { ErrorState } from '@/components/ErrorState'
 import { EmptyState } from '@/components/EmptyState'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import type { HostBookingItem, HostListingStat } from '@/types/host'
+import { apiErrorText } from '@/lib/utils'
 
 const STATUS_TABS = [
   { key: '', label: '全部' },
@@ -78,7 +79,7 @@ export function HostBookingsView() {
         setState({ loading: false, error: null, items: res.items, total: res.total })
       })
       .catch((err: any) => {
-        const msg = err?.response?.data?.detail || err?.message || '订单加载失败'
+        const msg = apiErrorText(err, '订单加载失败')
         setState({ loading: false, error: msg, items: [], total: 0 })
       })
   }
@@ -107,7 +108,7 @@ export function HostBookingsView() {
       setAction(null)
       load()
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail || '操作失败')
+      toast.error(apiErrorText(err, '操作失败'))
     } finally {
       setActing(false)
     }

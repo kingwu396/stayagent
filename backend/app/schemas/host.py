@@ -56,9 +56,10 @@ class ListingCreateRequest(BaseModel):
     city: str = Field(min_length=1, max_length=100)
     country: str = Field(min_length=1, max_length=100)
     property_type: PropertyTypeLiteral
-    price_per_night: Decimal = Field(gt=0)
-    cleaning_fee: Decimal = Field(default=Decimal("0"), ge=0)
-    service_fee: Decimal = Field(default=Decimal("0"), ge=0)
+    # 价格封顶 10 万/晚, 与前端 PRICE_MAX 一致
+    price_per_night: Decimal = Field(gt=0, le=Decimal("100000"))
+    cleaning_fee: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("100000"))
+    service_fee: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("100000"))
     max_guests: int = Field(default=1, ge=1, le=20)
     bedrooms: int = Field(default=1, ge=1)
     beds: int = Field(default=1, ge=1)
@@ -76,9 +77,9 @@ class ListingUpdateRequest(BaseModel):
     city: str | None = Field(default=None, min_length=1, max_length=100)
     country: str | None = Field(default=None, min_length=1, max_length=100)
     property_type: PropertyTypeLiteral | None = None
-    price_per_night: Decimal | None = Field(default=None, gt=0)
-    cleaning_fee: Decimal | None = Field(default=None, ge=0)
-    service_fee: Decimal | None = Field(default=None, ge=0)
+    price_per_night: Decimal | None = Field(default=None, gt=0, le=Decimal("100000"))
+    cleaning_fee: Decimal | None = Field(default=None, ge=0, le=Decimal("100000"))
+    service_fee: Decimal | None = Field(default=None, ge=0, le=Decimal("100000"))
     max_guests: int | None = Field(default=None, ge=1, le=20)
     bedrooms: int | None = Field(default=None, ge=1)
     beds: int | None = Field(default=None, ge=1)

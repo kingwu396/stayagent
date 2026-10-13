@@ -16,6 +16,7 @@ import { listingsApi } from '@/api/listings'
 import { getViewedIds } from '@/lib/recent'
 import { EMPTY_SEARCH, type CompactSearchState } from '@/hooks/useCompactSearch'
 import type { ListingSummary, CityInfo } from '@/types/listing'
+import { apiErrorText } from '@/lib/utils'
 
 const HOT_CITIES = ['东京', '曼谷', '巴厘岛', '巴黎']
 
@@ -55,7 +56,7 @@ export function HomeView() {
       const data = await listingsApi.list({ page: 1, page_size: 20 })
       setListings(data.items)
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || '加载失败')
+      setError(apiErrorText(err, '加载失败'))
     } finally {
       setIsLoading(false)
     }

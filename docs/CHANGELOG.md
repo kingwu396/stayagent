@@ -1769,3 +1769,16 @@ run_started → step_started → step_completed → ... → final → done
 - 意外发现: pydantic EmailStr 默认允许 SMTPUTF8, 中文邮箱本地部分后端本来就能注册 (如 超级无敌@test.com)
 - 但浏览器原生校验 (input type=email) 仍会拦中文邮箱, 弹 "«@»前面的内容不应包含符号" 气泡, 前后端行为不一致 → 注册表单加 noValidate 关掉原生校验, 格式统一交后端判定; 补 "Field required → 不能为空" 翻译规则 (noValidate 后 required 拦截也失效, 空提交到后端)
 - 验证: 后端脚本实测中文用户名/英文用户名/空格/特殊符号 4 组用例; tsc + build 通过
+
+**发布房源报错白屏修复 (React #31) + 经纬度空串 422 根因**:
+- 现象: 发布房源后整页崩到 ErrorBoundary, 报 Minified React error #31, args 里的 {type,loc,msg,input} 是 Pydantic 422 错误条目的 keys
+- 根因一 (崩溃): HostListingFormView 等全局 20+ 处 `err.response?.data?.detail || fallback` 直接透传, 422 时 detail 是对象数组, 当 React 子节点渲染即崩
+- 根因一修复: 全部 21 处统一替换为 apiErrorText(err, fallback) (含字段中文标签 + 常见英文消息翻译), 顺带全站 422 错误提示中文化
+- 根因二 (为什么 422): 表单经纬度默认空串 '', 后端 ListingCreateRequest.latitude 是 Decimal | None, 解析 '' 报 "Input should be a valid decimal" → 422
+- 根因二修复: handleSubmit 提交前把空串经纬度归一化为 null (类型本就是 string | null)
+- 脚本批量替换 14 文件, import type { 多行导入插断 2 处手修 (agent.ts / SearchView.tsx); tsc + build 通过
+
+**房东表单: 价格上限 + 便利设施中文化**:
+- 价格: 每晚价/清洁费/服务费统一封顶 10 万 (前端 PRICE_MAX: input max 属性 + validate 提示; 后端 schemas/host.py 价格字段 le=Decimal("100000"), 防绕过前端直调 API)
+- 设施: lib/labels.ts 新增 AMENITY_LABELS + amenityLabel() (与 FilterModal/AmenityList 中文文案一致), 房东表单设施 chips 从英文原文改走 amenityLabel (DB 键仍英文, 仅渲染层转中文)
+- 验证: 后端实测 999999 拦截 / 680 通过; tsc + build 通过

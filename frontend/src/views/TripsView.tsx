@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/useToast'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import type { Booking } from '@/types/booking'
 import { PLACEHOLDER_IMAGE } from '@/lib/placeholder'
+import { apiErrorText } from '@/lib/utils'
 
 function formatMoney(decimalStr: string): string {
   // 后端返 "106.50"，前端只 .00 → "106.50"
@@ -35,7 +36,7 @@ export function TripsView() {
       setBookings(data.items)
       setTotal(data.total)
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || '加载失败')
+      setError(apiErrorText(err, '加载失败'))
     } finally {
       setIsLoading(false)
     }
@@ -68,7 +69,7 @@ export function TripsView() {
       setPendingCancel(null)
       await load()
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || '取消失败')
+      toast.error(apiErrorText(err, '取消失败'))
     } finally {
       setCanceling(null)
     }

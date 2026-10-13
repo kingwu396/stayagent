@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/useToast'
 import type { Booking } from '@/types/booking'
 import { PLACEHOLDER_IMAGE } from '@/lib/placeholder'
 import type { Payment, PaymentMethod } from '@/types/payment'
+import { apiErrorText } from '@/lib/utils'
 
 const METHODS: { key: PaymentMethod; label: string; desc: string; icon: typeof Smartphone; bg: string }[] = [
   { key: 'alipay', label: '支付宝', desc: '推荐使用', icon: Smartphone, bg: 'bg-blue-500' },
@@ -60,7 +61,7 @@ export function PaymentView() {
         if (!payingRef.current) setBooking(b)
       })
     fetchBooking()
-      .catch((err: any) => setLoadError(err.response?.data?.detail || err.message || '订单加载失败'))
+      .catch((err: any) => setLoadError(apiErrorText(err, '订单加载失败')))
       .finally(() => setIsLoading(false))
 
     // 房东取消/后台惰性过期无推送 — 页面可见时每 15s 静默轮询,
@@ -107,7 +108,7 @@ export function PaymentView() {
       ])
       setPaidPayment(paid)
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || err.message || '支付失败')
+      toast.error(apiErrorText(err, '支付失败'))
       // 支付失败可能因房东已取消/订单已过期 — 立即拉一次最新状态切视图
       bookingsApi
         .getById(booking.id)

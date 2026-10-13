@@ -20,6 +20,7 @@ import { ErrorState } from '@/components/ErrorState'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import { HostCalendarModal } from '@/components/HostCalendarModal'
 import type { HostMeResponse, HostDashboardResponse, HostListingStat } from '@/types/host'
+import { apiErrorText } from '@/lib/utils'
 
 function MiniBarChart({ items }: { items: HostListingStat[] }) {
   const top5 = items.slice(0, 5)
@@ -82,7 +83,7 @@ export function HostDashboardView() {
       })
       .catch((err: any) => {
         console.error('[HostDashboard] load failed', err?.response?.status, err?.message)
-        const msg = err?.response?.data?.detail || err?.message || '后台加载失败'
+        const msg = apiErrorText(err, '后台加载失败')
         setState({ loading: false, info: null, dashboard: null, error: msg })
       })
   }
@@ -103,7 +104,7 @@ export function HostDashboardView() {
       setDeleting(null)
       load()
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail || '删除失败')
+      toast.error(apiErrorText(err, '删除失败'))
     } finally {
       setDeleteLoading(false)
     }

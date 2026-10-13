@@ -15,6 +15,7 @@ import { ErrorState } from '@/components/ErrorState'
 import { EmptyState } from '@/components/EmptyState'
 import { bookingsApi } from '@/api/bookings'
 import type { Booking, BookingCancelReason } from '@/types/booking'
+import { apiErrorText } from '@/lib/utils'
 
 /** 取消原因 → 徽标样式 + 文案 */
 const REASON_META: Record<BookingCancelReason | 'unknown', { label: string; cls: string }> = {
@@ -49,7 +50,7 @@ export function CancelledTripsView() {
       const data = await bookingsApi.list()
       setBookings(data.items.filter((b) => b.status === 'cancelled'))
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || '加载失败')
+      setError(apiErrorText(err, '加载失败'))
     } finally {
       setIsLoading(false)
     }

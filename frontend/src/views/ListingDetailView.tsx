@@ -16,6 +16,7 @@ import { listingsApi } from '@/api/listings'
 import { recordViewed } from '@/lib/recent'
 import { propertyTypeLabel } from '@/lib/labels'
 import type { ListingDetail } from '@/types/listing'
+import { apiErrorText } from '@/lib/utils'
 
 /** 由 listing.id 派生"X 年出租经验" */
 function hashYears(id: number): number {
@@ -65,7 +66,7 @@ export function ListingDetailView() {
       if (err.response?.status === 404) {
         setError('房源不存在')
       } else {
-        setError(err.response?.data?.detail || err.message || '加载失败')
+        setError(apiErrorText(err, '加载失败'))
       }
     } finally {
       setIsLoading(false)

@@ -21,6 +21,7 @@ import type {
   FilterState,
   PlaceType,
 } from '@/types/listing'
+import { apiErrorText } from '@/lib/utils'
 
 const PAGE_SIZE = 20
 const PREVIEW_DEBOUNCE_MS = 300
@@ -195,7 +196,7 @@ export function SearchView() {
         setLoadedPage(page)
       } catch (err: any) {
         if (myId !== reqIdRef.current) return
-        setError(err.response?.data?.detail || err.message || '加载失败')
+        setError(apiErrorText(err, '加载失败'))
       } finally {
         if (myId === reqIdRef.current) setIsLoading(false)
       }

@@ -11,6 +11,7 @@ import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react'
 import { hostApi } from '@/api/host'
 import type { HostCalendarBooking } from '@/types/host'
+import { apiErrorText } from '@/lib/utils'
 
 interface HostCalendarModalProps {
   open: boolean
@@ -51,7 +52,7 @@ export function HostCalendarModal({ open, listingId, listingTitle, onClose }: Ho
         if (!cancelled) setItems(res.items)
       })
       .catch((err: any) => {
-        if (!cancelled) setError(err?.response?.data?.detail || '日历加载失败')
+        if (!cancelled) setError(apiErrorText(err, '日历加载失败'))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
