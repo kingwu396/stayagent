@@ -1742,3 +1742,21 @@ run_started → step_started → step_completed → ... → final → done
 - seed 后必须 localize (否则图片 404), 强耦合不该让面试官多记一步 → `make seed` 末尾自动跑 localize_images
 - `make localize-images` 独立目标保留 (服务器单独续传/rsync 场景); README/DEPLOY ⓪ 快速开始从 5 步减回 4 步
 - 幂等验证: 重跑时 60 张固定资源已存在 0 待下载, 秒过
+
+**权限收紧: 未登录不能收藏房源** (`components/ListingCard.tsx`):
+- 用户反馈: 未登录点红心也能收藏 (Block 5 的匿名模式 —— localStorage 存 anonymousIds, 登录后迁移), 与预订流程权限语义不一致
+- fix: 未登录点红心 → toast「登录后即可收藏房源」+ 跳 /login, 与 BookingWidget 未登录点预订行为一致
+- 保留: 老的匿名收藏数据 (anonymousIds) 红心仍显示, 登录后 migrateFromAnonymous 照常迁移, 不丢数据
+- 验证: tsc + build 通过
+
+**体验优化: 未登录收藏 → 登录后自动弹出心愿单选择框**:
+- 流程: 未登录点红心 → 房源暂存 localStorage (`lib/pendingFavorite.ts`, 30 分钟过期防滞后弹窗) → 跳登录页 → 登录/注册成功 → AnimatedLayout 监听 token 取出暂存 → 自动打开「保存到心愿单」选择框, 用户选清单或新建
+- 选择 AnimatedLayout effect 而非 LoginView/RegisterView 回调: 任何登录路径 (登录页/注册页/未来 OAuth) 一处全覆盖; picker 打开时自己 fetchAll 拉清单, 无需额外接线
+- takePendingFavorite 读即删, 防刷新重复弹; WishlistPickerModal 本就有 isLoggedIn 门控, token 无效时不会裸弹
+- 验证: tsc + build 通过
+
+**交互修正: 已收藏房源再点红心直接取消, 不弹选择框**:
+- 之前登录态点红心永远弹「保存到心愿单」选择框, 取消收藏也要进弹窗点清单卡片, 多一步
+- wishlist store 新增 `removeFromAll(listingId)`: 从**所有**清单移除 (覆盖同一房源加进多个清单的边角, 只移除第一个的话红心仍亮用户困惑); Optimistic 更新 + 失败 fetchAll 回滚
+- ListingCard 三态分支: 未登录 → 暂存+跳登录; 已收藏 → 直接取消 + toast; 未收藏 → 弹选择框
+- 验证: tsc + build 通过

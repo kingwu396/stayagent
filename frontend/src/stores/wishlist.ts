@@ -24,6 +24,9 @@ interface WishlistState {
   /** 在指定 wishlist 里 toggle（心愿单选择弹窗用）：在内→移除，不在→添加 */
   toggleIn: (wishlistId: number, listingId: number) => Promise<void>
 
+  /** 从所有清单移除（卡片上再次点红心直接取消收藏用，覆盖同时在多个清单的情况） */
+  removeFromAll: (listingId: number) => Promise<void>
+
   /** 当前是否已收藏 */
   has: (listingId: number) => boolean
 
@@ -172,6 +175,25 @@ export const useWishlistStore = create<WishlistState>()(
           await get().fetchAll() // 拉真实数据回填（含 listing 摘要，弹窗缩略图用）
         } catch (err) {
           await get().fetchAll()
+        }
+      },
+
+      async removeFromAll(listingId) {
+        if (!useAuthStore.getState().token) return
+        const { lists } = get()
+        const containing = lists.filter((w) => w.items.some((it) => it.listing_id === listingId))
+        if (containing.length === 0) return
+        // Optimistic: 从所有清单一并移除
+        set({
+          lists: lists.map((w) => ({
+            ...w,
+            items: w.items.filter((it) => it.listing_id !== listingId),
+          })),
+        })
+        try {
+          await Promise.all(containing.map((w) => wishlistsApi.removeItem(w.id, listingId)))
+        } catch {
+          await get().fetchAll() // 回滚
         }
       },
 

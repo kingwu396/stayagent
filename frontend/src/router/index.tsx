@@ -1,5 +1,9 @@
+import { useEffect } from 'react'
 import { Outlet, ScrollRestoration, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
+import { useAuthStore } from '@/stores/auth'
+import { useWishlistPicker } from '@/components/WishlistPickerModal'
+import { takePendingFavorite } from '@/lib/pendingFavorite'
 import { HomeView } from '@/views/HomeView'
 import { NotFoundView } from '@/views/NotFoundView'
 import { ListingDetailView } from '@/views/ListingDetailView'
@@ -22,6 +26,18 @@ import { WishlistPickerModal } from '@/components/WishlistPickerModal'
 /** Block 13 (F5): 路由过渡外层, 用 pathname 作 pageKey 触发 fade */
 function AnimatedLayout() {
   const location = useLocation()
+  const token = useAuthStore((s) => s.token)
+
+  // Block 32: 未登录点收藏 → 暂存并跳登录; 登录成功后这里自动弹出心愿单选择框,
+  // 让用户选择加到哪个清单 (picker 打开时会自己 fetchAll 拉清单)
+  useEffect(() => {
+    if (!token) return
+    const pending = takePendingFavorite()
+    if (pending) {
+      useWishlistPicker.getState().open(pending)
+    }
+  }, [token])
+
   return (
     <>
       {/* Block 23: 路由前进回顶 / 后退恢复原滚动位置 */}

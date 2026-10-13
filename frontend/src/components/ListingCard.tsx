@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Heart, Star } from 'lucide-react'
 import type { ListingSummary } from '@/types/listing'
 import { formatPrice, formatRating } from '@/lib/utils'
@@ -8,6 +8,7 @@ import { useWishlistPicker } from '@/components/WishlistPickerModal'
 import { propertyTypeLabel } from '@/lib/labels'
 import { useToast } from '@/hooks/useToast'
 import { PLACEHOLDER_IMAGE } from '@/lib/placeholder'
+import { setPendingFavorite } from '@/lib/pendingFavorite'
 
 const FALLBACK_IMAGE = PLACEHOLDER_IMAGE
 
@@ -19,23 +20,30 @@ interface ListingCardProps {
 
 export function ListingCard({ listing, highlighted }: ListingCardProps) {
   const liked = useWishlistStore((s) => s.has(listing.id))
-  const toggle = useWishlistStore((s) => s.toggle)
+  const removeFromAll = useWishlistStore((s) => s.removeFromAll)
   const openPicker = useWishlistPicker((s) => s.open)
   const toast = useToast()
+  const navigate = useNavigate()
 
-  function toggleLike(e: React.MouseEvent) {
+  async function toggleLike(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
-    // 登录态：打开「保存到心愿单」选择弹窗（保存/取消都在弹窗里做）
-    if (useAuthStore.getState().token) {
-      openPicker(listing)
+    // 未登录: 暂存房源 → 跳登录页, 登录成功后自动弹出心愿单选择框
+    // (Block 32 权限收紧 + 体验优化: 不再匿名收藏, 但登录后接续收藏动作)
+    if (!useAuthStore.getState().token) {
+      setPendingFavorite(listing)
+      toast.info('登录后即可收藏房源')
+      navigate('/login')
       return
     }
-    // 匿名：保持原行为，直接 toggle localStorage 收藏
-    const wasLiked = liked
-    toggle(listing.id)
-    // 真 Optimistic Update：UI 已经立刻变了，toast 给反馈
-    toast.success(wasLiked ? '已取消收藏' : '已添加到心愿单 ❤️')
+    // 已收藏: 再次点红心 = 直接取消 (从所有清单移除), 不弹选择框
+    if (liked) {
+      await removeFromAll(listing.id)
+      toast.success('已取消收藏')
+      return
+    }
+    // 未收藏: 打开「保存到心愿单」选择弹窗
+    openPicker(listing)
   }
 
   return (
