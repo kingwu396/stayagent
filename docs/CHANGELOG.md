@@ -1737,3 +1737,8 @@ run_started → step_started → step_completed → ... → final → done
 **本机验证**: 2871 张下载 0 失败 (154s, 172MB); DB 1000 条房源 URL 全部本地化 (0 残留); 端点实测子目录/中文城市名/占位图/评价图全 200, 目录穿越与非法子目录 400; tsc + build 通过
 
 **服务器部署**: uploads/ 不进 git —— 服务器跑 `uv run python -m scripts.localize_images` 重新下载, 或本机 rsync `backend/uploads/images/` 上传 (DB URL 两端通用); README 快速开始与 DEPLOY.md 均已把 localize-images 列为标准步骤
+
+**流程简化: 图片本地化并入 `make seed`**:
+- seed 后必须 localize (否则图片 404), 强耦合不该让面试官多记一步 → `make seed` 末尾自动跑 localize_images
+- `make localize-images` 独立目标保留 (服务器单独续传/rsync 场景); README/DEPLOY ⓪ 快速开始从 5 步减回 4 步
+- 幂等验证: 重跑时 60 张固定资源已存在 0 待下载, 秒过

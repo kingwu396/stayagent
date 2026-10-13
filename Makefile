@@ -7,9 +7,9 @@ help:
 	@echo "  make backend   - 只启动后端"
 	@echo "  make frontend  - 只启动前端"
 	@echo "  make redis     - 启动 Redis (本机 redis-server, 已在跑则跳过)"
-	@echo "  make seed      - 填充 1000 条房源演示数据 (幂等, 含 3 个演示房东)"
+	@echo "  make seed      - 填充 1000 条房源演示数据 + 图片本地化下载 (幂等, 含 3 个演示房东)"
 	@echo "  make seed-tips - 填充 30 条 RAG 旅游知识库"
-	@echo "  make localize-images - picsum 图片下载到本地 uploads/ 并改写 DB (幂等, seed 后跑一次)"
+	@echo "  make localize-images - 只跑图片本地化 (make seed 已内含; 服务器单独续传/rsync 后用)"
 	@echo "  make test      - 跑后端全部验证脚本 (需先 seed + MySQL/Redis)"
 	@echo "  make check     - 前端类型检查 + 生产构建"
 	@echo "  make build     - 只构建前端产物 (dist/)"
@@ -44,6 +44,8 @@ dev:
 seed:
 	@echo "🌱 填充房源演示数据 (50 城 × 20, 增量幂等)..."
 	cd backend && uv run python -m scripts.seed_listings
+	@echo "🖼  图片本地化 (picsum 下载到 uploads/, 幂等, 已下载秒过)..."
+	cd backend && uv run python -m scripts.localize_images
 
 seed-tips:
 	@echo "🌱 填充 RAG 旅游知识库 (5 类 × 6 条)..."

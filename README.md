@@ -109,8 +109,7 @@ cp backend/.env.example backend/.env
 ```bash
 make install   # 前后端依赖 (首次)
 make redis     # 启动 Redis (已在跑则跳过; 认证依赖它)
-make seed      # 1000 条房源 + 3 个演示房东 + RAG 知识库 (幂等)
-make localize-images  # 房源/城市/评价图下载到本地 uploads/ (幂等, 约 2-3 分钟, 不跑则图片 404)
+make seed      # 1000 条房源 + 3 个演示房东 + RAG 知识库 + 图片下载到本地 (幂等, 图片约 2-3 分钟)
 make dev       # 同时启动前后端, Ctrl+C 一起关
 ```
 
