@@ -335,6 +335,7 @@ function DatePickerPopover({
 
   // 桌面端: fixed 定位, 锚点卡片下缘居中; scroll/resize 实时跟随
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  const popRef = useRef<HTMLDivElement | null>(null)
   useLayoutEffect(() => {
     if (isMobile) return
     function update() {
@@ -342,10 +343,23 @@ function DatePickerPopover({
       if (!el) return
       const r = el.getBoundingClientRect()
       const half = 340 // popover 宽 680 的一半
-      setPos({
-        left: Math.min(Math.max(r.left + r.width / 2, half + 8), window.innerWidth - half - 8),
-        top: r.bottom + 8,
-      })
+      const left = Math.min(Math.max(r.left + r.width / 2, half + 8), window.innerWidth - half - 8)
+      // 弹层高度实测 (首次渲染前用估算值兜底)
+      const ph = popRef.current?.offsetHeight ?? 380
+      // 下方放不下且上方放得下 → 向上翻转:
+      // 房源详情页下方内容少 (无周边房源/评论短) 时页面滚不动, 向下弹会被视口底边裁掉
+      const fitsBelow = r.bottom + 8 + ph <= window.innerHeight - 8
+      const fitsAbove = r.top - 8 - ph >= 8
+      let top: number
+      if (fitsBelow) {
+        top = r.bottom + 8
+      } else if (fitsAbove) {
+        top = r.top - 8 - ph
+      } else {
+        // 两边都放不下 (弹层已限高 ≤ 视口): 贴视口下缘夹紧, 保证完整可见
+        top = Math.max(8, Math.min(r.bottom + 8, window.innerHeight - ph - 8))
+      }
+      setPos({ left, top })
     }
     update()
     window.addEventListener('resize', update)
@@ -465,8 +479,9 @@ function DatePickerPopover({
   // 桌面端: 同样 portal 到 body, fixed 定位跟随锚点卡片
   return createPortal(
     <div
+      ref={popRef}
       data-booking-popover
-      className="fixed z-30 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-expand-down w-[680px] max-w-[calc(100vw-2rem)]"
+      className="fixed z-30 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-expand-down w-[680px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-1rem)] overflow-y-auto"
       style={{
         left: pos?.left ?? 0,
         top: pos?.top ?? 0,

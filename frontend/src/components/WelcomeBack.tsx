@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { getRecentSearches, type RecentSearch } from '@/lib/recent'
-import { cityImage } from '@/lib/placeholder'
+import { cityImage, PLACEHOLDER_IMAGE } from '@/lib/placeholder'
 import { formatDateRange, formatGuestsSummary, totalGuests } from '@/hooks/useCompactSearch'
 
 /**
@@ -44,6 +44,11 @@ function SearchCard({ search }: { search: RecentSearch }) {
         src={cityImage(search.city)}
         alt={search.city}
         loading="lazy"
+        onError={(e) => {
+          // 本地化只覆盖 seed 时的城市, 新城市/省份 (如 广东) 没有 cities/{name}.jpg 会 404 → 兜底占位图
+          ;(e.target as HTMLImageElement).onerror = null
+          ;(e.target as HTMLImageElement).src = PLACEHOLDER_IMAGE
+        }}
         className="w-16 h-16 md:w-20 md:h-20 rounded-xl object-cover flex-shrink-0 bg-slate-100"
       />
       <div className="flex-1 min-w-0">

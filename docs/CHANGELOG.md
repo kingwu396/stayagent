@@ -1782,3 +1782,15 @@ run_started → step_started → step_completed → ... → final → done
 - 价格: 每晚价/清洁费/服务费统一封顶 10 万 (前端 PRICE_MAX: input max 属性 + validate 提示; 后端 schemas/host.py 价格字段 le=Decimal("100000"), 防绕过前端直调 API)
 - 设施: lib/labels.ts 新增 AMENITY_LABELS + amenityLabel() (与 FilterModal/AmenityList 中文文案一致), 房东表单设施 chips 从英文原文改走 amenityLabel (DB 键仍英文, 仅渲染层转中文)
 - 验证: 后端实测 999999 拦截 / 680 通过; tsc + build 通过
+
+**日期弹层防视口裁切: 向上翻转 + 视口限高**:
+- 场景: 房源详情页桌面端日期弹层固定弹在锚点下方 (top: r.bottom + 8), 锚点偏上或弹层过高时下半截被视口底边裁掉 (playwright 实测 40 个房源 39 个裁 3px+)
+- 第一版只做翻转不够: 弹层高约 600px, 锚点在页面上部时上下都放不下, 两边都放不下仍向下弹被裁
+- 最终方案三件套: ① 实测弹层高度 (popRef.offsetHeight, 首帧 380 估算兜底); ② 下方放不下且上方放得下 → 向上翻转; ③ 弹层容器 max-h-[calc(100vh-1rem)] overflow-y-auto + 两边都放不下时贴视口下缘夹紧 (top = clamp(r.bottom+8, 8, innerHeight - ph - 8)), 保证任何视口任何锚点位置都完整可见
+- 验证: playwright-core + 系统 Chrome 驱动, 1440x900 / 1280x720 / 1024x640 三种视口各查 40 个房源, 裁切 0 个; 小视口截图人工确认弹层完整、日历可滚动
+- 纯前端; tsc + build 通过
+
+**主页「继续搜索」城市图 404 兜底**:
+- 场景: 搜索历史含本地化未覆盖的城市/省份 (如 广东), WelcomeBack 的 cities/{name}.jpg 404 → 破图
+- 修复: img 加 onError 兜底换 PLACEHOLDER_IMAGE (真实城市图不受影响); 仅渲染层兜底, 不预生成任意文本的城市图
+- 验证: playwright 预置 广东(无图)/成都(有图) 两条搜索记录, 截图确认 广东 卡片显示占位图、成都 显示真实图
