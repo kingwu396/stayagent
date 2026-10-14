@@ -1,13 +1,14 @@
 """Agent Tool 的 OpenAI Function Calling JSON Schema 定义
 
 依据: docs/project-charter.md §6.1 + §6.3
-共 12 个 tool (含 RAG 的 search_travel_tips):
-    1.  search_listings        7.  create_wishlist
-    2.  get_listing_detail     8.  create_booking
-    3.  compare_listings        9.  list_my_trips
-    4.  add_to_wishlist         10. parse_travel_plan_pdf
-    5.  remove_from_wishlist    11. recommend_from_plan
-    6.  list_wishlists          12. search_travel_tips (RAG)
+共 14 个 tool (含 RAG 的 search_travel_tips):
+    1.  search_listings        8.  create_booking
+    2.  get_listing_detail     9.  list_my_trips
+    3.  compare_listings       10. parse_travel_plan_pdf
+    4.  add_to_wishlist        11. recommend_from_plan
+    5.  remove_from_wishlist   12. search_travel_tips (RAG)
+    6.  list_wishlists         13. check_availability (Block 33)
+    7.  create_wishlist        14. get_listing_calendar (Block 33)
 
 Block 9 orchestrator 直接 `client.chat(messages, tools=ALL_TOOL_SCHEMAS)` 调用.
 Tool 实际实现分散在后续 Block 9-13, 此处只定义 schema.
@@ -302,6 +303,57 @@ search_travel_tips = {
 }
 
 
+# ---------- 13. check_availability (Block 33) ----------
+check_availability = {
+    "type": "function",
+    "function": {
+        "name": "check_availability",
+        "description": (
+            "查询某套房源在指定日期段**有没有空位**（能否预订），有空位时同时返回实时价格明细"
+            "（每晚价 × 晚数 + 清洁费 + 服务费 = 总价）。"
+            "当用户问'这几天/某日期有没有空'、'能订吗'、或下单前想确认价格时，必须使用此工具。"
+            "注意：与 create_booking 用同一套占位规则，此处 available=true 不代表锁定，下单仍走 HITL 确认。"
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "listing_id": {"type": "integer", "description": "房源 ID"},
+                "check_in": {"type": "string", "description": "入住日期 YYYY-MM-DD（不能早于今天）"},
+                "check_out": {"type": "string", "description": "退房日期 YYYY-MM-DD（必须晚于入住）"},
+            },
+            "required": ["listing_id", "check_in", "check_out"],
+        },
+    },
+}
+
+# ---------- 14. get_listing_calendar (Block 33) ----------
+get_listing_calendar = {
+    "type": "function",
+    "function": {
+        "name": "get_listing_calendar",
+        "description": (
+            "查看某套房源**未来一段时间**的可订日历：哪些日期段已被预订（occupied_ranges）、"
+            "剩余可订天数、当前每晚价。当用户问'这个房源什么时候有空'、'看看它的可订日历'、"
+            "'哪些日期被订了'，或需要帮用户挑一个有空位的日期段时，使用此工具。"
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "listing_id": {"type": "integer", "description": "房源 ID"},
+                "days": {
+                    "type": "integer",
+                    "default": 30,
+                    "minimum": 1,
+                    "maximum": 90,
+                    "description": "往前看多少天, 默认 30, 最大 90",
+                },
+            },
+            "required": ["listing_id"],
+        },
+    },
+}
+
+
 # ============ 全部 schemas (Block 9 orchestrator 直接用) ============
 
 ALL_TOOL_SCHEMAS: list[dict] = [
@@ -317,6 +369,8 @@ ALL_TOOL_SCHEMAS: list[dict] = [
     parse_travel_plan_pdf,
     recommend_from_plan,
     search_travel_tips,
+    check_availability,
+    get_listing_calendar,
 ]
 
 

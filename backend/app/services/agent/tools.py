@@ -11,7 +11,7 @@
 import json
 import logging
 import re
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 from sqlalchemy import select
@@ -24,7 +24,7 @@ from app.api.payments import expire_stale_payments
 from app.services.rag import retrieve_tips
 from app.core.llm_client import get_llm_client
 from app.services.agent.retry import retry_on_llm_error
-from app.services.booking_rules import validate_booking_request, BookingRuleError
+from app.services.booking_rules import validate_booking_request, find_conflict, BookingRuleError
 
 logger = logging.getLogger(__name__)
 
@@ -790,6 +790,122 @@ def search_travel_tips(
     }
 
 
+# ============ Tool 13: check_availability (Block 33 空位查询 + 实时价格) ============
+
+def _parse_iso_date(value, field: str) -> date:
+    """LLM 传来的日期可能是 str/date, 统一转 date; 无效格式抛 INVALID_ARGS"""
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError:
+        raise ToolError(f"{field}日期格式无效: {value!r} (需要 YYYY-MM-DD)", code="INVALID_ARGS")
+
+
+def check_availability(
+    user: User, db,
+    listing_id: int,
+    check_in,
+    check_out,
+    **_kwargs,
+) -> dict:
+    """查询房源在指定日期段是否有空位; 有空位时附实时价格明细, 方便 LLM 顺手报价."""
+    check_in = _parse_iso_date(check_in, "入住")
+    check_out = _parse_iso_date(check_out, "退房")
+    if check_out <= check_in:
+        raise ToolError("退房日期必须晚于入住日期", code="INVALID_ARGS")
+    today = date.today()
+    if check_in < today:
+        raise ToolError(
+            f"入住日期 {check_in.isoformat()} 早于今天 {today.isoformat()}，过去日期无可订性",
+            code="INVALID_ARGS",
+        )
+    listing = db.get(Listing, listing_id)
+    if not listing:
+        raise ToolError(f"房源 #{listing_id} 不存在", code="NOT_FOUND")
+
+    # 与下单同一套占位口径 (pending/confirmed 占日期, 首尾相接不算冲突)
+    conflict = find_conflict(db, listing_id, check_in, check_out)
+    totals = _compute_booking_totals(listing, check_in, check_out)
+    return {
+        "listing_id": listing.id,
+        "title": listing.title,
+        "check_in": check_in.isoformat(),
+        "check_out": check_out.isoformat(),
+        "nights": totals["nights"],
+        "available": conflict is None,
+        # 冲突区间只暴露日期与状态, 不暴露房客信息
+        "conflict": None if conflict is None else {
+            "check_in": conflict.check_in.isoformat(),
+            "check_out": conflict.check_out.isoformat(),
+            "status": conflict.status,
+        },
+        "pricing": {
+            "price_per_night": float(listing.price_per_night),
+            "cleaning_fee": float(totals["cleaning_fee"]),
+            "service_fee": float(totals["service_fee"]),
+            "total": float(totals["total"]),
+        },
+        "max_guests": listing.max_guests,
+    }
+
+
+# ============ Tool 14: get_listing_calendar (Block 33 未来可订日历 / 库存) ============
+
+def get_listing_calendar(
+    user: User, db,
+    listing_id: int,
+    days: int = 30,
+    **_kwargs,
+) -> dict:
+    """查询房源未来 N 天的可订日历: 已占日期区间 + 剩余可订天数."""
+    try:
+        days = int(days)
+    except (TypeError, ValueError):
+        days = 30
+    days = max(1, min(days, 90))  # 限 1-90 天, 防止 LLM 传离谱值
+    listing = db.get(Listing, listing_id)
+    if not listing:
+        raise ToolError(f"房源 #{listing_id} 不存在", code="NOT_FOUND")
+
+    today = date.today()
+    end = today + timedelta(days=days)
+    bookings = db.execute(
+        select(Booking)
+        .where(
+            Booking.listing_id == listing_id,
+            Booking.status.in_(("pending", "confirmed")),  # 与 find_conflict 同一占位口径
+            Booking.check_out > today,   # 已退房的历史订单不占未来
+            Booking.check_in < end,
+        )
+        .order_by(Booking.check_in)
+    ).scalars().all()
+
+    # 裁剪到查询窗口; 语义: [check_in, check_out) 半开区间, check_out 当天空闲可入住
+    occupied = [
+        {
+            "check_in": max(b.check_in, today).isoformat(),
+            "check_out": min(b.check_out, end).isoformat(),
+            "status": b.status,
+        }
+        for b in bookings
+    ]
+    occupied_nights = sum(
+        (date.fromisoformat(r["check_out"]) - date.fromisoformat(r["check_in"])).days
+        for r in occupied
+    )
+    return {
+        "listing_id": listing.id,
+        "title": listing.title,
+        "from": today.isoformat(),
+        "to": end.isoformat(),
+        "total_days": days,
+        "available_days": days - occupied_nights,
+        "occupied_ranges": occupied,
+        "price_per_night": float(listing.price_per_night),
+    }
+
+
 # ============ Tool dispatch (orchestrator 用) ============
 
 TOOL_DISPATCH: dict[str, Any] = {
@@ -805,5 +921,7 @@ TOOL_DISPATCH: dict[str, Any] = {
     "parse_travel_plan_pdf": parse_travel_plan_pdf,
     "recommend_from_plan": recommend_from_plan,
     "search_travel_tips": search_travel_tips,
+    "check_availability": check_availability,
+    "get_listing_calendar": get_listing_calendar,
 }
 """Tool name → 实现函数. orchestrator 按 tc.function.name 路由."""

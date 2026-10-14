@@ -50,6 +50,8 @@ class CurrentUserResponse(BaseModel):
     email: str
     username: str
     avatar_url: str | None = None
+    # 必须带上: /me 是 F5 后 fetchMe 的数据源, 漏了会把登录时拿到的 is_host 覆盖丢掉
+    is_host: bool = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

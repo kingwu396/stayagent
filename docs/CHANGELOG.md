@@ -1800,3 +1800,17 @@ run_started → step_started → step_completed → ... → final → done
 - 根因: refresh 一次性消费用 GETDEL (需 Redis 6.2+), 服务器 Redis 版本旧 → unknown command → 未捕获异常 500
 - 修复: 改 Lua 脚本原子 GET+DEL (Redis 2.6+ 全兼容, 语义与 GETDEL 一致: 拿到值的同时删除, 并发只有一个请求能消费)
 - 验证: 本地实测 注册→登录→刷新 200 / 旧 cookie 重放 401 "refresh token 已撤销"; tsc 无涉; 后端改动需重启服务
+
+**修复 F5 后房东身份丢失: /me 响应漏 is_host 字段**:
+- 现象: 用户明明是房东, 有时登录后却显示非房东
+- 根因: 登录/注册响应 (RegisterResponse) 带 is_host, 但 /auth/me 的 CurrentUserResponse 漏了该字段; F5 后 fetchMe 用 /me 结果覆盖本地 user → is_host 变 undefined → 前端按非房东渲染
+- 修复: CurrentUserResponse 加 is_host: bool = False (from_attributes 自动从 User.is_host 读)
+- 验证: 实测注册房东用户 → 登录 → /me 返回 is_host: true; 后端改动需重启服务
+
+**Block 33: agent 新增空位查询 + 可订日历工具**:
+- check_availability(listing_id, check_in, check_out): 查指定日期段有没有空位, available + 冲突区间 (只暴露日期/状态, 不暴露房客) + 实时价格明细 (每晚价×晚数+清洁费+服务费=总价); 与下单同一套占位口径 (复用 booking_rules.find_conflict, pending/confirmed 占位, 首尾相接合法), 覆盖"这几天有没有空位" + "实时价格"
+- get_listing_calendar(listing_id, days=30): 未来 N 天 (1-90, LLM 传离谱值兜底) 可订日历 — 占位区间 (裁剪到窗口, 半开区间语义 check_out 当天可入住) + available_days 统计 + 当前每晚价; 占位口径与冲突判定一致
+- 参数校验: 日期格式/退房晚于入住/入住不早于今天/房源不存在, 全部 ToolError 带中文消息喂回 LLM
+- 注册: TOOL_DISPATCH + ALL_TOOL_SCHEMAS (12→14) + tool_schemas 头注释
+- 测试 scripts/test_agent_block33.py: 26 用例全过 (注册链路/空位与价格/重叠与首尾相接/cancelled 不占位/pending 占位/参数校验/日历裁剪/days 边界); 回归 test_host_block27 5/5
+- 纯后端 (LLM function calling 自治, 前端 AgentPanel 通用渲染无需改); 服务器需重启 stayagent
