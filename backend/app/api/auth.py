@@ -135,29 +135,44 @@ async def register(payload: RegisterRequest, db: DBSession):
 
 # ============ 登录 ============
 
+def _find_user_by_account(db, account: str) -> User | None:
+    """账号可以是 email 或 username (登录端点与 MCP login 工具共用)"""
+    return db.execute(
+        select(User).where(or_(User.email == account, User.username == account))
+    ).scalar_one_or_none()
+
+
+async def issue_session(
+    redis, user: User, *, kick: bool
+) -> tuple[str, str, int, int]:
+    """签发 access + refresh 并写入 refresh 白名单.
+
+    kick=True: 执行 Block 34 单会话踢人 + 会话绑定 (HTTP login 用)
+    kick=False: 只发 token, 不碰 session_* 槽 (MCP 独立会话用,
+                避免与浏览器会话互踢 —— Block 35)
+    返回: (access_token, refresh_token, access_exp, refresh_exp)
+    """
+    access_token, access_jti, access_exp = create_access_token(user.id)
+    refresh_token, refresh_jti, refresh_exp = create_refresh_token(user.id)
+    await redis.set(f"refresh:{refresh_jti}", str(user.id), ex=refresh_exp)
+    if kick:
+        await _kick_previous_session(redis, user.id)
+        await _bind_session(redis, user.id, access_jti, refresh_jti)
+    return access_token, refresh_token, access_exp, refresh_exp
+
+
 @router.post("/login", response_model=LoginResponse)
 async def login(payload: LoginRequest, response: Response, db: DBSession):
-    user = db.execute(
-        select(User).where(
-            or_(User.email == payload.account, User.username == payload.account)
-        )
-    ).scalar_one_or_none()
+    user = _find_user_by_account(db, payload.account)
 
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="账号或密码错误")
 
-    # 签发 access + refresh
-    access_token, _access_jti, access_exp = create_access_token(user.id)
-    refresh_token, refresh_jti, refresh_exp = create_refresh_token(user.id)
-
-    # Redis: refresh 白名单
     await _require_redis()
     redis = await get_redis()
-    await redis.set(f"refresh:{refresh_jti}", str(user.id), ex=refresh_exp)
-
-    # Block 34: 单会话 — 新登录作废旧会话 (其他设备被踢下线)
-    await _kick_previous_session(redis, user.id)
-    await _bind_session(redis, user.id, _access_jti, refresh_jti)
+    access_token, refresh_token, access_exp, refresh_exp = await issue_session(
+        redis, user, kick=True
+    )
 
     # 设 refresh cookie
     _set_refresh_cookie(response, refresh_token, refresh_exp)

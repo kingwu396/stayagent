@@ -1,4 +1,4 @@
-.PHONY: help install dev backend frontend redis seed seed-tips localize-images test check build clean
+.PHONY: help install dev backend frontend redis seed seed-tips localize-images mcp test check build clean
 
 help:
 	@echo "StayAgent 开发命令:"
@@ -10,6 +10,7 @@ help:
 	@echo "  make seed      - 填充 1000 条房源演示数据 + 图片本地化下载 (幂等, 含 3 个演示房东)"
 	@echo "  make seed-tips - 填充 30 条 RAG 旅游知识库"
 	@echo "  make localize-images - 只跑图片本地化 (make seed 已内含; 服务器单独续传/rsync 后用)"
+	@echo "  make mcp       - 前台启动 MCP stdio server (接入 Claude 见 docs/mcp.md)"
 	@echo "  make test      - 跑后端全部验证脚本 (需先 seed + MySQL/Redis)"
 	@echo "  make check     - 前端类型检查 + 生产构建"
 	@echo "  make build     - 只构建前端产物 (dist/)"
@@ -55,12 +56,17 @@ localize-images:
 	@echo "🖼  picsum 图片本地化 (下载 ~2900 张到 backend/uploads/images/, 约 2-3 分钟)..."
 	cd backend && uv run python -m scripts.localize_images
 
+mcp:
+	@echo "🔌 启动 MCP stdio server (Claude Code/Desktop 接入见 docs/mcp.md)..."
+	cd backend && uv run python -m app.mcp
+
 test:
 	@echo "🧪 跑后端验证脚本..."
 	cd backend && uv run python -m scripts.test_host_block27
 	cd backend && uv run python -m scripts.test_host_dashboard
 	cd backend && uv run python -m scripts.test_agent_block11_5
 	cd backend && uv run python -m scripts.test_agent_block12
+	cd backend && uv run python -m scripts.test_agent_block35
 
 check:
 	@echo "🔎 前端类型检查..."

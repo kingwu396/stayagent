@@ -135,6 +135,18 @@ make dev       # 同时启动前后端, Ctrl+C 一起关
 
 ---
 
+## 🔌 MCP Server
+
+把 StayAgent 接入 Claude Desktop / Claude Code（MCP 协议）：直接对话式搜房源、查空位/可订日历、收藏、下单、查行程。15 个工具（8 只读免登录 + 6 用户工具 + login），与站内 AI Agent 复用同一套工具层，schema 单一事实源零漂移。
+
+```bash
+claude mcp add stayagent -- uv run --directory ./backend python -m app.mcp
+```
+
+详见 [docs/mcp.md](docs/mcp.md)。
+
+---
+
 ## 🧪 验证
 
 ```bash

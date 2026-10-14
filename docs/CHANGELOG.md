@@ -1823,3 +1823,13 @@ run_started → step_started → step_completed → ... → final → done
 - 同设备双标签页不受影响 (共享 refresh cookie, 旧标签页自动续期自愈)
 - 实测: A 登录→B 登录后 A access 401/A refresh 401 "已撤销"/B 正常; 登出→重登正常
 - 后端+前端; 服务器 git pull + pnpm run build + systemctl restart stayagent
+
+**Block 35: MCP Server —— StayAgent 接入 Claude Desktop / Claude Code**:
+- 需求: 让 MCP 客户端直接操作平台 (搜房源/查空位日历/收藏/下单/行程), 本地 stdio transport, 登录后全量工具
+- 复用不重写: schema 单一事实源 = tool_schemas.py 原样透传 (低层 Server list_tools, 零漂移, 测试有逐字段相等断言); 实现 = TOOL_DISPATCH 直接分发。用官方 mcp SDK 低层 Server 而非 FastMCP (FastMCP 从函数注解生成 schema, 无塞入已有 schema 的入口)
+- 工具: 15 个 = stayagent_login + 8 只读 (免登录) + 6 用户工具; 白名单显式列举, tool_schemas 新增工具默认不自动进 MCP
+- 独立会话: auth.py 抽取 issue_session(redis, user, *, kick), login 端点 kick=True 行为不变; MCP 用 kick=False 只发 token 不碰 session_* 槽 —— 与浏览器会话互不踢 (否则 Block 34 互踢 15 分钟内必死一个); 已知取舍: 单会话约束对 MCP 会话不生效, 最长存活至 refresh 自然过期 (7 天)
+- 会话管理 (app/mcp/state.py): 进程内存单会话; access 失效/被拉黑自动 refresh rotation (同款 GETDEL Lua); resolve_user 为 deps.get_current_user 的非 FastAPI 移植
+- 工程细节: 同步 pymysql 分发丢 anyio.to_thread (防冻结 stdio 事件循环), async 工具 (parse/recommend 依赖事件循环绑定的 LLM 客户端) 留事件循环; ToolError → CallToolResult(isError=True) 中文透传; stdio 严禁 stdout 输出, 日志走 stderr; python -m app.mcp 需包 __main__.py
+- 测试 scripts/test_agent_block35.py 21 用例全过 (列表/schema 漂移/独立会话核心断言/rotation/分发/stdio 子进程握手); 回归 Block 34 踢人行为不变 + Block 27 5/5
+- 文档: docs/mcp.md (接入/登录模型边界/排查表) + README 新增 MCP 小节; make test 收编
