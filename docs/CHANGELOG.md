@@ -1814,3 +1814,12 @@ run_started → step_started → step_completed → ... → final → done
 - 注册: TOOL_DISPATCH + ALL_TOOL_SCHEMAS (12→14) + tool_schemas 头注释
 - 测试 scripts/test_agent_block33.py: 26 用例全过 (注册链路/空位与价格/重叠与首尾相接/cancelled 不占位/pending 占位/参数校验/日历裁剪/days 边界); 回归 test_host_block27 5/5
 - 纯后端 (LLM function calling 自治, 前端 AgentPanel 通用渲染无需改); 服务器需重启 stayagent
+
+**Block 34: 单会话登录 (新登录踢掉其他设备)**:
+- 需求: 防止两台设备同时登录, 一台登录就把另一台踢下线
+- 机制: Redis 每用户只记"当前会话" jti 对 (session_access/session_refresh:{user_id}, TTL 与 token 一致). 新登录 _kick_previous_session: 旧 access jti 进黑名单 (deps.py 每请求已查 → 旧设备下一次请求立即 401), 旧 refresh 白名单条目删除 (续期失败 → 前端自动登出). 无宽限期
+- refresh rotation 同步更新绑定 + 防御性拉黑旧 access; logout 清会话绑定防幽灵会话
+- 前端: doRefresh 派发 auth-expired 时带服务端原因, auth store 监听弹 toast — "您的账号已在其他设备登录，当前设备已下线" (被踢) / "登录已过期，请重新登录" (自然过期); 顺带消除 request 拦截器路径的重复派发
+- 同设备双标签页不受影响 (共享 refresh cookie, 旧标签页自动续期自愈)
+- 实测: A 登录→B 登录后 A access 401/A refresh 401 "已撤销"/B 正常; 登出→重登正常
+- 后端+前端; 服务器 git pull + pnpm run build + systemctl restart stayagent

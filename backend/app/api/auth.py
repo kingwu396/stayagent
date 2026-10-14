@@ -65,6 +65,37 @@ def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/api/auth")
 
 
+# ============ 单会话 (Block 34): 新登录踢掉其他设备 ============
+# 每用户在 Redis 只保留"当前会话"的 jti 对. 新登录时:
+#   1. 旧 access jti 进黑名单 → deps.py 每请求都查黑名单, 旧设备下一次请求立即 401
+#   2. 旧 refresh 白名单条目删除 → 旧设备续期失败, 前端 auth-expired 流程自动登出
+
+async def _kick_previous_session(redis, user_id: int) -> None:
+    """把该用户之前的会话作废 (旧 access 拉黑 + 旧 refresh 白名单删除)"""
+    old_access_jti = await redis.get(f"session_access:{user_id}")
+    if old_access_jti:
+        # 不知道旧 token 剩余寿命, 按 access 最长寿命拉黑 (15 分钟后自动过期, 无残留)
+        await redis.set(
+            f"access_blacklist:{old_access_jti}", "1",
+            ex=settings.access_token_expire_minutes * 60,
+        )
+    old_refresh_jti = await redis.get(f"session_refresh:{user_id}")
+    if old_refresh_jti:
+        await redis.delete(f"refresh:{old_refresh_jti}")
+
+
+async def _bind_session(redis, user_id: int, access_jti: str, refresh_jti: str) -> None:
+    """记录该用户当前会话的 jti 对, TTL 与对应 token 一致"""
+    await redis.set(
+        f"session_access:{user_id}", access_jti,
+        ex=settings.access_token_expire_minutes * 60,
+    )
+    await redis.set(
+        f"session_refresh:{user_id}", refresh_jti,
+        ex=settings.refresh_token_expire_days * 86400,
+    )
+
+
 def _extract_jti(token: str) -> str:
     """从 JWT 中提取 jti（不验签，只读 payload）"""
     try:
@@ -123,6 +154,10 @@ async def login(payload: LoginRequest, response: Response, db: DBSession):
     await _require_redis()
     redis = await get_redis()
     await redis.set(f"refresh:{refresh_jti}", str(user.id), ex=refresh_exp)
+
+    # Block 34: 单会话 — 新登录作废旧会话 (其他设备被踢下线)
+    await _kick_previous_session(redis, user.id)
+    await _bind_session(redis, user.id, _access_jti, refresh_jti)
 
     # 设 refresh cookie
     _set_refresh_cookie(response, refresh_token, refresh_exp)
@@ -183,6 +218,15 @@ async def refresh(
     new_refresh, new_refresh_jti, refresh_exp = create_refresh_token(user.id)
     await redis.set(f"refresh:{new_refresh_jti}", str(user.id), ex=refresh_exp)
 
+    # Block 34: rotation 更新会话绑定; 旧 access 拉黑 (正常流转时它已过期, 拉黑是防御性兜底)
+    old_access_jti = await redis.get(f"session_access:{user_id}")
+    if old_access_jti:
+        await redis.set(
+            f"access_blacklist:{old_access_jti}", "1",
+            ex=settings.access_token_expire_minutes * 60,
+        )
+    await _bind_session(redis, user.id, _na_jti, new_refresh_jti)
+
     _set_refresh_cookie(response, new_refresh, refresh_exp)
 
     return LoginResponse(
@@ -204,10 +248,15 @@ async def logout(
     redis = await get_redis()
 
     # 1. 撤销 refresh
+    user_id_for_session: int | None = None
     if refresh_token:
         payload = decode_token(refresh_token, expected_type="refresh")
         if payload and payload.get("jti"):
             await redis.delete(f"refresh:{payload['jti']}")
+            try:
+                user_id_for_session = int(payload.get("sub", ""))
+            except ValueError:
+                pass
 
     # 2. access 黑名单（TTL = 剩余有效秒数）
     if authorization:
@@ -218,6 +267,10 @@ async def logout(
                 remaining = int(payload["exp"]) - int(datetime.now(timezone.utc).timestamp())
                 if remaining > 0:
                     await redis.set(f"access_blacklist:{payload['jti']}", "1", ex=remaining)
+
+    # 3. Block 34: 清会话绑定 (登出后重新登录不再"踢"到幽灵会话)
+    if user_id_for_session:
+        await redis.delete(f"session_access:{user_id_for_session}", f"session_refresh:{user_id_for_session}")
 
     _clear_refresh_cookie(response)
     return LogoutResponse()

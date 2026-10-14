@@ -40,9 +40,8 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   if (token && isTokenExpired(token)) {
     const fresh = await refreshAccessToken()
     if (!fresh) {
-      // 续期失败(cookie 也失效) → 通知 auth store 清理, 并拒发这条必败请求(不产生 401)
+      // 续期失败(cookie 也失效) → doRefresh 内部已派发 auth-expired (带原因), 这里只清状态 + 拒发必败请求
       clearToken()
-      window.dispatchEvent(new CustomEvent('stayagent:auth-expired'))
       const err = new Error('登录已过期') as Error & { handled?: boolean }
       err.handled = true
       return Promise.reject(err)
@@ -74,7 +73,10 @@ async function doRefresh(): Promise<string | null> {
     const newAccess = res.data.access_token
     setToken(newAccess)
     return newAccess
-  } catch {
+  } catch (err: any) {
+    // 带上服务端原因: 被其他设备踢下线时 detail 是 "refresh token 已撤销，请重新登录"
+    const detail = err?.response?.data?.detail
+    window.dispatchEvent(new CustomEvent('stayagent:auth-expired', { detail: { reason: detail } }))
     return null
   }
 }

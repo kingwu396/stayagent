@@ -4,6 +4,7 @@ import { authApi } from '@/api/auth'
 import { getToken, setToken, clearToken } from '@/api/client'
 import type { User } from '@/api/auth'
 import { apiErrorText } from '@/lib/utils'
+import { useToastStore } from './toast'
 
 interface AuthState {
   user: User | null
@@ -21,10 +22,16 @@ interface AuthState {
 }
 
 // Block 24: client 拦截器续期失败时广播 —— 清干净登录态, 停掉后续必败请求
+// Block 34: 顺带用 toast 告知下线原因 (被其他设备踢 vs 自然过期)
 if (typeof window !== 'undefined') {
-  window.addEventListener('stayagent:auth-expired', () => {
+  window.addEventListener('stayagent:auth-expired', (e) => {
     clearToken()
     useAuthStore.setState({ token: null, user: null })
+    const reason = (e as CustomEvent).detail?.reason as string | undefined
+    const msg = reason && reason.includes('撤销')
+      ? '您的账号已在其他设备登录，当前设备已下线'
+      : '登录已过期，请重新登录'
+    useToastStore.getState().add('warning', msg)
   })
 }
 
