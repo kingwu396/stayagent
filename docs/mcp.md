@@ -1,6 +1,15 @@
-# StayAgent MCP Server（Block 35）
+# StayAgent MCP Server（Block 35 本地 stdio / Block 36 远程 HTTP）
 
 把 StayAgent 接入 MCP（Model Context Protocol），让 Claude Desktop / Claude Code 直接操作平台：搜房源、查空位/可订日历、收藏、下单、查行程、查旅行贴士。
+
+两种运行方式（共用同一套 Server / 工具 / 登录态，仅传输通道不同）：
+
+| | 本地 stdio（Block 35） | 远程 HTTP（Block 36） |
+|---|---|---|
+| 进程 | Claude 启动时自动拉起子进程 | 服务器常驻 uvicorn（systemd） |
+| 通道 | stdin/stdout 管道（不占端口） | `/mcp` 端点（Streamable HTTP） |
+| 门禁 | 天然私有（仅本机 Claude） | Bearer token（`MCP_HTTP_TOKEN`） |
+| 适用 | 自己日常用 | 面试官/他人远程连 |
 
 ## 工具列表（15 个）
 
@@ -77,3 +86,25 @@ claude mcp add stayagent -- uv run --directory /Users/drunk/myProject/stayagent/
 cd backend && uv run python -m scripts.test_agent_block35
 # 21 个用例: 工具列表/schema 零漂移 / 独立会话(不踢浏览器) / rotation 自愈 / 分发与错误映射 / stdio 子进程握手
 ```
+
+## 远程 HTTP 接入（Block 36，部署到服务器）
+
+服务器端配置见 [DEPLOY.md 第 8 节](DEPLOY.md)（`.env` 加 `MCP_HTTP_TOKEN` → systemd 起独立 uvicorn `:8001` → Nginx 反代 `/mcp`）。本地快速试跑：
+
+```bash
+cd backend && MCP_HTTP_TOKEN=test-token uv run uvicorn app.mcp.http_app:app --port 8001
+```
+
+客户端接入：
+
+```bash
+claude mcp add --transport http --scope user stayagent-remote https://your-domain.com/mcp \
+  --header "Authorization: Bearer <MCP_HTTP_TOKEN 的值>"
+```
+
+要点：
+
+- **Bearer 门禁**：所有请求必须带 token（401 拒绝）；token 只保护 server，用户身份仍由 `stayagent_login` 建立（独立会话机制与 stdio 完全一致）
+- **stateless 传输**：不维护跨请求 mcp-session-id，uvicorn 重启客户端无感，抗代理/抗断连
+- **单登录态**：进程内存保存会话，多客户端同时连接共享最后一次登录的用户（个人演示场景够用）
+- 验证：`cd backend && uv run python -m scripts.test_agent_block36`（门禁 401 / 握手 / list_tools / 只读与 AUTH_REQUIRED 全链路）

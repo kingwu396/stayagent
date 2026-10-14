@@ -343,3 +343,67 @@ cd ../frontend && pnpm install && pnpm run build   # 前端产物即改即生效
 ```
 
 恢复：`mysql -u stayagent -p stayagent < 备份文件.sql`
+
+---
+
+## 8. MCP HTTP Server（可选, Block 36）
+
+让远程 MCP 客户端（Claude Code / Claude Desktop / 任何 MCP 客户端）连服务器上的 StayAgent。与站点主服务**相互独立**，站点不部署 MCP 也照常运行。
+
+### 8.1 配置
+
+`backend/.env` 追加门禁 token（自己生成随机长串，如 `openssl rand -hex 32`）：
+
+```bash
+MCP_HTTP_TOKEN=<随机长串>
+```
+
+### 8.2 systemd 常驻
+
+```bash
+sudo tee /etc/systemd/system/stayagent-mcp.service > /dev/null << 'UNIT'
+[Unit]
+Description=StayAgent MCP HTTP Server
+After=network.target mysql.service redis-server.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/stayagent/backend
+ExecStart=/opt/stayagent/backend/.venv/bin/uvicorn app.mcp.http_app:app --host 127.0.0.1 --port 8001
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+sudo systemctl daemon-reload && sudo systemctl enable --now stayagent-mcp
+```
+
+### 8.3 Nginx 反代（主 server 块内追加）
+
+```nginx
+    location /mcp {
+        proxy_pass http://127.0.0.1:8001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 300s;
+    }
+```
+
+`sudo nginx -t && sudo systemctl reload nginx`。
+
+### 8.4 客户端接入
+
+```bash
+claude mcp add --transport http --scope user stayagent-remote https://your-domain.com/mcp \
+  --header "Authorization: Bearer <MCP_HTTP_TOKEN 的值>"
+```
+
+### 8.5 安全边界
+
+- Bearer token 是整台 server 的门禁（拿到就能调全部工具），务必走 HTTPS、不要进 git
+- 用户身份由 `stayagent_login` 工具建立（独立会话），进程级单登录态：多客户端同时连接共享最后一次登录的用户
+- 只读工具（搜索/详情/空位/日历/贴士）登录前即可用，数据与站点公开接口一致
+
+> 更新: `git pull` 后 `sudo systemctl restart stayagent-mcp`（与主服务互不影响）。

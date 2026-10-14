@@ -1833,3 +1833,10 @@ run_started → step_started → step_completed → ... → final → done
 - 工程细节: 同步 pymysql 分发丢 anyio.to_thread (防冻结 stdio 事件循环), async 工具 (parse/recommend 依赖事件循环绑定的 LLM 客户端) 留事件循环; ToolError → CallToolResult(isError=True) 中文透传; stdio 严禁 stdout 输出, 日志走 stderr; python -m app.mcp 需包 __main__.py
 - 测试 scripts/test_agent_block35.py 21 用例全过 (列表/schema 漂移/独立会话核心断言/rotation/分发/stdio 子进程握手); 回归 Block 34 踢人行为不变 + Block 27 5/5
 - 文档: docs/mcp.md (接入/登录模型边界/排查表) + README 新增 MCP 小节; make test 收编
+
+**Block 36: MCP Server 远程部署 (Streamable HTTP + Bearer 门禁)**:
+- 需求: 让远程 MCP 客户端连服务器上的 StayAgent (面试官/他人可接), 与本地 stdio 版共用同一套 Server/工具/登录态
+- 传输: app/mcp/http_app.py 用 SDK StreamableHTTPSessionManager 包低层 Server 挂 Starlette /mcp; stateless=True + json_response=True (抗代理/重启, 客户端无感); 门禁 = Authorization: Bearer <MCP_HTTP_TOKEN> (.env 配置, 未配置 lifespan 拒绝启动, 401 拒绝匿名)
+- 部署: DEPLOY.md 第 8 节 —— .env 加 token / systemd 独立服务 stayagent-mcp :8001 / nginx location /mcp (与主服务互不影响); 客户端 claude mcp add --transport http + header
+- 已知边界: 登录态进程内存单会话, 多客户端共享最后一次登录用户 (个人演示够用); token 拿到即可调全部工具, 必须 HTTPS
+- 测试 scripts/test_agent_block36.py 6 用例全过 (401 门禁/官方 streamablehttp_client 握手/list_tools 15/只读透传/AUTH_REQUIRED); make mcp-http 本地起服; make test 收编

@@ -1,4 +1,4 @@
-.PHONY: help install dev backend frontend redis seed seed-tips localize-images mcp test check build clean
+.PHONY: help install dev backend frontend redis seed seed-tips localize-images mcp mcp-http test check build clean
 
 help:
 	@echo "StayAgent 开发命令:"
@@ -11,6 +11,7 @@ help:
 	@echo "  make seed-tips - 填充 30 条 RAG 旅游知识库"
 	@echo "  make localize-images - 只跑图片本地化 (make seed 已内含; 服务器单独续传/rsync 后用)"
 	@echo "  make mcp       - 前台启动 MCP stdio server (接入 Claude 见 docs/mcp.md)"
+	@echo "  make mcp-http  - 启动 MCP HTTP server :8001/mcp (远程接入, 需 MCP_HTTP_TOKEN)"
 	@echo "  make test      - 跑后端全部验证脚本 (需先 seed + MySQL/Redis)"
 	@echo "  make check     - 前端类型检查 + 生产构建"
 	@echo "  make build     - 只构建前端产物 (dist/)"
@@ -60,6 +61,10 @@ mcp:
 	@echo "🔌 启动 MCP stdio server (Claude Code/Desktop 接入见 docs/mcp.md)..."
 	cd backend && uv run python -m app.mcp
 
+mcp-http:
+	@echo "🌐 启动 MCP HTTP server (http://127.0.0.1:8001/mcp, 门禁见 docs/mcp.md)..."
+	cd backend && uv run uvicorn app.mcp.http_app:app --port 8001
+
 test:
 	@echo "🧪 跑后端验证脚本..."
 	cd backend && uv run python -m scripts.test_host_block27
@@ -67,6 +72,7 @@ test:
 	cd backend && uv run python -m scripts.test_agent_block11_5
 	cd backend && uv run python -m scripts.test_agent_block12
 	cd backend && uv run python -m scripts.test_agent_block35
+	cd backend && uv run python -m scripts.test_agent_block36
 
 check:
 	@echo "🔎 前端类型检查..."

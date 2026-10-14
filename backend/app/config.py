@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     # Block 27: 房源图片上传目录 (相对 backend 运行目录)
     upload_dir: str = "./uploads/images"
 
+    # Block 36: MCP HTTP 传输的门禁 token (公网部署必须设置, 客户端带 Authorization: Bearer <token>)
+    mcp_http_token: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
