@@ -1,8 +1,8 @@
 FROM python:3.12-slim
 
-# 国内网络加速：pip 和 uv 都走清华源
-ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
-ENV UV_DEFAULT_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
+# 国内网络加速: 阿里云 PyPI 镜像 (ECS 内网访问, 实测比公网清华源快一个数量级)
+ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ENV UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple/
 
 WORKDIR /app
 
