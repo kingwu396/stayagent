@@ -20,11 +20,23 @@ dependencies = [
     "tenacity>=8.2.0",
     "pdfplumber>=0.11.0",
     "sentence-transformers>=3.0.0",
+    # RAG embedding 底层. 显式声明以强制走下方 pytorch-cpu 源:
+    # 服务器无 GPU, 默认全量 torch 会拖进 ~1GB 的 CUDA 库 (cudnn/triton), 纯浪费
+    "torch>=2.2",
     "numpy>=1.24.0",
     "python-multipart>=0.0.9",
     "fpdf2>=2.8.9",
     "mcp>=1.2,<2",
 ]
+
+# torch 锁定 CPU 版 (~200MB, 无 CUDA 依赖)
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [build-system]
 requires = ["hatchling"]
