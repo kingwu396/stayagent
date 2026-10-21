@@ -407,3 +407,55 @@ claude mcp add --transport http --scope user stayagent-remote https://your-domai
 - 只读工具（搜索/详情/空位/日历/贴士）登录前即可用，数据与站点公开接口一致
 
 > 更新: `git pull` 后 `sudo systemctl restart stayagent-mcp`（与主服务互不影响）。
+
+---
+
+## 9. Docker 部署（可选, 替代第 3/4 节的原生部署）
+
+四个容器: mysql + redis + backend(uvicorn) + frontend(nginx 托管 dist 并反代 /api)。数据落在 named volume（mysql-data / uploads / hf-cache），重建容器不丢。
+
+### 9.1 首次部署
+
+```bash
+cd /opt/stayagent && git pull origin main
+
+# ① 根目录 .env: mysql 容器初始化用 (值与 backend/.env 的同名三项保持一致)
+cat > .env << 'ENV'
+MYSQL_DB=stayagent
+MYSQL_USER=stayagent
+MYSQL_PASSWORD=与 backend/.env 的 MYSQL_PASSWORD 一致
+ENV
+
+# ② 停掉原生服务, 释放 80/8000 端口
+sudo systemctl disable --now stayagent nginx   # 原生 nginx 若没装过会报错, 忽略
+
+# ③ 构建并启动
+docker compose up -d --build
+
+# ④ 初始化数据 (二选一)
+#    A. 从原生 MySQL 迁移老数据:
+mysqldump -uroot -p stayagent > /tmp/stayagent.sql
+docker compose exec -T mysql mysql -u stayagent -p stayagent < /tmp/stayagent.sql
+#    B. 全新演示数据:
+docker compose exec backend .venv/bin/python -m scripts.seed_listings
+docker compose exec backend .venv/bin/python -m scripts.seed_travel_tips
+
+# ⑤ 图片本地化 (老服务器已有图片则用 docker cp 迁移, 免重下 2900 张):
+docker cp /opt/stayagent/backend/uploads/images/. stayagent-backend-1:/app/uploads/images/
+docker compose exec backend .venv/bin/python -m scripts.localize_images   # 校验补漏, 已有的秒过
+```
+
+访问 `http://服务器IP` 即可（frontend 容器占 80，内部已反代 /api）。
+
+### 9.2 日常更新
+
+```bash
+cd /opt/stayagent && git pull origin main
+docker compose up -d --build        # 代码变了会重建镜像, 数据在 volume 里不受影响
+```
+
+### 9.3 注意事项
+
+- compose 的 mysql 初始化变量从**根目录 `.env`** 插值（`${MYSQL_DB:?...}` 缺失会直接报错拦住），backend 的 `MYSQL_HOST/REDIS_URL` 由 compose 强制覆盖为服务名，`backend/.env` 其余项照常生效
+- MCP HTTP（第 8 节）未纳入 compose，仍走独立 systemd；如需容器化，在 compose 加一个 `mcp` 服务（同 backend 镜像，command 换 uvicorn app.mcp.http_app:app）并给 frontend nginx 加 `location /mcp` 反代
+- 备份: `docker compose exec mysql sh -c 'mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" stayagent' > backup.sql`
